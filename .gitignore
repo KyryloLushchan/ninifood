@@ -1,0 +1,4 @@
+.env
+_ref-ninisushi/
+node_modules/
+.DS_Store

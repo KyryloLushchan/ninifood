@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NiniFood</title>
+  <meta name="description" content="NiniFood — домашние обеды из 4 блюд с доставкой по Дананге">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Lora + Nunito: Google отдаёт нужные subsets (latin, latin-ext, cyrillic, cyrillic-ext, vietnamese) по unicode-range -->
+  <link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- SVG-спрайт иконок -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <symbol id="i-telegram" viewBox="0 0 24 24">
+    <path fill="currentColor" d="M21.6 3.4 2.9 10.6c-1.1.4-1.1 1.1-.2 1.3l4.8 1.5 1.8 5.6c.2.6.4.8.8.8.4 0 .6-.2.9-.4l2.3-2.2 4.8 3.5c.9.5 1.5.2 1.7-.8L23 4.9c.3-1.2-.5-1.8-1.4-1.5ZM9 13.6l9.6-6c.4-.3.8-.1.5.2l-8 7.2-.3 3.3L9 13.6Z"/>
+  </symbol>
+  <symbol id="i-instagram" viewBox="0 0 24 24">
+    <rect x="3" y="3" width="18" height="18" rx="5" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="2"/>
+    <circle cx="17.3" cy="6.7" r="1.3" fill="currentColor"/>
+  </symbol>
+  <symbol id="i-whatsapp" viewBox="0 0 24 24">
+    <path fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" d="M12 3a9 9 0 0 0-7.8 13.5L3 21l4.6-1.2A9 9 0 1 0 12 3Z"/>
+    <path fill="currentColor" d="M9 7.8c-.4.4-.8 1.1-.6 2 .4 1.6 2.7 4.3 5.3 5 .9.2 1.6-.2 2-.7.2-.3.3-.8 0-1l-1.6-.9c-.3-.1-.6 0-.8.2l-.5.6c-1-.3-2-1.2-2.5-2.2l.5-.5c.2-.2.3-.5.1-.8l-.8-1.7c-.2-.4-.8-.4-1.1 0Z"/>
+  </symbol>
+  <symbol id="f-ua" viewBox="0 0 24 16"><rect width="24" height="8" fill="#0057b7"/><rect y="8" width="24" height="8" fill="#ffd700"/></symbol>
+  <symbol id="f-ru" viewBox="0 0 24 16"><rect width="24" height="16" fill="#fff"/><rect y="5.33" width="24" height="5.34" fill="#0039a6"/><rect y="10.67" width="24" height="5.33" fill="#d52b1e"/></symbol>
+  <symbol id="f-gb" viewBox="0 0 24 16"><rect width="24" height="16" fill="#012169"/><path d="M0 0l24 16M24 0L0 16" stroke="#fff" stroke-width="3"/><path d="M0 0l24 16M24 0L0 16" stroke="#c8102e" stroke-width="1.2"/><path d="M12 0v16M0 8h24" stroke="#fff" stroke-width="5"/><path d="M12 0v16M0 8h24" stroke="#c8102e" stroke-width="3"/></symbol>
+  <symbol id="f-vn" viewBox="0 0 24 16"><rect width="24" height="16" fill="#da251d"/><polygon fill="#ffff00" points="12,3.4 13.03,6.58 16.37,6.58 13.67,8.54 14.7,11.72 12,9.76 9.3,11.72 10.33,8.54 7.63,6.58 10.97,6.58"/></symbol>
+  <symbol id="i-dish" viewBox="0 0 48 48">
+    <circle cx="24" cy="24" r="16" fill="none" stroke="currentColor" stroke-width="2.5"/>
+    <circle cx="24" cy="24" r="9" fill="none" stroke="currentColor" stroke-width="2.5"/>
+  </symbol>
+</svg>
+
+<header class="site-header">
+  <div class="container header-inner">
+    <a class="logo" href="#top" aria-label="NiniFood">Nini<span>Food</span></a>
+    <div class="header-right">
+      <div class="lang-switch" id="langSwitch">
+        <button type="button" class="lang-current" id="langCurrent" aria-haspopup="listbox" aria-expanded="false"></button>
+        <div class="lang-menu" id="langMenu" role="listbox" hidden></div>
+      </div>
+      <div class="social social-icons" data-social="icons"></div>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- Hero -->
+  <section class="hero">
+    <div class="container hero-inner">
+      <h1 data-i18n="heroTitle">Домашний обед из 4 блюд каждый день</h1>
+      <p class="hero-sub" data-i18n="heroSub"></p>
+      <button type="button" class="btn btn-primary btn-xl" id="heroOrderBtn"></button>
+      <p class="today-line"><span data-i18n="todayAsk"></span> <a data-today-telegram data-i18n="todayLink" target="_blank" rel="noopener"></a></p>
+    </div>
+  </section>
+
+  <!-- Меню -->
+  <section class="section" id="menu">
+    <div class="container">
+      <h2 data-i18n="menuTitle"></h2>
+      <p class="section-sub" id="menuSub"></p>
+      <div class="tabs" id="dayTabs" role="tablist"></div>
+      <div class="dishes" id="dishes" role="tabpanel"></div>
+      <p class="today-line"><span data-i18n="todayAsk"></span> <a data-today-telegram data-i18n="todayLink" target="_blank" rel="noopener"></a></p>
+    </div>
+  </section>
+
+  <!-- Подписка -->
+  <section class="section section-alt" id="subscription">
+    <div class="container">
+      <div class="sub-card">
+        <div class="sub-info">
+          <h2 data-i18n="subTitle"></h2>
+          <p data-i18n="subText"></p>
+          <ul class="check-list" id="subPoints"></ul>
+        </div>
+        <div class="sub-buy">
+          <div class="sub-price-label" data-i18n="subPriceLabel"></div>
+          <div class="sub-price" id="subPrice"></div>
+          <button type="button" class="btn btn-primary btn-lg" id="subBtn" data-i18n="subBtn"></button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Как это работает -->
+  <section class="section" id="how">
+    <div class="container">
+      <h2 data-i18n="howTitle"></h2>
+      <ol class="steps" id="steps"></ol>
+    </div>
+  </section>
+
+  <!-- Условия -->
+  <section class="section section-alt" id="terms">
+    <div class="container">
+      <h2 data-i18n="condTitle"></h2>
+      <ul class="check-list" id="conditions"></ul>
+    </div>
+  </section>
+
+  <!-- Контакты -->
+  <section class="section" id="contacts">
+    <div class="container">
+      <h2 data-i18n="contactsTitle"></h2>
+      <p data-i18n="contactsText"></p>
+      <div class="social social-full" data-social="full"></div>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <span class="logo logo-sm">Nini<span>Food</span></span>
+    <span data-i18n="footerNote"></span>
+  </div>
+</footer>
+
+<!-- Выбор языка при первом визите -->
+<div class="modal" id="langModal" role="dialog" aria-modal="true" aria-labelledby="langModalTitle" hidden>
+  <div class="modal-card">
+    <div class="logo logo-lg">Nini<span>Food</span></div>
+    <h2 id="langModalTitle">Оберіть мову · Выберите язык · Choose language · Chọn ngôn ngữ</h2>
+    <div class="lang-grid" id="langGrid"></div>
+  </div>
+</div>
+
+<script src="i18n.js"></script>
+<script src="mock-menu.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
