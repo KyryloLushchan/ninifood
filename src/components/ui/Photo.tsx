@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { withBasePath } from '@/lib/base-path';
 
 interface Props {
   src: string | null;
@@ -12,7 +13,7 @@ interface Props {
 export function Photo({ src, alt = '', className = '', caption, captionClassName = '' }: Props) {
   if (src) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={src} alt={alt} className={`object-cover ${className}`} />;
+    return <img src={withBasePath(src)} alt={alt} className={`object-cover ${className}`} />;
   }
   return (
     <div className={`flex items-end bg-stripes ${className}`} role="img" aria-label={alt}>
