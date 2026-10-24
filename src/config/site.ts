@@ -8,6 +8,9 @@ export const PRICE_SUB_PER_DAY = PRICE_SUB / SUB_DAYS;
 /** Сколько ближайших дней доступно для разового заказа и показывается в меню. */
 export const BOOKABLE_DAYS = 6;
 
+/** Подписку можно оформить на будние дни из ближайших N дней (кроме сегодня), даже если меню ещё не опубликовано. */
+export const SUB_WINDOW_DAYS = 14;
+
 export const DELIVERY_FROM = '14:00';
 export const DELIVERY_TO = '16:00';
 export const TODAY_ORDER_DEADLINE = '10:00';

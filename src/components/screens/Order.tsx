@@ -93,12 +93,12 @@ function OnceDays() {
 
 function SubDays() {
   const { t, lang } = useI18n();
-  const { availableDays, subDays, toggleSubDay } = useApp();
+  const { subscriptionDays, menu, subDays, toggleSubDay } = useApp();
   const [full, setFull] = useState(false);
   const count = subDays.length;
 
   const weeks = new Map<string, string[]>();
-  for (const d of availableDays.filter(isWeekday)) {
+  for (const d of subscriptionDays) {
     const k = weekStart(d);
     weeks.set(k, [...(weeks.get(k) ?? []), d]);
   }
@@ -128,7 +128,7 @@ function SubDays() {
             {[0, 1, 2, 3, 4].map((i) => {
               const d = list.find((x) => new Date(`${x}T00:00:00Z`).getUTCDay() === i + 1);
               return d ? (
-                <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={subDays.includes(d)} onClick={() => onToggle(d)} />
+                <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={subDays.includes(d)} noMenu={!menu[d]} onClick={() => onToggle(d)} />
               ) : (
                 <div key={i} />
               );
@@ -136,6 +136,12 @@ function SubDays() {
           </div>
         </div>
       ))}
+      {subscriptionDays.some((d) => !menu[d]) && (
+        <div className="flex items-center gap-2 text-[13px] text-ink-muted">
+          <span className="h-3.5 w-5 rounded-[5px] border border-dashed border-ink-muted" />
+          {t('home.noDays')}
+        </div>
+      )}
       {full && <div className="text-[13px] font-bold text-accent">{t('sub.full')}</div>}
     </div>
   );

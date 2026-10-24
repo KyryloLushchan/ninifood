@@ -1,10 +1,10 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BOOKABLE_DAYS, SUB_DAYS } from '@/config/site';
+import { BOOKABLE_DAYS, SUB_DAYS, SUB_WINDOW_DAYS } from '@/config/site';
 import { fetchMenu, type Menu } from '@/data/mock-menu';
 import { useI18n } from '@/i18n';
-import { isSunday, isWeekday, todayISO } from '@/lib/dates';
+import { addDays, isSunday, isWeekday, todayISO } from '@/lib/dates';
 import { onceTotal, subTotal, type OrderType } from '@/lib/pricing';
 import { generateOrderId, submitOrder } from '@/lib/submit-order';
 
@@ -39,6 +39,8 @@ interface AppValue {
   /** Ближайшие BOOKABLE_DAYS дней: их видно в меню и можно выбрать в разовом заказе. */
   bookableDays: string[];
   nearestDay: string | null;
+  /** Будние дни ближайших 2 недель (кроме сегодня) — кандидаты для подписки, независимо от наличия меню. */
+  subscriptionDays: string[];
 
   orderType: OrderType;
   setOrderType: (t: OrderType) => void;
@@ -124,12 +126,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const availableSet = useMemo(() => new Set(availableDays), [availableDays]);
   const bookableSet = useMemo(() => new Set(bookableDays), [bookableDays]);
-  const weekdayDays = useMemo(() => availableDays.filter(isWeekday), [availableDays]);
+  const subscriptionDays = useMemo(
+    () =>
+      today
+        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + 1)).filter(isWeekday)
+        : [],
+    [today],
+  );
+  const subscriptionSet = useMemo(() => new Set(subscriptionDays), [subscriptionDays]);
 
   const onceDays = useMemo(() => onceDaysRaw.filter((d) => bookableSet.has(d)).sort(), [onceDaysRaw, bookableSet]);
   const subDays = useMemo(
-    () => (subDaysRaw ? subDaysRaw.filter((d) => availableSet.has(d)) : weekdayDays.slice(0, SUB_DAYS)).sort(),
-    [subDaysRaw, availableSet, weekdayDays],
+    () => (subDaysRaw ? subDaysRaw.filter((d) => subscriptionSet.has(d)) : subscriptionDays.slice(0, SUB_DAYS)).sort(),
+    [subDaysRaw, subscriptionSet, subscriptionDays],
   );
 
   const days = orderType === 'once' ? onceDays : subDays;
@@ -222,6 +231,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     availableDays,
     bookableDays,
     nearestDay,
+    subscriptionDays,
     orderType,
     setOrderType,
     onceDays,
