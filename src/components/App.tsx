@@ -1,6 +1,7 @@
 'use client';
 
 import { I18nProvider } from '@/i18n';
+import { useKeyboardAwareness } from '@/lib/use-keyboard';
 import { AppProvider, useApp } from '@/state/app-context';
 import { Checkout } from './screens/Checkout';
 import { Home } from './screens/Home';
@@ -26,6 +27,7 @@ function Screens() {
 }
 
 export function App() {
+  useKeyboardAwareness();
   return (
     <I18nProvider>
       <AppProvider>

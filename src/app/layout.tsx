@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   description: 'Домашний обед из 4 блюд каждый день. Доставка 14:00–16:00 по Дананге.',
 };
 
-export const viewport: Viewport = { width: 'device-width', initialScale: 1, themeColor: '#F6EFE4' };
+export const viewport: Viewport = { width: 'device-width', initialScale: 1, interactiveWidget: 'overlays-content', themeColor: '#F6EFE4' };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
