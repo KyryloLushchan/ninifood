@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Lora:wght@500;600;700&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#EDE5D8;font-family:Nunito,sans-serif;color:#3B2B22}
+a{color:#B9532F;text-decoration:underline}a:hover{color:#8E3C1F}
+input,textarea,button{font-family:Nunito,sans-serif}
+</style>
+</helmet>
+<section style="padding:64px 64px 120px;display:flex;flex-direction:column;gap:56px;">
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:1100px;">
+    <div style="font-family:'JetBrains Mono',monospace;font-size:13px;letter-spacing:.08em;color:#7A6656;">NINIFOOD · МОБИЛЬНЫЙ UX · 375 PX</div>
+    <h1 style="font-family:Lora,serif;font-size:48px;line-height:1.1;margin:0;font-weight:600;">Путь клиента и два варианта флоу заказа</h1>
+    <p style="font-size:18px;line-height:1.55;margin:0;color:#5E4B3E;text-wrap:pretty;">В макете «сегодня» — пятница 23.10, ближайший доступный день — суббота 24.10. Чипы, вкладки, счётчики порций, переключатель оплаты и загрузка скриншота кликабельны.</p>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:20px;max-width:1400px;">
+    <div style="background:#FFFBF5;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-family:Lora,serif;font-size:20px;font-weight:600;">Корзина?</div>
+      <p style="margin:0;font-size:15px;line-height:1.55;color:#5E4B3E;">Не нужна. Один заказ = набор дней × порции, одна сумма, один QR. Корзина добавляет шаг и позволяет смешать разовые дни с подпиской — это сложнее оплатить и проверить вручную.</p>
+    </div>
+    <div style="background:#FFFBF5;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-family:Lora,serif;font-size:20px;font-weight:600;">Несколько дней в разовом?</div>
+      <p style="margin:0;font-size:15px;line-height:1.55;color:#5E4B3E;">Да. Разовый — любые дни Пн–Сб по 165 000 ₫. Подписка — ровно 5 будних по 150 000 ₫ (750 000 ₫). Если в разовом выбрано 5+ будних, показываем подсказку перейти на подписку.</p>
+    </div>
+    <div style="background:#FFFBF5;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-family:Lora,serif;font-size:20px;font-weight:600;">Как выбрать 5 дней?</div>
+      <p style="margin:0;font-size:15px;line-height:1.55;color:#5E4B3E;">Чипы дней, сгруппированные по неделям. Ближайшие 5 будних отмечены по умолчанию — большинству останется нажать «Далее». Счётчик «5 из 5» с точками. Календарь избыточен: доступно 5–10 дней.</p>
+    </div>
+    <div style="background:#FFFBF5;border-radius:20px;padding:24px;display:flex;flex-direction:column;gap:8px;">
+      <div style="font-family:Lora,serif;font-size:20px;font-weight:600;">Где «Разовый / Подписка»?</div>
+      <p style="margin:0;font-size:15px;line-height:1.55;color:#5E4B3E;">Сегментированный переключатель вверху экрана заказа. С главной заходим сразу в нужный режим: главная кнопка и карточка дня → «Разовый», блок подписки → «Подписка».</p>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(420px,1fr));gap:20px;max-width:1400px;">
+    <div style="background:#B9532F;color:#FFFBF5;border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;font-weight:800;letter-spacing:.08em;">РЕКОМЕНДУЮ · <a href="#1a" style="color:#FFFBF5;">1a</a></div>
+      <div style="font-family:Lora,serif;font-size:26px;font-weight:600;">Флоу A — один экран заказа, без корзины</div>
+      <div style="font-size:15px;line-height:1.6;"><b>Плюсы:</b> 3 шага до оплаты (заказ → данные → оплата); один экран для обоих типов; сумма всегда видна внизу; легко сравнить разовый и подписку и перейти между ними; один заказ — одна оплата, просто для ручной проверки.</div>
+      <div style="font-size:15px;line-height:1.6;"><b>Минусы:</b> разовый заказ и подписку нельзя оформить одной оплатой — нужно два заказа (редкий случай).</div>
+    </div>
+    <div style="background:#FFFBF5;border-radius:20px;padding:28px;display:flex;flex-direction:column;gap:12px;">
+      <div style="font-size:13px;font-weight:800;letter-spacing:.08em;color:#7A6656;">АЛЬТЕРНАТИВА · <a href="#1b">1b</a></div>
+      <div style="font-family:Lora,serif;font-size:26px;font-weight:600;">Флоу B — корзина + отдельная страница подписки</div>
+      <div style="font-size:15px;line-height:1.6;color:#5E4B3E;"><b>Плюсы:</b> привычный паттерн интернет-магазина; можно добавлять дни прямо при просмотре меню; разовые дни и подписка в одной оплате.</div>
+      <div style="font-size:15px;line-height:1.6;color:#5E4B3E;"><b>Минусы:</b> лишний шаг и иконка корзины в шапке; бегать между меню и корзиной на телефоне неудобно; календарь подписки на 375 px мелкий; смешанные заказы сложнее проверять вручную и объяснять, что выгоднее.</div>
+    </div>
+  </div>
+
+  <div style="display:flex;flex-wrap:wrap;gap:96px;align-items:flex-start;">
+
+    <div id="1a" style="display:flex;flex-direction:column;gap:28px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="background:#B9532F;color:#fff;font-weight:800;font-size:15px;padding:6px 12px;border-radius:999px;">1a</div>
+        <div style="font-family:Lora,serif;font-size:28px;font-weight:600;">Флоу A — без корзины (рекомендую)</div>
+      </div>
+      <div style="display:flex;gap:48px;align-items:flex-start;">
+
+        <!-- 01 LANGUAGE -->
+        <div data-screen-label="01 Язык" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">01 · Выбор языка (первый визит)</div>
+          <div style="width:375px;height:760px;position:relative;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="padding:16px 20px;font-family:Lora,serif;font-weight:700;font-size:22px;color:#B9532F;">NiniFood</div>
+            <div style="margin:0 20px;height:220px;border-radius:24px;background:repeating-linear-gradient(135deg,#EADFCF 0 8px,#F1E8DA 8px 16px);"></div>
+            <div style="position:absolute;inset:0;background:rgba(59,43,34,.55);display:flex;align-items:flex-end;">
+              <div style="background:#FFFBF5;width:100%;border-radius:28px 28px 0 0;padding:28px 20px 32px;display:flex;flex-direction:column;gap:20px;">
+                <div style="display:flex;flex-direction:column;gap:6px;align-items:center;text-align:center;">
+                  <div style="font-family:Lora,serif;font-weight:700;font-size:26px;color:#B9532F;">NiniFood</div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                  <sc-for list="{{ langs }}" as="l" hint-placeholder-count="4">
+                    <button onClick="{{ l.onClick }}" style="display:flex;flex-direction:column;align-items:center;gap:6px;padding:16px 8px;border-radius:18px;border:2px solid {{ l.border }};background:{{ l.bg }};cursor:pointer;min-height:96px;justify-content:center;">
+                      <span style="font-size:34px;line-height:1;">{{ l.flag }}</span>
+                      <span style="font-size:15px;font-weight:700;color:#3B2B22;">{{ l.name }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+                <button style="height:52px;border:none;border-radius:16px;background:#B9532F;color:#fff;font-size:17px;font-weight:800;cursor:pointer;">Продолжить</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 02 HOME -->
+        <div data-screen-label="02 Главная" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">02 · Главная</div>
+          <div style="width:375px;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+              <div style="font-family:Lora,serif;font-weight:700;font-size:22px;color:#B9532F;">NiniFood</div>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <div style="height:36px;padding:0 12px;border-radius:999px;border:1px solid #E2D3BF;background:#FFFBF5;display:flex;align-items:center;font-size:14px;font-weight:700;">🇷🇺 RU</div>
+              </div>
+            </div>
+            <div style="padding:0 20px 28px;display:flex;flex-direction:column;gap:16px;">
+              <div style="height:220px;border-radius:24px;background:repeating-linear-gradient(135deg,#EADFCF 0 8px,#F1E8DA 8px 16px);display:flex;align-items:flex-end;padding:14px;box-sizing:border-box;"><span style="font-family:monospace;font-size:12px;color:#7A6656;background:#FFFBF5;padding:4px 8px;border-radius:6px;">фото: обед из 4 блюд на столе</span></div>
+              <h1 style="font-family:Lora,serif;font-size:32px;line-height:1.15;margin:0;font-weight:600;text-wrap:pretty;">Домашний обед из 4 блюд каждый день</h1>
+              <p style="margin:0;font-size:16px;line-height:1.5;color:#5E4B3E;">Привозим с 14:00 до 16:00 в любую точку Дананга — домой или в отель. Пн–Сб.</p>
+              <button style="height:56px;border:none;border-radius:16px;background:#B9532F;color:#fff;font-size:17px;font-weight:800;cursor:pointer;box-shadow:0 8px 20px rgba(185,83,47,.3);">Заказать на Сб, 24.10</button>
+              <div style="font-size:14px;color:#5E4B3E;text-align:center;">Нужен обед сегодня? <a href="#">Напишите в Telegram до 10:00</a></div>
+            </div>
+            <div style="background:#FFFBF5;padding:28px 0;display:flex;flex-direction:column;gap:16px;">
+              <h2 style="font-family:Lora,serif;font-size:24px;margin:0;padding:0 20px;font-weight:600;">Меню на неделю</h2>
+              <div style="display:flex;gap:8px;overflow-x:auto;padding:0 20px 4px;">
+                <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="8">
+                  <button onClick="{{ t.onClick }}" style="flex:none;width:64px;height:60px;border-radius:16px;border:1px solid {{ t.border }};background:{{ t.bg }};color:{{ t.color }};opacity:{{ t.opacity }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;">
+                    <span style="font-size:15px;font-weight:800;">{{ t.w }}</span>
+                    <span style="font-size:12px;">{{ t.sub }}</span>
+                  </button>
+                </sc-for>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:0 20px;">
+                <sc-for list="{{ dishes }}" as="d" hint-placeholder-count="4">
+                  <div style="display:flex;flex-direction:column;gap:8px;">
+                    <div style="height:120px;border-radius:18px;background:repeating-linear-gradient(135deg,#EADFCF 0 8px,#F1E8DA 8px 16px);display:flex;align-items:flex-end;padding:8px;box-sizing:border-box;"><span style="font-family:monospace;font-size:11px;color:#7A6656;">фото блюда</span></div>
+                    <div style="font-size:12px;font-weight:800;color:#B9532F;letter-spacing:.04em;">{{ d.kind }}</div>
+                    <div style="font-size:15px;font-weight:700;line-height:1.3;margin-top:-4px;">{{ d.name }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div style="padding:4px 20px 0;">
+                <button style="width:100%;height:52px;border-radius:16px;border:2px solid #B9532F;background:transparent;color:#B9532F;font-size:16px;font-weight:800;cursor:pointer;">{{ tabCta }}</button>
+              </div>
+            </div>
+            <div style="padding:28px 20px;">
+              <div style="background:#3B2B22;color:#FFFBF5;border-radius:24px;padding:24px;display:flex;flex-direction:column;gap:12px;">
+                <div style="font-size:13px;font-weight:800;letter-spacing:.08em;color:#F3C9B5;">ПОДПИСКА</div>
+                <div style="font-family:Lora,serif;font-size:24px;font-weight:600;line-height:1.2;">5 будних обедов — 750 000 ₫</div>
+                <div style="font-size:15px;line-height:1.5;color:#E9DCCD;">150 000 ₫ за обед вместо 165 000 ₫. Выбираете любые 5 дней Пн–Пт из меню.</div>
+                <button style="height:52px;border:none;border-radius:16px;background:#FFFBF5;color:#3B2B22;font-size:16px;font-weight:800;cursor:pointer;margin-top:4px;">Оформить подписку</button>
+              </div>
+            </div>
+            <div style="padding:0 20px 28px;display:flex;flex-direction:column;gap:16px;">
+              <h2 style="font-family:Lora,serif;font-size:24px;margin:0;font-weight:600;">Как это работает</h2>
+              <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+                <div style="display:flex;gap:14px;align-items:flex-start;">
+                  <div style="flex:none;width:36px;height:36px;border-radius:50%;background:#F3DCCF;color:#B9532F;font-weight:800;display:flex;align-items:center;justify-content:center;">{{ s.n }}</div>
+                  <div style="display:flex;flex-direction:column;gap:2px;padding-top:6px;"><div style="font-weight:800;font-size:16px;">{{ s.t }}</div><div style="font-size:14px;color:#5E4B3E;line-height:1.45;">{{ s.d }}</div></div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#FFFBF5;padding:24px 20px 32px;display:flex;flex-direction:column;gap:10px;">
+              <h2 style="font-family:Lora,serif;font-size:24px;margin:0 0 4px;font-weight:600;">Контакты</h2>
+              <div style="display:flex;justify-content:space-between;font-size:15px;"><span style="color:#7A6656;">Telegram</span><a href="#">@ninifood_dn</a></div>
+              <div style="display:flex;justify-content:space-between;font-size:15px;"><span style="color:#7A6656;">Телефон</span><span style="font-weight:700;">+84 90 000 00 00</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:15px;"><span style="color:#7A6656;">Доставка</span><span style="font-weight:700;">Пн–Сб, 14:00–16:00</span></div>
+              <div style="font-size:13px;color:#7A6656;margin-top:8px;">Воскресенье — выходной.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 03 ONCE -->
+        <div data-screen-label="03 Разовый" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">03 · Заказ — разовый</div>
+          <div style="width:375px;min-height:760px;display:flex;flex-direction:column;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;">
+              <div style="width:40px;height:40px;border-radius:50%;background:#FFFBF5;display:flex;align-items:center;justify-content:center;font-size:20px;">←</div>
+              <div style="font-family:Lora,serif;font-size:22px;font-weight:600;">Ваш заказ</div>
+            </div>
+            <div style="padding:0 20px;display:flex;flex-direction:column;gap:22px;flex:1;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;background:#EADFCF;border-radius:14px;padding:4px;">
+                <div style="height:42px;border-radius:11px;background:#FFFBF5;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;box-shadow:0 2px 6px rgba(59,43,34,.1);">Разовый</div>
+                <div style="height:42px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#5E4B3E;">Подписка · −9%</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-weight:800;font-size:17px;">Дни доставки</div><div style="font-size:14px;color:#7A6656;">{{ onceDaysLabel }}</div></div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+                  <sc-for list="{{ onceChips }}" as="c" hint-placeholder-count="7">
+                    <button onClick="{{ c.onClick }}" style="height:60px;border-radius:14px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.color }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;">
+                      <span style="font-weight:800;font-size:15px;">{{ c.w }}</span><span style="font-size:12px;">{{ c.date }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+                <div style="font-size:13px;color:#7A6656;">Сегодня (Пт, 23.10) — только <a href="#">через Telegram до 10:00</a></div>
+              </div>
+              <sc-if value="{{ showNudge }}" hint-placeholder-val="{{ false }}">
+                <div style="background:#F3DCCF;border-radius:16px;padding:14px 16px;display:flex;flex-direction:column;gap:6px;">
+                  <div style="font-weight:800;font-size:15px;">Выбрано 5+ будних дней</div>
+                  <div style="font-size:14px;line-height:1.45;color:#5E4B3E;">По подписке 5 будних обедов стоят 750 000 ₫ вместо 825 000 ₫.</div>
+                  <a href="#" style="font-weight:800;font-size:14px;">Перейти на подписку →</a>
+                </div>
+              </sc-if>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="display:flex;flex-direction:column;gap:2px;"><div style="font-weight:800;font-size:17px;">Порций на каждый день</div><div style="font-size:13px;color:#7A6656;">1 порция = 4 блюда</div></div>
+                <div style="display:flex;align-items:center;border:1px solid #E2D3BF;border-radius:999px;background:#FFFBF5;">
+                  <button onClick="{{ onceMinus }}" style="width:44px;height:44px;border:none;background:none;font-size:22px;cursor:pointer;color:#B9532F;">−</button>
+                  <div style="min-width:24px;text-align:center;font-weight:800;font-size:17px;">{{ oncePortions }}</div>
+                  <button onClick="{{ oncePlus }}" style="width:44px;height:44px;border:none;background:none;font-size:22px;cursor:pointer;color:#B9532F;">+</button>
+                </div>
+              </div>
+            </div>
+            <div style="background:#FFFBF5;padding:16px 20px 24px;display:flex;flex-direction:column;gap:12px;border-top:1px solid #E2D3BF;margin-top:24px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;">
+                <div style="font-size:14px;color:#5E4B3E;">{{ onceCalc }}</div>
+                <div style="font-family:Lora,serif;font-size:22px;font-weight:700;">{{ onceTotal }}</div>
+              </div>
+              <button style="height:54px;border:none;border-radius:16px;background:#B9532F;color:#fff;font-size:17px;font-weight:800;cursor:pointer;">Далее — контакты</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 04 SUB -->
+        <div data-screen-label="04 Подписка" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">04 · Заказ — подписка</div>
+          <div style="width:375px;min-height:760px;display:flex;flex-direction:column;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;">
+              <div style="width:40px;height:40px;border-radius:50%;background:#FFFBF5;display:flex;align-items:center;justify-content:center;font-size:20px;">←</div>
+              <div style="font-family:Lora,serif;font-size:22px;font-weight:600;">Ваш заказ</div>
+            </div>
+            <div style="padding:0 20px;display:flex;flex-direction:column;gap:22px;flex:1;">
+              <div style="display:grid;grid-template-columns:1fr 1fr;background:#EADFCF;border-radius:14px;padding:4px;">
+                <div style="height:42px;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;color:#5E4B3E;">Разовый</div>
+                <div style="height:42px;border-radius:11px;background:#FFFBF5;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px;box-shadow:0 2px 6px rgba(59,43,34,.1);">Подписка · −9%</div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:12px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <div style="font-weight:800;font-size:17px;">Выберите 5 будних дней</div>
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="display:flex;gap:4px;">
+                      <sc-for list="{{ subDots }}" as="d" hint-placeholder-count="5"><div style="width:8px;height:8px;border-radius:50%;background:{{ d.bg }};"></div></sc-for>
+                    </div>
+                    <div style="font-weight:800;font-size:15px;color:{{ subCountColor }};">{{ subCount }} из 5</div>
+                  </div>
+                </div>
+                <div style="font-size:13px;color:#7A6656;margin-top:-4px;">Мы отметили ближайшие 5 будних — нажмите на день, чтобы заменить.</div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <div style="font-size:12px;font-weight:800;color:#7A6656;letter-spacing:.06em;">26.10 – 30.10</div>
+                  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">
+                    <sc-for list="{{ subWeek1 }}" as="c" hint-placeholder-count="5">
+                      <button onClick="{{ c.onClick }}" style="height:60px;border-radius:14px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.color }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;">
+                        <span style="font-weight:800;font-size:15px;">{{ c.w }}</span><span style="font-size:12px;">{{ c.date }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <div style="font-size:12px;font-weight:800;color:#7A6656;letter-spacing:.06em;">02.11 – 06.11</div>
+                  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;">
+                    <sc-for list="{{ subWeek2 }}" as="c" hint-placeholder-count="5">
+                      <button onClick="{{ c.onClick }}" style="height:60px;border-radius:14px;border:1px solid {{ c.border }};background:{{ c.bg }};color:{{ c.color }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;">
+                        <span style="font-weight:800;font-size:15px;">{{ c.w }}</span><span style="font-size:12px;">{{ c.date }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+                <sc-if value="{{ subHint }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size:13px;font-weight:700;color:#B9532F;">Уже выбрано 5 дней — сначала снимите один.</div>
+                </sc-if>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="display:flex;flex-direction:column;gap:2px;"><div style="font-weight:800;font-size:17px;">Порций в день</div><div style="font-size:13px;color:#7A6656;">Одинаково на все 5 дней</div></div>
+                <div style="display:flex;align-items:center;border:1px solid #E2D3BF;border-radius:999px;background:#FFFBF5;">
+                  <button onClick="{{ subMinus }}" style="width:44px;height:44px;border:none;background:none;font-size:22px;cursor:pointer;color:#B9532F;">−</button>
+                  <div style="min-width:24px;text-align:center;font-weight:800;font-size:17px;">{{ subPortions }}</div>
+                  <button onClick="{{ subPlus }}" style="width:44px;height:44px;border:none;background:none;font-size:22px;cursor:pointer;color:#B9532F;">+</button>
+                </div>
+              </div>
+            </div>
+            <div style="background:#FFFBF5;padding:16px 20px 24px;display:flex;flex-direction:column;gap:12px;border-top:1px solid #E2D3BF;margin-top:24px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;">
+                <div style="font-size:14px;color:#5E4B3E;">{{ subCalc }}</div>
+                <div style="font-family:Lora,serif;font-size:22px;font-weight:700;">{{ subTotal }}</div>
+              </div>
+              <button style="height:54px;border:none;border-radius:16px;background:{{ subBtnBg }};color:#fff;font-size:17px;font-weight:800;cursor:pointer;">{{ subBtn }}</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 05 CHECKOUT -->
+        <div data-screen-label="05 Оформление" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">05 · Оформление</div>
+          <div style="width:375px;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;">
+              <div style="width:40px;height:40px;border-radius:50%;background:#FFFBF5;display:flex;align-items:center;justify-content:center;font-size:20px;">←</div>
+              <div style="font-family:Lora,serif;font-size:22px;font-weight:600;">Оформление</div>
+            </div>
+            <div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:18px;">
+              <div style="background:#FFFBF5;border-radius:16px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                <div style="display:flex;flex-direction:column;gap:2px;"><div style="font-weight:800;font-size:15px;">Разовый · 3 дня × 2 порции</div><div style="font-size:13px;color:#7A6656;">Сб 24.10, Пн 26.10, Вт 27.10 · 14:00–16:00</div></div>
+                <a href="#" style="font-size:14px;font-weight:700;">Изм.</a>
+              </div>
+              <sc-for list="{{ fields }}" as="f" hint-placeholder-count="6">
+                <label style="display:flex;flex-direction:column;gap:6px;">
+                  <span style="font-size:14px;font-weight:700;">{{ f.label }}</span>
+                  <input placeholder="{{ f.ph }}" style="height:50px;border-radius:14px;border:1px solid #E2D3BF;background:#FFFBF5;padding:0 14px;font-size:16px;color:#3B2B22;outline:none;"></input>
+                  <span style="font-size:12px;color:#7A6656;">{{ f.hint }}</span>
+                </label>
+              </sc-for>
+              <div style="display:flex;flex-direction:column;gap:10px;">
+                <div style="font-weight:800;font-size:17px;">Оплата</div>
+                <sc-for list="{{ payOpts }}" as="p" hint-placeholder-count="2">
+                  <button onClick="{{ p.onClick }}" style="display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:16px;border:2px solid {{ p.border }};background:#FFFBF5;cursor:pointer;text-align:left;">
+                    <div style="flex:none;width:20px;height:20px;border-radius:50%;border:2px solid {{ p.border }};display:flex;align-items:center;justify-content:center;"><div style="width:10px;height:10px;border-radius:50%;background:{{ p.dot }};"></div></div>
+                    <div style="display:flex;flex-direction:column;gap:2px;"><span style="font-weight:800;font-size:15px;color:#3B2B22;">{{ p.t }}</span><span style="font-size:13px;color:#7A6656;">{{ p.d }}</span></div>
+                  </button>
+                </sc-for>
+              </div>
+            </div>
+            <div style="background:#FFFBF5;padding:16px 20px 24px;display:flex;flex-direction:column;gap:12px;border-top:1px solid #E2D3BF;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-size:14px;color:#5E4B3E;">Итого</div><div style="font-family:Lora,serif;font-size:22px;font-weight:700;">990 000 ₫</div></div>
+              <button style="height:54px;border:none;border-radius:16px;background:#B9532F;color:#fff;font-size:17px;font-weight:800;cursor:pointer;">{{ payBtn }}</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 06 QR -->
+        <div data-screen-label="06 Оплата QR" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">06 · Оплата по QR</div>
+          <div style="width:375px;min-height:760px;display:flex;flex-direction:column;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;">
+              <div style="width:40px;height:40px;border-radius:50%;background:#FFFBF5;display:flex;align-items:center;justify-content:center;font-size:20px;">←</div>
+              <div style="font-family:Lora,serif;font-size:22px;font-weight:600;">Оплата</div>
+            </div>
+            <div style="padding:0 20px 24px;display:flex;flex-direction:column;gap:18px;flex:1;">
+              <div style="background:#FFFBF5;border-radius:24px;padding:20px;display:flex;flex-direction:column;align-items:center;gap:12px;">
+                <div style="font-size:14px;color:#5E4B3E;">К оплате</div>
+                <div style="font-family:Lora,serif;font-size:32px;font-weight:700;margin-top:-6px;">990 000 ₫</div>
+                <div style="width:220px;height:220px;border-radius:16px;background:repeating-linear-gradient(45deg,#E6DACB 0 6px,#F6EFE4 6px 12px);display:flex;align-items:center;justify-content:center;"><span style="font-family:monospace;font-size:12px;color:#7A6656;background:#FFFBF5;padding:4px 8px;border-radius:6px;">QR-код VietQR</span></div>
+                <div style="font-size:13px;color:#7A6656;text-align:center;line-height:1.45;">Отсканируйте в приложении банка.<br>Назначение: <b style="color:#3B2B22;">NF-1027</b></div>
+                <a href="#" style="font-size:14px;font-weight:700;">Сохранить QR в галерею</a>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px;">
+                <div style="font-weight:800;font-size:17px;">Скриншот оплаты <span style="color:#B9532F;">*</span></div>
+                <button onClick="{{ toggleUpload }}" style="min-height:96px;border-radius:18px;border:2px dashed {{ upBorder }};background:{{ upBg }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;cursor:pointer;padding:12px;">
+                  <span style="font-size:15px;font-weight:800;color:{{ upColor }};">{{ upTitle }}</span>
+                  <span style="font-size:13px;color:#7A6656;">{{ upSub }}</span>
+                </button>
+              </div>
+            </div>
+            <div style="background:#FFFBF5;padding:16px 20px 24px;display:flex;flex-direction:column;gap:8px;border-top:1px solid #E2D3BF;">
+              <button style="height:54px;border:none;border-radius:16px;background:{{ sendBg }};color:#fff;font-size:17px;font-weight:800;cursor:pointer;">Отправить заказ</button>
+              <sc-if value="{{ needUpload }}" hint-placeholder-val="{{ true }}"><div style="font-size:13px;color:#7A6656;text-align:center;">Кнопка станет активной после загрузки скриншота</div></sc-if>
+            </div>
+          </div>
+        </div>
+
+        <!-- 07 THANKS -->
+        <div data-screen-label="07 Спасибо" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">07 · Заказ принят</div>
+          <div style="width:375px;min-height:760px;display:flex;flex-direction:column;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="padding:16px 20px;font-family:Lora,serif;font-weight:700;font-size:22px;color:#B9532F;">NiniFood</div>
+            <div style="padding:24px 20px;display:flex;flex-direction:column;gap:20px;flex:1;">
+              <div style="width:72px;height:72px;border-radius:50%;background:#DDE8D6;color:#4F7A4A;display:flex;align-items:center;justify-content:center;font-size:34px;font-weight:800;">✓</div>
+              <h1 style="font-family:Lora,serif;font-size:30px;line-height:1.15;margin:0;font-weight:600;">Спасибо, заказ принят</h1>
+              <div style="display:flex;flex-direction:column;">
+                <div style="display:flex;gap:14px;">
+                  <div style="display:flex;flex-direction:column;align-items:center;"><div style="width:18px;height:18px;border-radius:50%;background:#4F7A4A;flex:none;"></div><div style="width:2px;flex:1;min-height:28px;background:#C9B8A6;"></div></div>
+                  <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:16px;margin-top:-2px;"><span style="font-size:16px;font-weight:800;color:#4F7A4A;">Ваш заказ принят</span></div>
+                </div>
+                <div style="display:flex;gap:14px;">
+                  <div style="display:flex;flex-direction:column;align-items:center;"><div style="width:18px;height:18px;border-radius:50%;border:2px solid #C9B8A6;background:#FFFBF5;box-sizing:border-box;flex:none;"></div><div style="width:2px;flex:1;min-height:28px;background:#C9B8A6;"></div></div>
+                  <div style="display:flex;flex-direction:column;gap:2px;padding-bottom:16px;margin-top:-2px;"><span style="font-size:13px;font-weight:700;color:#7A6656;">10:00–14:00</span><span style="font-size:16px;font-weight:800;">Готовим</span></div>
+                </div>
+                <div style="display:flex;gap:14px;">
+                  <div style="display:flex;flex-direction:column;align-items:center;"><div style="width:18px;height:18px;border-radius:50%;border:2px solid #C9B8A6;background:#FFFBF5;box-sizing:border-box;flex:none;"></div></div>
+                  <div style="display:flex;flex-direction:column;gap:2px;margin-top:-2px;"><span style="font-size:13px;font-weight:700;color:#7A6656;">14:00–16:00</span><span style="font-size:16px;font-weight:800;">В пути</span></div>
+                </div>
+              </div>
+              <div style="background:#FFFBF5;border-radius:18px;padding:16px;display:flex;flex-direction:column;gap:10px;">
+                <div style="display:flex;justify-content:space-between;font-size:15px;"><span style="color:#7A6656;">Номер заказа</span><b>NF-1027</b></div>
+                <div style="display:flex;justify-content:space-between;font-size:15px;"><span style="color:#7A6656;">Дни</span><b>Сб 24, Пн 26, Вт 27.10</b></div>
+                <div style="display:flex;justify-content:space-between;font-size:15px;"><span style="color:#7A6656;">Порций</span><b>2 в день</b></div>
+                <div style="display:flex;justify-content:space-between;font-size:15px;"><span style="color:#7A6656;">Доставка</span><b>14:00–16:00</b></div>
+                <div style="display:flex;justify-content:space-between;font-size:15px;"><span style="color:#7A6656;">Оплата</span><b>QR · 990 000 ₫</b></div>
+              </div>
+            </div>
+            <div style="padding:16px 20px 24px;display:flex;flex-direction:column;gap:10px;">
+              <button style="height:54px;border:none;border-radius:16px;background:#B9532F;color:#fff;font-size:17px;font-weight:800;cursor:pointer;">На главную</button>
+              <div style="font-size:14px;color:#5E4B3E;text-align:center;">Вопрос по заказу? <a href="#">Напишите в Telegram</a></div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div id="1b" style="display:flex;flex-direction:column;gap:28px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="background:#3B2B22;color:#fff;font-weight:800;font-size:15px;padding:6px 12px;border-radius:999px;">1b</div>
+        <div style="font-family:Lora,serif;font-size:28px;font-weight:600;">Флоу B — корзина</div>
+        <div style="font-size:15px;color:#7A6656;">Экраны 01, 05–07 те же, что в <a href="#1a">1a</a></div>
+      </div>
+      <div style="display:flex;gap:48px;align-items:flex-start;">
+
+        <div data-screen-label="B1 Карточка дня" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">B1 · День → «В корзину»</div>
+          <div style="width:375px;height:760px;position:relative;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;">
+              <div style="font-family:Lora,serif;font-weight:700;font-size:22px;color:#B9532F;">NiniFood</div>
+              <div style="height:36px;padding:0 12px;border-radius:999px;background:#B9532F;color:#fff;display:flex;align-items:center;font-size:14px;font-weight:800;">Корзина · 2</div>
+            </div>
+            <div style="padding:0 20px;display:flex;flex-direction:column;gap:12px;">
+              <div style="font-family:Lora,serif;font-size:24px;font-weight:600;">Меню на неделю</div>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                <div style="height:140px;border-radius:18px;background:repeating-linear-gradient(135deg,#EADFCF 0 8px,#F1E8DA 8px 16px);"></div>
+                <div style="height:140px;border-radius:18px;background:repeating-linear-gradient(135deg,#EADFCF 0 8px,#F1E8DA 8px 16px);"></div>
+              </div>
+            </div>
+            <div style="position:absolute;inset:0;background:rgba(59,43,34,.5);display:flex;align-items:flex-end;">
+              <div style="background:#FFFBF5;width:100%;border-radius:28px 28px 0 0;padding:12px 20px 28px;display:flex;flex-direction:column;gap:16px;">
+                <div style="width:40px;height:4px;border-radius:2px;background:#E2D3BF;align-self:center;"></div>
+                <div style="font-family:Lora,serif;font-size:22px;font-weight:600;">Пн, 26.10</div>
+                <div style="display:flex;flex-direction:column;gap:6px;font-size:15px;color:#5E4B3E;">
+                  <div>Куриный суп с домашней лапшой</div><div>Винегрет</div><div>Голубцы со сметаной</div><div>Пирожок с вишней</div>
+                </div>
+                <div style="display:flex;justify-content:space-between;align-items:center;">
+                  <div style="font-weight:800;font-size:16px;">Порций</div>
+                  <div style="display:flex;align-items:center;border:1px solid #E2D3BF;border-radius:999px;"><div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#B9532F;font-size:22px;">−</div><div style="font-weight:800;">1</div><div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#B9532F;font-size:22px;">+</div></div>
+                </div>
+                <button style="height:54px;border:none;border-radius:16px;background:#B9532F;color:#fff;font-size:17px;font-weight:800;">В корзину · 165 000 ₫</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div data-screen-label="B2 Корзина" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">B2 · Корзина</div>
+          <div style="width:375px;min-height:760px;display:flex;flex-direction:column;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;">
+              <div style="width:40px;height:40px;border-radius:50%;background:#FFFBF5;display:flex;align-items:center;justify-content:center;font-size:20px;">←</div>
+              <div style="font-family:Lora,serif;font-size:22px;font-weight:600;">Корзина</div>
+            </div>
+            <div style="padding:0 20px;display:flex;flex-direction:column;gap:10px;flex:1;">
+              <sc-for list="{{ cart }}" as="i" hint-placeholder-count="3">
+                <div style="background:#FFFBF5;border-radius:16px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                  <div style="display:flex;flex-direction:column;gap:2px;"><div style="font-weight:800;font-size:15px;">{{ i.t }}</div><div style="font-size:13px;color:#7A6656;">{{ i.d }}</div></div>
+                  <div style="font-weight:800;font-size:15px;white-space:nowrap;">{{ i.p }}</div>
+                </div>
+              </sc-for>
+              <div style="font-size:13px;color:#7A6656;line-height:1.45;padding:4px 2px;">В одной корзине смешаны разовые дни и подписка — клиенту сложнее понять, что выгоднее, менеджеру — проверить оплату.</div>
+            </div>
+            <div style="background:#FFFBF5;padding:16px 20px 24px;display:flex;flex-direction:column;gap:12px;border-top:1px solid #E2D3BF;margin-top:24px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-size:14px;color:#5E4B3E;">Итого</div><div style="font-family:Lora,serif;font-size:22px;font-weight:700;">1 245 000 ₫</div></div>
+              <button style="height:54px;border:none;border-radius:16px;background:#B9532F;color:#fff;font-size:17px;font-weight:800;">Оформить заказ</button>
+            </div>
+          </div>
+        </div>
+
+        <div data-screen-label="B3 Подписка календарь" style="display:flex;flex-direction:column;gap:12px;">
+          <div style="font-size:14px;font-weight:700;color:#7A6656;">B3 · Подписка — календарь</div>
+          <div style="width:375px;min-height:760px;display:flex;flex-direction:column;background:#F6EFE4;border-radius:32px;overflow:hidden;box-shadow:0 20px 50px rgba(59,43,34,.15);border:1px solid #E2D3BF;">
+            <div style="display:flex;align-items:center;gap:12px;padding:16px 20px;">
+              <div style="width:40px;height:40px;border-radius:50%;background:#FFFBF5;display:flex;align-items:center;justify-content:center;font-size:20px;">←</div>
+              <div style="font-family:Lora,serif;font-size:22px;font-weight:600;">Подписка</div>
+            </div>
+            <div style="padding:0 20px;display:flex;flex-direction:column;gap:14px;flex:1;">
+              <div style="display:flex;justify-content:space-between;"><div style="font-weight:800;font-size:17px;">Октябрь – ноябрь</div><div style="font-weight:800;color:#B9532F;">5 из 5</div></div>
+              <div style="background:#FFFBF5;border-radius:18px;padding:12px;display:grid;grid-template-columns:repeat(7,1fr);gap:4px;">
+                <sc-for list="{{ calHead }}" as="h" hint-placeholder-count="7"><div style="text-align:center;font-size:12px;font-weight:800;color:#7A6656;padding:4px 0;">{{ h }}</div></sc-for>
+                <sc-for list="{{ cal }}" as="c" hint-placeholder-count="21">
+                  <div style="height:40px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;background:{{ c.bg }};color:{{ c.color }};opacity:{{ c.op }};">{{ c.n }}</div>
+                </sc-for>
+              </div>
+              <div style="font-size:13px;color:#7A6656;line-height:1.45;">Доступны только Пн–Пт с опубликованным меню. Ячейки ~40 px — мелко для пальца, а меню дня из календаря не видно.</div>
+              <div style="display:flex;justify-content:space-between;align-items:center;">
+                <div style="font-weight:800;font-size:16px;">Порций в день</div>
+                <div style="display:flex;align-items:center;border:1px solid #E2D3BF;border-radius:999px;background:#FFFBF5;"><div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#B9532F;font-size:22px;">−</div><div style="font-weight:800;">1</div><div style="width:44px;height:44px;display:flex;align-items:center;justify-content:center;color:#B9532F;font-size:22px;">+</div></div>
+              </div>
+            </div>
+            <div style="background:#FFFBF5;padding:16px 20px 24px;display:flex;flex-direction:column;gap:12px;border-top:1px solid #E2D3BF;margin-top:24px;">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;"><div style="font-size:14px;color:#5E4B3E;">5 обедов × 1</div><div style="font-family:Lora,serif;font-size:22px;font-weight:700;">750 000 ₫</div></div>
+              <button style="height:54px;border:none;border-radius:16px;background:#B9532F;color:#fff;font-size:17px;font-weight:800;">Добавить в корзину</button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;onceMulti&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Разовый заказ&quot;},&quot;subPreselect&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;next5&quot;,&quot;empty&quot;],&quot;default&quot;:&quot;next5&quot;,&quot;tsType&quot;:&quot;'next5'|'empty'&quot;,&quot;section&quot;:&quot;Подписка&quot;}}">
+const DAYS=[
+ {id:'23',w:'Пт',date:'23.10',today:true,dishes:[['Суп','Щи из свежей капусты'],['Салат','Огурцы со сметаной'],['Горячее','Тефтели с гречкой'],['Десерт','Блины с джемом']]},
+ {id:'24',w:'Сб',date:'24.10',dishes:[['Суп','Борщ с пампушками'],['Салат','Свёкла с черносливом'],['Горячее','Котлета по-киевски с пюре'],['Десерт','Сырники со сметаной']]},
+ {id:'26',w:'Пн',date:'26.10',dishes:[['Суп','Куриный суп с лапшой'],['Салат','Винегрет'],['Горячее','Голубцы со сметаной'],['Десерт','Пирожок с вишней']]},
+ {id:'27',w:'Вт',date:'27.10',dishes:[['Суп','Солянка'],['Салат','Оливье'],['Горячее','Плов с говядиной'],['Десерт','Медовик']]},
+ {id:'28',w:'Ср',date:'28.10',dishes:[['Суп','Уха из морской рыбы'],['Салат','Капустный с морковью'],['Горячее','Вареники с картошкой'],['Десерт','Творожная запеканка']]},
+ {id:'29',w:'Чт',date:'29.10',dishes:[['Суп','Гороховый суп'],['Салат','Шуба'],['Горячее','Бефстроганов с рисом'],['Десерт','Шарлотка']]},
+ {id:'30',w:'Пт',date:'30.10',dishes:[['Суп','Грибной крем-суп'],['Салат','Овощной с зеленью'],['Горячее','Рыбные котлеты с пюре'],['Десерт','Оладьи с мёдом']]},
+ {id:'31',w:'Сб',date:'31.10',dishes:[['Суп','Рассольник'],['Салат','Свекольный с чесноком'],['Горячее','Жаркое в горшочке'],['Десерт','Наполеон']]}
+];
+const SUB=[['26','Пн','26.10'],['27','Вт','27.10'],['28','Ср','28.10'],['29','Чт','29.10'],['30','Пт','30.10'],['02','Пн','02.11'],['03','Вт','03.11'],['04','Ср','04.11'],['05','Чт','05.11'],['06','Пт','06.11']].map(([id,w,date])=>({id,w,date}));
+const fmt=n=>String(n).replace(/\B(?=(\d{3})+(?!\d))/g,' ')+' ₫';
+const A='#B9532F',CARD='#FFFBF5',LINE='#E2D3BF',INK='#3B2B22';
+const plural=(n,a,b,c)=>{const m=n%10,h=n%100;return m===1&&h!==11?a:(m>=2&&m<=4&&(h<12||h>14)?b:c)};
+class Component extends DCLogic{
+ state={lang:'ru',tab:1,once:['24','26','27'],oncePortions:2,sub:null,subPortions:1,subHint:false,uploaded:false,pay:'qr'};
+ chip(sel,dis){return{bg:sel?A:CARD,color:sel?'#fff':INK,border:sel?A:LINE,opacity:dis?0.4:1}}
+ renderVals(){
+  const s=this.state,multi=this.props.onceMulti??true;
+  const sub=s.sub??((this.props.subPreselect??'next5')==='next5'?['26','27','28','29','30']:[]);
+  const langs=[['ua','🇺🇦','Українська'],['ru','🇷🇺','Русский'],['en','🇬🇧','English'],['vi','🇻🇳','Tiếng Việt']].map(([id,flag,name])=>({flag,name,border:s.lang===id?A:LINE,bg:s.lang===id?'#F3DCCF':CARD,onClick:()=>this.setState({lang:id})}));
+  const tabs=DAYS.map((d,i)=>({...d,...this.chip(i===s.tab,d.today),sub:d.today?'сегодня':d.date,onClick:()=>!d.today&&this.setState({tab:i})}));
+  const day=DAYS[s.tab];
+  const onceChips=DAYS.filter(d=>!d.today).map(d=>{const sel=s.once.includes(d.id);return{...d,...this.chip(sel),onClick:()=>this.setState(st=>({once:multi?(sel?st.once.filter(x=>x!==d.id):[...st.once,d.id]):[d.id]}))}});
+  const n=s.once.length,wk=s.once.filter(id=>id!=='24'&&id!=='31').length;
+  const subChip=d=>{const sel=sub.includes(d.id);return{...d,...this.chip(sel),onClick:()=>{if(sel)this.setState({sub:sub.filter(x=>x!==d.id),subHint:false});else if(sub.length>=5)this.setState({sub,subHint:true});else this.setState({sub:[...sub,d.id],subHint:false})}}};
+  const sc=sub.length,full=sc===5;
+  const calHead=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const selCal=['26','27','29','30','2'];
+  const cal=[];
+  for(let d=19;d<=31;d++)cal.push(String(d));for(let d=1;d<=8;d++)cal.push(String(d));
+  const calCells=cal.map((nn,i)=>{const col=i%7,past=i<7,weekend=col>=5,sel=selCal.includes(nn)&&!past;return{n:nn,bg:sel?A:'transparent',color:sel?'#fff':INK,op:past||weekend?0.3:1}});
+  return{
+   langs,tabs,dishes:day.dishes.map(([kind,name])=>({kind:kind.toUpperCase(),name})),
+   tabCta:'Заказать на '+day.w+', '+day.date+' · 165 000 ₫',
+   steps:[{n:1,t:'Выберите дни',d:'Разово на любой день Пн–Сб или подпиской на 5 будних.'},{n:2,t:'Оставьте контакты',d:'Telegram, телефон и адрес — можно отель.'},{n:3,t:'Оплатите',d:'QR-переводом или наличными курьеру.'},{n:4,t:'Получите обед',d:'С 14:00 до 16:00 в выбранные дни.'}],
+   onceChips,oncePortions:s.oncePortions,
+   onceDaysLabel:n?'выбрано '+n+' '+plural(n,'день','дня','дней'):'выберите день',
+   showNudge:wk>=5,
+   onceCalc:n+' '+plural(n,'день','дня','дней')+' × '+s.oncePortions+' '+plural(s.oncePortions,'порция','порции','порций'),
+   onceTotal:fmt(n*s.oncePortions*165000),
+   onceMinus:()=>this.setState(st=>({oncePortions:Math.max(1,st.oncePortions-1)})),
+   oncePlus:()=>this.setState(st=>({oncePortions:st.oncePortions+1})),
+   subWeek1:SUB.slice(0,5).map(subChip),subWeek2:SUB.slice(5).map(subChip),
+   subDots:[0,1,2,3,4].map(i=>({bg:i<sc?A:LINE})),subCount:sc,subCountColor:full?'#4F7A4A':A,subHint:s.subHint,
+   subPortions:s.subPortions,
+   subMinus:()=>this.setState(st=>({subPortions:Math.max(1,st.subPortions-1)})),
+   subPlus:()=>this.setState(st=>({subPortions:st.subPortions+1})),
+   subCalc:'5 обедов × '+s.subPortions+' · 150 000 ₫/обед',subTotal:fmt(750000*s.subPortions),
+   subBtn:full?'Далее — контакты':'Выберите ещё '+(5-sc),subBtnBg:full?A:'#C9B8A6',
+   fields:[{label:'Имя *',ph:'Анна',hint:''},{label:'Telegram *',ph:'@username',hint:'Сюда напишем подтверждение'},{label:'Телефон *',ph:'+84 …',hint:'Для курьера'},{label:'Адрес *',ph:'Улица, дом, район',hint:''},{label:'Отель',ph:'Необязательно',hint:'И номер комнаты, если есть'},{label:'Комментарий',ph:'Без лука, позвонить на ресепшн…',hint:''}],
+   payOpts:[['qr','QR-перевод','Оплата сейчас, нужен скриншот'],['cash','Наличными курьеру','Подготовьте точную сумму в ₫']].map(([id,t,d])=>({t,d,border:s.pay===id?A:LINE,dot:s.pay===id?A:'transparent',onClick:()=>this.setState({pay:id})})),
+   payBtn:s.pay==='qr'?'Перейти к оплате':'Отправить заказ',
+   toggleUpload:()=>this.setState(st=>({uploaded:!st.uploaded})),
+   upBorder:s.uploaded?'#4F7A4A':A,upBg:s.uploaded?'#EEF3EA':CARD,upColor:s.uploaded?'#4F7A4A':A,
+   upTitle:s.uploaded?'✓ screenshot_0924.jpg':'+ Загрузить скриншот',upSub:s.uploaded?'Нажмите, чтобы заменить':'JPG или PNG из галереи',
+   sendBg:s.uploaded?A:'#C9B8A6',needUpload:!s.uploaded,
+   cart:[{t:'Сб, 24.10 — разовый',d:'2 порции',p:'330 000 ₫'},{t:'Пн, 26.10 — разовый',d:'1 порция',p:'165 000 ₫'},{t:'Подписка · 5 дней',d:'26, 27, 29, 30.10, 02.11 · 1 порция',p:'750 000 ₫'}],
+   calHead,cal:calCells
+  };
+ }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,22 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    @apply bg-bg font-sans text-[15px] leading-normal text-ink antialiased;
+  }
+  a {
+    @apply font-bold text-accent underline-offset-2 hover:underline;
+  }
+  button {
+    @apply cursor-pointer disabled:cursor-not-allowed;
+  }
+  input,
+  textarea {
+    @apply outline-none;
+  }
+}
