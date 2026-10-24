@@ -34,6 +34,7 @@ interface AppValue {
 
   today: string | null;
   menu: Menu;
+  menuLoaded: boolean;
   /** Доступные для заказа дни: есть меню, не сегодня, не воскресенье. */
   availableDays: string[];
   /** Ближайшие BOOKABLE_DAYS дней: их видно в меню и можно выбрать в разовом заказе. */
@@ -79,6 +80,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [screen, setScreen] = useState<Screen>('home');
   const [today, setToday] = useState<string | null>(null);
   const [menu, setMenu] = useState<Menu>({});
+  const [menuLoaded, setMenuLoaded] = useState(false);
 
   const [orderType, setOrderType] = useState<OrderType>('once');
   const [onceDaysRaw, setOnceDays] = useState<string[]>([]);
@@ -106,20 +108,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!today) return;
     let cancelled = false;
-    fetchMenu(today).then((m) => !cancelled && setMenu(m));
+    fetchMenu(today).then((m) => {
+      if (cancelled) return;
+      setMenu(m);
+      setMenuLoaded(true);
+    });
     return () => {
       cancelled = true;
     };
   }, [today]);
 
+  // Доступные дни — по календарю (не сегодня, не воскресенье), независимо от наличия меню.
   const availableDays = useMemo(
     () =>
       today
-        ? Object.keys(menu)
-            .filter((d) => d > today && !isSunday(d))
-            .sort()
+        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + 1)).filter((d) => !isSunday(d))
         : [],
-    [menu, today],
+    [today],
   );
   const bookableDays = useMemo(() => availableDays.slice(0, BOOKABLE_DAYS), [availableDays]);
   const nearestDay = availableDays[0] ?? null;
@@ -228,6 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     go,
     today,
     menu,
+    menuLoaded,
     availableDays,
     bookableDays,
     nearestDay,

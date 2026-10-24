@@ -1,4 +1,6 @@
 import { PHOTOS } from '@/config/photos';
+import { SUB_WINDOW_DAYS } from '@/config/site';
+import { supabase } from '@/lib/supabase';
 import type { Lang } from '@/i18n';
 import { addDays, dayOfWeek } from '@/lib/dates';
 
@@ -83,7 +85,44 @@ export function buildMockMenu(today: string): Menu {
   return menu;
 }
 
-/** Точка подключения бэкенда: заменить тело на запрос, сигнатуру оставить. */
+const TYPE_BY_POSITION: DishType[] = ['soup', 'salad', 'main', 'dessert'];
+
+interface DishRow {
+  date: string;
+  position: number;
+  name_ua: string;
+  name_ru: string;
+  name_en: string;
+  name_vi: string;
+  photo_url: string | null;
+}
+
+/**
+ * Меню из Supabase (таблица menu_dishes, читается anon-ключом).
+ * Дни без записей в ответе отсутствуют — фронт показывает «Меню скоро появится».
+ * При ошибке сети возвращает пустое меню (то же сообщение), мок оставлен как buildMockMenu для разработки.
+ */
 export async function fetchMenu(today: string): Promise<Menu> {
-  return buildMockMenu(today);
+  const { data, error } = await supabase
+    .from('menu_dishes')
+    .select('date, position, name_ua, name_ru, name_en, name_vi, photo_url')
+    .gte('date', today)
+    .lte('date', addDays(today, SUB_WINDOW_DAYS))
+    .order('date')
+    .order('position');
+  if (error || !data) {
+    console.error('[fetchMenu]', error);
+    return {};
+  }
+  const menu: Menu = {};
+  for (const r of data as DishRow[]) {
+    const type = TYPE_BY_POSITION[r.position - 1];
+    if (!type) continue;
+    (menu[r.date] ??= []).push({
+      type,
+      name: { ua: r.name_ua, ru: r.name_ru, en: r.name_en, vi: r.name_vi },
+      photo: r.photo_url ?? PHOTOS.dishFallback,
+    });
+  }
+  return menu;
 }

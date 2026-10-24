@@ -16,11 +16,11 @@ const hours = { from: DELIVERY_FROM, to: DELIVERY_TO };
 
 export function Home() {
   const { t, lang } = useI18n();
-  const { today, menu, bookableDays, nearestDay, startOnce, startSub } = useApp();
+  const { today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub } = useApp();
   const [tab, setTab] = useState<string | null>(null);
 
   // Сегодня (если есть меню, неактивно) + ближайшие доступные дни.
-  const menuDays = today ? [...(menu[today] && !isSunday(today) ? [today] : []), ...bookableDays] : [];
+  const menuDays = today ? [...(!isSunday(today) ? [today] : []), ...bookableDays] : [];
   const active = tab && menuDays.includes(tab) ? tab : nearestDay;
   const dishes = active ? menu[active] ?? [] : [];
 
@@ -40,7 +40,7 @@ export function Home() {
         <h2 className="font-serif text-h1 font-semibold [text-wrap:pretty]">{t('home.heroTitle')}</h2>
         <p className="text-base leading-normal text-ink-2">{t('home.heroText', hours)}</p>
         <Button size="xl" shadow disabled={!nearestDay} onClick={() => nearestDay && startOnce(nearestDay)}>
-          {nearestDay ? t('home.heroCta', { day: labelFull(nearestDay, lang) }) : '…'}
+          {nearestDay ? t('home.heroCta', { day: labelFull(nearestDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
         </Button>
         <div className="text-center text-sm text-ink-2">
           {t('home.todayQ')}{' '}
@@ -72,6 +72,9 @@ export function Home() {
             );
           })}
         </div>
+        {menuLoaded && active && dishes.length === 0 && (
+          <div className="px-5 py-6 text-center text-[15px] text-ink-muted">{t('home.noDays')}</div>
+        )}
         <div className="grid grid-cols-2 gap-3 px-5">
           {dishes.map((dish) => (
             <div key={dish.type} className="flex flex-col gap-2">
