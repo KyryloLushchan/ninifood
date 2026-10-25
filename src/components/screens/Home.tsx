@@ -40,6 +40,8 @@ export function Home() {
   // Сегодня (если есть меню, неактивно) + ближайшие доступные дни.
   const menuDays = today ? [...(!isSunday(today) ? [today] : []), ...bookableDays] : [];
   const active = tab && menuDays.includes(tab) ? tab : nearestDay;
+  // Кнопка в hero следует за выбранной вкладкой дня; по умолчанию — ближайший доступный.
+  const heroDay = active;
   const dishes = active ? menu[active] ?? [] : [];
   const withNutrition = dishes.filter((d) => d.nutrition);
   const total = withNutrition.reduce(
@@ -69,8 +71,8 @@ export function Home() {
         />
         <h2 className="font-serif text-h1 font-semibold [text-wrap:pretty]">{t('home.heroTitle')}</h2>
         <p className="text-base leading-normal text-ink-2">{t('home.heroText', hours)}</p>
-        <Button size="xl" shadow disabled={!nearestDay} onClick={() => nearestDay && startOnce(nearestDay)}>
-          {nearestDay ? t('home.heroCta', { day: labelFull(nearestDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
+        <Button size="xl" shadow disabled={!heroDay} onClick={() => heroDay && startOnce(heroDay)}>
+          {heroDay ? t('home.heroCta', { day: labelFull(heroDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
         </Button>
         <div className="text-center text-sm text-ink-2">
           {t('home.todayQ')}{' '}
@@ -130,7 +132,7 @@ export function Home() {
         )}
         {active && (
           <div className="px-5 pt-1">
-            <Button variant="outline" size="md" onClick={() => startOnce(active)}>
+            <Button size="xl" shadow onClick={() => startOnce(active)}>
               {t('home.menuCta', { day: labelFull(active, lang), price: fmtMoney(settings.priceSingle) })}
             </Button>
           </div>

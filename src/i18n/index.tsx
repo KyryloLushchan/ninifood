@@ -19,7 +19,7 @@ export const LANGS: { id: Lang; flag: string; name: string; short: string }[] = 
 const DICTS: Record<Lang, Record<TKey, string>> = { ua, ru, en, vi };
 const PLURAL_LOCALE: Record<Lang, string> = { ua: 'uk', ru: 'ru', en: 'en', vi: 'vi' };
 const STORAGE_KEY = 'ninifood.lang';
-const DEFAULT_LANG: Lang = 'ru';
+const DEFAULT_LANG: Lang = 'ua';
 
 type Vars = Record<string, string | number>;
 

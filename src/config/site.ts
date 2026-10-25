@@ -1,6 +1,6 @@
 export const TIMEZONE = 'Asia/Ho_Chi_Minh';
 
-export const PRICE_SINGLE = 165_000;
+export const PRICE_SINGLE = 170_000;
 export const PRICE_SUB = 750_000;
 export const SUB_DAYS = 5;
 export const PRICE_SUB_PER_DAY = PRICE_SUB / SUB_DAYS;
