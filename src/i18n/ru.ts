@@ -104,7 +104,6 @@ export const ru = {
   'payment.due': 'К оплате',
   'payment.qrPlaceholder': 'QR-код VietQR',
   'payment.scan': 'Отсканируйте в приложении банка.',
-  'payment.purpose': 'Назначение:',
   'payment.save': 'Сохранить QR в галерею',
   'payment.shotTitle': 'Скриншот оплаты',
   'payment.upload': '+ Загрузить скриншот',
@@ -130,6 +129,15 @@ export const ru = {
   'thanks.home': 'На главную',
   'thanks.question': 'Вопрос по заказу?',
   'thanks.questionLink': 'Напишите в Telegram',
+  'error.bad_days': 'Выбранные дни недоступны. Вернитесь и выберите дни заново.',
+  'error.bad_portions': 'Проверьте количество порций.',
+  'error.telegram_required': 'Укажите Telegram.',
+  'error.address_required': 'Укажите адрес.',
+  'error.screenshot_required': 'Загрузите скриншот оплаты.',
+  'error.screenshot_type': 'Скриншот должен быть JPG или PNG.',
+  'error.screenshot_size': 'Скриншот слишком большой (максимум 5 МБ).',
+  'error.network': 'Нет соединения. Проверьте интернет и попробуйте ещё раз.',
+  'error.generic': 'Не удалось отправить заказ. Попробуйте ещё раз или напишите нам в Telegram.',
 } as const;
 
 export type TKey = keyof typeof ru;

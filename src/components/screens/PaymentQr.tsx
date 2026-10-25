@@ -2,7 +2,7 @@
 
 import { useRef } from 'react';
 import { buildQrUrl } from '@/config/site';
-import { useI18n } from '@/i18n';
+import { useI18n, type TKey } from '@/i18n';
 import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
@@ -11,9 +11,9 @@ import { ScreenHeader } from '../ui/ScreenHeader';
 
 export function PaymentQr() {
   const { t } = useI18n();
-  const { go, total, orderId, screenshot, setScreenshot, placeOrder, sending } = useApp();
+  const { go, total, screenshot, setScreenshot, placeOrder, sending, submitError } = useApp();
   const fileRef = useRef<HTMLInputElement>(null);
-  const qrUrl = orderId ? buildQrUrl(total, orderId) : null;
+  const qrUrl = buildQrUrl(total);
   const ok = !!screenshot;
 
   return (
@@ -33,11 +33,9 @@ export function PaymentQr() {
           )}
           <div className="text-center text-[13px] leading-snug text-ink-muted">
             {t('payment.scan')}
-            <br />
-            {t('payment.purpose')} <b className="text-ink">{orderId}</b>
           </div>
           {qrUrl && (
-            <a href={qrUrl} download={`${orderId}.png`} target="_blank" rel="noreferrer" className="text-sm">
+            <a href={qrUrl} download="ninifood-qr.png" target="_blank" rel="noreferrer" className="text-sm">
               {t('payment.save')}
             </a>
           )}
@@ -75,6 +73,7 @@ export function PaymentQr() {
         <Button disabled={!ok || sending} onClick={() => void placeOrder()}>
           {t('payment.send')}
         </Button>
+        {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}
         {!ok && <div className="text-center text-[13px] text-ink-muted">{t('payment.needUpload')}</div>}
       </BottomBar>
     </>

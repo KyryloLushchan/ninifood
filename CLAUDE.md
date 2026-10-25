@@ -44,17 +44,18 @@
 Оплата: QR (VietQR с суммой и номером заказа) или наличные курьеру. При QR **обязательно** скриншот оплаты (jpg/png); перед отправкой он сжимается на клиенте до ~1280px по длинной стороне (JPEG). Наличные → сразу экран «Спасибо».
 Клиенту никаких уведомлений о смене статуса не шлём; подтверждает менеджер вручную.
 
-## Бэкенд (БД готова, edge-функции и бот ещё нет)
+## Бэкенд (шаг 3 готов: заказы через edge-функцию и Telegram-бота; Turnstile и VietQR пока нет)
 Точки подключения во фронте:
-- `submitOrder` в `src/lib/submit-order.ts` — сейчас заглушка с `console.log`.
-- `fetchMenu` в `src/data/mock-menu.ts` — уже читает меню из Supabase (шаг 2 выполнен: схема и seed применены).
+- `submitOrder` в `src/lib/submit-order.ts` — multipart POST в `send-order` (поле `payload` JSON + `screenshot`). Ответ `{ok, orderNumber}` или `{ok:false, code}`; коды переводятся в `error.*` (i18n).
+- `fetchMenu` в `src/data/mock-menu.ts` — читает `menu_dishes` из Supabase.
+- Скриншот сжимается на клиенте (`src/lib/compress-image.ts`) до 1280px JPEG.
 
-Схема:
-1. Клиент отправляет форму → edge-функция `send-order` (Supabase, Deno).
-2. `send-order`: проверяет Cloudflare Turnstile и гео (только Вьетнам); валидирует даты (не сегодня, не воскресенье, не прошлое; для подписки — ровно 5 разных будних дней из ближайших 2 недель); **пересчитывает сумму по `settings`**; сохраняет заказ (номер `NF-xxxx` выдаёт БД через `order_number_seq`, функция берёт его из `returning`; на клиенте номер временно генерируется заглушкой) со статусом `new`.
-3. Отправляет в Telegram-группу Orders сообщение с заказом и кнопками ✅ Одобрить / ❌ Отклонить. **Скриншот оплаты сразу уходит в Telegram** (`sendPhoto`), в БД хранится только `file_id`; Supabase Storage не используем.
-4. Webhook бота (`tg-webhook`): ✅ → `confirmed`, ❌ → `cancelled`; сообщение редактируется (статус + кто нажал), кнопки убираются. Нажимать могут только админы из whitelist.
-5. В админке: отметка `delivered` по каждому дню доставки.
+Edge-функции (`supabase/functions/`, общий код в `_shared/`):
+1. `send-order` (verify_jwt = true, вызывается с anon JWT): валидирует (Telegram и адрес обязательны; дни — не сегодня, не воскресенье, в окне 14 дней; разовый — 1+ дней из ближайших 6 доступных; подписка — ровно 5 разных будних; qty 1–99; при QR скриншот jpg/png ≤ 5 МБ); **считает сумму по `settings`** (`price_single`, `price_subscription`); пишет `orders` + `order_days` (номер `NF-xxxx` даёт БД через `order_number_seq`); шлёт сообщение в группу Orders (при QR — фото с подписью, а если подпись > 1024 символов, то текст и фото ответом) с кнопками ✅ Подтвердить / ❌ Отклонить; сохраняет `tg_message_id` и `receipt_file_id`. Если Telegram не принял сообщение — клиенту всё равно успех, `tg_message_id` остаётся `null` (по нему в админке ищем неотправленные), в логе номер заказа.
+2. `tg-webhook` (verify_jwt = false): проверяет заголовок `X-Telegram-Bot-Api-Secret-Token`; кнопки жмут только id из `ADMIN_TG_IDS`; ✅ → `confirmed`, ❌ → `cancelled`, после ✅ остаётся «↩️ Отменить»; пишет `status_changed_at/by`; редактирует сообщение (статус, кто, время Дананга). Вебхук зарегистрирован через `setWebhook` (allowed_updates: callback_query).
+3. Секреты Supabase: `TELEGRAM_BOT_TOKEN`, `TG_WEBHOOK_SECRET`, `ORDERS_CHAT_ID`, `ADMIN_TG_IDS`. Бот: @nini_food_bot. Значения нигде, кроме секретов, не хранить.
+4. Деплой: `supabase functions deploy <name> --project-ref jeeaairmlcpueghttnky` (tg-webhook — с `--no-verify-jwt`). Для CLI-команд, которым нужен токен, владелец разрешил передавать `SUPABASE_ACCESS_TOKEN` через env только на время команды, без записи в файлы и вывод.
+5. Не сделано: Turnstile и проверка гео, VietQR (в назначение платежа номер заказа пока попасть не может — он выдаётся после отправки), админка, лимиты от спама, `delivery_fee` не учитывается в сумме.
 
 Статусы: `new` → `confirmed` → `delivered` / `cancelled`.
 

@@ -15,7 +15,7 @@ const REQUIRED: (keyof Contact)[] = ['telegram', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
-  const { go, orderType, days, portions, total, contact, setContactField, payment, setPayment, ensureOrderId, placeOrder, sending } = useApp();
+  const { go, orderType, days, portions, total, contact, setContactField, payment, setPayment, placeOrder, sending, submitError } = useApp();
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
   const text = `${days.length} ${pl('unit.day', days.length)} × ${portions} ${pl('unit.portion', portions)}`;
@@ -36,7 +36,6 @@ export function Checkout() {
       return;
     }
     if (payment === 'qr') {
-      ensureOrderId();
       go('payment');
     } else {
       void placeOrder();
@@ -98,6 +97,7 @@ export function Checkout() {
       <div className="flex-1" />
       <BottomBar>
         <TotalRow label={t('checkout.total')} amount={fmtMoney(total)} />
+        {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}
         <Button disabled={sending} onClick={submit}>
           {sending ? t('checkout.sending') : payment === 'qr' ? t('checkout.toPayment') : t('checkout.send')}
         </Button>

@@ -28,11 +28,10 @@ export const VIETQR = {
   accountName: 'NINIFOOD',
 };
 
-export function buildQrUrl(amount: number, orderId: string): string | null {
+export function buildQrUrl(amount: number): string | null {
   if (!VIETQR.bankId || !VIETQR.accountNo) return null;
   const q = new URLSearchParams({
     amount: String(amount),
-    addInfo: orderId,
     accountName: VIETQR.accountName,
   });
   return `https://img.vietqr.io/image/${VIETQR.bankId}-${VIETQR.accountNo}-compact2.png?${q}`;

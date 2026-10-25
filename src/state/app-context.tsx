@@ -6,7 +6,8 @@ import { fetchMenu, type Menu } from '@/data/mock-menu';
 import { useI18n } from '@/i18n';
 import { addDays, isSunday, isWeekday, todayISO } from '@/lib/dates';
 import { onceTotal, subTotal, type OrderType } from '@/lib/pricing';
-import { generateOrderId, submitOrder } from '@/lib/submit-order';
+import { compressToJpeg } from '@/lib/compress-image';
+import { OrderError, submitOrder } from '@/lib/submit-order';
 
 export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks';
 export type Payment = 'qr' | 'cash';
@@ -65,9 +66,10 @@ interface AppValue {
   setPayment: (p: Payment) => void;
   screenshot: File | null;
   setScreenshot: (f: File | null) => void;
-  orderId: string | null;
-  ensureOrderId: () => string;
   sending: boolean;
+  /** Ключ i18n последней ошибки отправки (error.*) или null. */
+  submitError: string | null;
+  clearSubmitError: () => void;
   placeOrder: () => Promise<void>;
   placed: PlacedOrder | null;
   reset: () => void;
@@ -90,7 +92,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [contact, setContact] = useState<Contact>(EMPTY_CONTACT);
   const [payment, setPayment] = useState<Payment>('qr');
   const [screenshot, setScreenshot] = useState<File | null>(null);
-  const [orderId, setOrderId] = useState<string | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
 
@@ -186,13 +188,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     go('order');
   }, [go]);
 
-  const ensureOrderId = useCallback(() => {
-    if (orderId) return orderId;
-    const id = generateOrderId();
-    setOrderId(id);
-    return id;
-  }, [orderId]);
-
   const reset = useCallback(() => {
     setOrderType('once');
     setOnceDays([]);
@@ -201,32 +196,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setContact(EMPTY_CONTACT);
     setPayment('qr');
     setScreenshot(null);
-    setOrderId(null);
+    setSubmitError(null);
     setPlaced(null);
     go('home');
   }, [go]);
 
   const placeOrder = useCallback(async () => {
-    const id = ensureOrderId();
     setSending(true);
+    setSubmitError(null);
     try {
-      await submitOrder({
-        orderId: id,
+      const shot = payment === 'qr' && screenshot ? await compressToJpeg(screenshot) : null;
+      const { orderNumber } = await submitOrder({
         type: orderType,
         days,
         portions,
-        total,
         payment,
         contact,
-        screenshot: payment === 'qr' ? screenshot : null,
+        screenshot: shot,
         lang,
       });
-      setPlaced({ orderId: id, type: orderType, days, portions, total, payment });
+      setPlaced({ orderId: orderNumber, type: orderType, days, portions, total, payment });
       go('thanks');
+    } catch (e) {
+      const code = e instanceof OrderError ? e.code : 'generic';
+      setSubmitError(`error.${['bad_days', 'bad_portions', 'telegram_required', 'address_required', 'screenshot_required', 'screenshot_type', 'screenshot_size', 'network'].includes(code) ? code : 'generic'}`);
     } finally {
       setSending(false);
     }
-  }, [ensureOrderId, orderType, days, portions, total, payment, contact, screenshot, lang, go]);
+  }, [orderType, days, portions, total, payment, contact, screenshot, lang, go]);
 
   const value: AppValue = {
     screen,
@@ -256,9 +253,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPayment,
     screenshot,
     setScreenshot,
-    orderId,
-    ensureOrderId,
     sending,
+    submitError,
+    clearSubmitError: () => setSubmitError(null),
     placeOrder,
     placed,
     reset,
