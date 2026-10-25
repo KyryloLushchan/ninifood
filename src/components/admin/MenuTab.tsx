@@ -1,68 +1,67 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { addDays, isSunday, labelFull, todayISO } from '@/lib/dates';
 import { adminDb } from '@/lib/admin/client';
 import { Btn, Card, Err, Label, inputCls } from './ui';
 
 const LANGS = [['ru', 'Русский'], ['ua', 'Українська'], ['en', 'English'], ['vi', 'Tiếng Việt']] as const;
 const POSITIONS = ['Суп', 'Салат', 'Горячее', 'Десерт'];
+const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
+const NUTRITION = [['kcal', 'Ккал'], ['protein', 'Белки'], ['fat', 'Жиры'], ['carbs', 'Углеводы']] as const;
 
-type Dish = Record<string, string>; // name_ru…, desc_ru…, photo_url
-const emptyDish = (): Dish => ({ photo_url: '', ...Object.fromEntries(LANGS.flatMap(([l]) => [[`name_${l}`, ''], [`desc_${l}`, '']])) });
+type Dish = Record<string, string>; // name_ru…, desc_ru…, photo_url, weight_label, kcal…
+const emptyDish = (): Dish => ({
+  photo_url: '',
+  weight_label: '',
+  ...Object.fromEntries(NUTRITION.map(([k]) => [k, ''])),
+  ...Object.fromEntries(LANGS.flatMap(([l]) => [[`name_${l}`, ''], [`desc_${l}`, '']])),
+});
 const emptyForm = () => POSITIONS.map(emptyDish);
 
-async function loadDay(date: string): Promise<Dish[]> {
-  const { data, error } = await adminDb.from('menu_dishes').select('*').eq('date', date);
+async function loadDay(weekday: number): Promise<Dish[]> {
+  const { data, error } = await adminDb.from('menu_dishes').select('*').eq('weekday', weekday);
   if (error) throw new Error(error.message);
   const form = emptyForm();
   for (const r of data ?? []) {
     const d = form[r.position - 1];
     if (!d) continue;
-    for (const k of Object.keys(d)) d[k] = r[k] ?? '';
+    for (const k of Object.keys(d)) d[k] = r[k] == null ? '' : String(r[k]);
   }
   return form;
 }
 
+const toInt = (v: string): number | null => {
+  const n = parseInt(v, 10);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
+
 export function MenuTab() {
-  const [date, setDate] = useState(() => addDays(todayISO(), 1));
+  const [weekday, setWeekday] = useState(1);
   const [form, setForm] = useState<Dish[]>(emptyForm);
-  const [copyFrom, setCopyFrom] = useState('');
-  const [missing, setMissing] = useState<string[] | null>(null);
+  const [incomplete, setIncomplete] = useState<number[] | null>(null);
   const [msg, setMsg] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
-  const checkMissing = useCallback(async () => {
-    const t = todayISO();
-    const days = Array.from({ length: 7 }, (_, i) => addDays(t, i + 1)).filter((d) => !isSunday(d));
-    const { data } = await adminDb.from('menu_dishes').select('date').in('date', days);
-    const cnt: Record<string, number> = {};
-    (data ?? []).forEach((r) => (cnt[r.date] = (cnt[r.date] ?? 0) + 1));
-    setMissing(days.filter((d) => (cnt[d] ?? 0) < 4));
+  // Предупреждение по шаблону: дни Пн–Сб, где меньше 4 блюд.
+  const checkIncomplete = useCallback(async () => {
+    const { data } = await adminDb.from('menu_dishes').select('weekday');
+    const cnt: Record<number, number> = {};
+    (data ?? []).forEach((r) => (cnt[r.weekday] = (cnt[r.weekday] ?? 0) + 1));
+    setIncomplete([1, 2, 3, 4, 5, 6].filter((d) => (cnt[d] ?? 0) < 4));
   }, []);
 
   useEffect(() => {
-    checkMissing();
-  }, [checkMissing]);
+    checkIncomplete();
+  }, [checkIncomplete]);
 
   useEffect(() => {
     setMsg('');
     setError('');
-    loadDay(date).then(setForm).catch((e) => setError(e.message));
-  }, [date]);
+    loadDay(weekday).then(setForm).catch((e) => setError(e.message));
+  }, [weekday]);
 
   const set = (i: number, k: string, v: string) => setForm((f) => f.map((d, j) => (j === i ? { ...d, [k]: v } : d)));
-
-  const copy = async () => {
-    if (!copyFrom) return;
-    try {
-      setForm(await loadDay(copyFrom));
-      setMsg(`Скопировано с ${labelFull(copyFrom, 'ru')} — проверьте и нажмите «Сохранить»`);
-    } catch (e) {
-      setError((e as Error).message);
-    }
-  };
 
   const save = async () => {
     setBusy(true);
@@ -75,7 +74,13 @@ export function MenuTab() {
         const any = LANGS.some(([l]) => d[`name_${l}`].trim());
         if (!any) return remove.push(i + 1);
         const fallback = LANGS.map(([l]) => d[`name_${l}`].trim()).find(Boolean)!;
-        const row: Record<string, unknown> = { date, position: i + 1, photo_url: d.photo_url.trim() || null };
+        const row: Record<string, unknown> = {
+          weekday,
+          position: i + 1,
+          photo_url: d.photo_url.trim() || null,
+          weight_label: d.weight_label.trim() || null,
+        };
+        for (const [k] of NUTRITION) row[k] = toInt(d[k]);
         for (const [l] of LANGS) {
           row[`name_${l}`] = d[`name_${l}`].trim() || d.name_ru.trim() || fallback; // пустой язык → русское название
           row[`desc_${l}`] = d[`desc_${l}`].trim() || null;
@@ -83,15 +88,15 @@ export function MenuTab() {
         upsert.push(row);
       });
       if (upsert.length) {
-        const { error } = await adminDb.from('menu_dishes').upsert(upsert, { onConflict: 'date,position' });
+        const { error } = await adminDb.from('menu_dishes').upsert(upsert, { onConflict: 'weekday,position' });
         if (error) throw new Error(error.message);
       }
       if (remove.length) {
-        const { error } = await adminDb.from('menu_dishes').delete().eq('date', date).in('position', remove);
+        const { error } = await adminDb.from('menu_dishes').delete().eq('weekday', weekday).in('position', remove);
         if (error) throw new Error(error.message);
       }
       setMsg(`Сохранено: ${upsert.length} из 4 блюд`);
-      checkMissing();
+      checkIncomplete();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -101,33 +106,34 @@ export function MenuTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      {missing && missing.length > 0 && (
+      {incomplete && incomplete.length > 0 && (
         <div className="rounded-md2 bg-accent-soft px-4 py-3 text-sm">
-          <b>Нет полного меню на ближайшие 7 дней:</b>
+          <b>В шаблоне меньше 4 блюд:</b>
           <div className="mt-1 flex flex-wrap gap-1.5">
-            {missing.map((d) => (
-              <button key={d} onClick={() => setDate(d)} className="rounded-full bg-card px-2.5 py-1 font-bold text-accent">
-                {labelFull(d, 'ru')}
+            {incomplete.map((d) => (
+              <button key={d} onClick={() => setWeekday(d)} className="rounded-full bg-card px-2.5 py-1 font-bold text-accent">
+                {WEEKDAYS[d - 1]}
               </button>
             ))}
           </div>
         </div>
       )}
 
-      <div className="flex items-center gap-2">
-        <Btn kind="ghost" onClick={() => setDate(addDays(date, -1))}>←</Btn>
-        <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className={inputCls} />
-        <Btn kind="ghost" onClick={() => setDate(addDays(date, 1))}>→</Btn>
+      <div className="text-xs text-ink-muted">Меню одинаковое каждую неделю: изменения сразу действуют на все такие дни недели.</div>
+      <div className="grid grid-cols-6 gap-1.5">
+        {WEEKDAYS.map((w, i) => (
+          <button
+            key={w}
+            onClick={() => setWeekday(i + 1)}
+            aria-pressed={weekday === i + 1}
+            className={`rounded-chip border py-2 text-sm font-extrabold ${
+              weekday === i + 1 ? 'border-accent bg-accent text-white' : 'border-line bg-card text-ink'
+            }`}
+          >
+            {w}
+          </button>
+        ))}
       </div>
-      <div className="text-center text-sm font-bold text-ink-2">{labelFull(date, 'ru')}</div>
-
-      <Card>
-        <Label>Скопировать меню с другой даты</Label>
-        <div className="flex gap-2">
-          <input type="date" value={copyFrom} onChange={(e) => setCopyFrom(e.target.value)} className={inputCls} />
-          <Btn kind="outline" onClick={copy} disabled={!copyFrom}>Копировать</Btn>
-        </div>
-      </Card>
 
       <Err>{error}</Err>
       {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}
@@ -143,12 +149,26 @@ export function MenuTab() {
             </div>
           ))}
           <div>
-            <Label>Фото (URL)</Label>
-            <input className={inputCls} placeholder="https://…" value={d.photo_url} onChange={(e) => set(i, 'photo_url', e.target.value)} />
+            <Label>Вес</Label>
+            <input className={inputCls} placeholder="450 · 150+ (мясо + гарнир) · 2pc" value={d.weight_label} onChange={(e) => set(i, 'weight_label', e.target.value)} />
+          </div>
+          <div className="grid grid-cols-4 gap-1.5">
+            {NUTRITION.map(([k, label]) => (
+              <div key={k}>
+                <Label>{label}</Label>
+                <input className={inputCls} inputMode="numeric" value={d[k]} onChange={(e) => set(i, k, e.target.value.replace(/\D/g, ''))} />
+              </div>
+            ))}
+          </div>
+          <div>
+            <Label>Фото (путь или URL)</Label>
+            <input className={inputCls} placeholder="/photos/borsch-800.webp" value={d.photo_url} onChange={(e) => set(i, 'photo_url', e.target.value)} />
           </div>
         </Card>
       ))}
-      <div className="text-xs text-ink-muted">Пустое название = блюда нет. Если язык не заполнен, на нём покажется русское название.</div>
+      <div className="text-xs text-ink-muted">
+        Пустое название = блюда нет. Если язык не заполнен, на нём покажется русское название. КБЖУ — на порцию, примерные.
+      </div>
       <Btn onClick={save} disabled={busy} className="sticky bottom-20">{busy ? 'Сохраняем…' : 'Сохранить'}</Btn>
     </div>
   );

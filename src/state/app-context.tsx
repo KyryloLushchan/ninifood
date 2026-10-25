@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { BOOKABLE_DAYS, SUB_DAYS, SUB_WINDOW_DAYS } from '@/config/site';
-import { fetchMenu, type Menu } from '@/data/mock-menu';
+import { fetchMenu, type Menu } from '@/data/menu';
 import { useI18n } from '@/i18n';
 import { addDays, isSunday, isWeekday, todayISO } from '@/lib/dates';
 import { onceTotal, subTotal, type OrderType } from '@/lib/pricing';

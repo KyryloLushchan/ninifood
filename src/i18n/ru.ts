@@ -16,6 +16,12 @@ export const ru = {
   'dish.salad': 'Салат',
   'dish.main': 'Горячее',
   'dish.dessert': 'Десерт',
+  'dish.weightG': '{n} г',
+  'dish.weightSide': '{n} г + гарнир',
+  'dish.weightPc': '{n} шт',
+  'dish.nutrition': '≈ {kcal} ккал · Б {p} · Ж {f} · У {c}',
+  'dish.total': 'Итого за обед',
+  'dish.approx': 'Значения примерные',
 
   'photo.hero': 'фото: обед из 4 блюд на столе',
   'photo.dish': 'фото блюда',

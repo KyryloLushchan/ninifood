@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { CONTACTS, DELIVERY_FROM, DELIVERY_TO, TODAY_ORDER_DEADLINE } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
-import { useI18n } from '@/i18n';
+import { useI18n, type TKey } from '@/i18n';
 import { ddmm, isSunday, labelFull, weekdayShort } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
@@ -14,6 +14,14 @@ import { Logo } from '../ui/ScreenHeader';
 
 const hours = { from: DELIVERY_FROM, to: DELIVERY_TO };
 
+/** '450' → «450 г», '150+' → «150 г + гарнир», '2pc' → «2 шт». */
+function weightText(w: string, t: (k: TKey, v?: Record<string, string | number>) => string): string {
+  const m = /^(\d+)(\+|pc)?$/.exec(w.trim());
+  if (!m) return w;
+  const key = m[2] === '+' ? 'dish.weightSide' : m[2] === 'pc' ? 'dish.weightPc' : 'dish.weightG';
+  return t(key, { n: m[1] });
+}
+
 export function Home() {
   const { t, lang } = useI18n();
   const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub } = useApp();
@@ -23,6 +31,16 @@ export function Home() {
   const menuDays = today ? [...(!isSunday(today) ? [today] : []), ...bookableDays] : [];
   const active = tab && menuDays.includes(tab) ? tab : nearestDay;
   const dishes = active ? menu[active] ?? [] : [];
+  const withNutrition = dishes.filter((d) => d.nutrition);
+  const total = withNutrition.reduce(
+    (a, d) => ({
+      kcal: a.kcal + d.nutrition!.kcal,
+      p: a.p + d.nutrition!.protein,
+      f: a.f + d.nutrition!.fat,
+      c: a.c + d.nutrition!.carbs,
+    }),
+    { kcal: 0, p: 0, f: 0, c: 0 },
+  );
 
   return (
     <>
@@ -87,9 +105,26 @@ export function Home() {
               />
               <div className="text-xs font-extrabold uppercase tracking-[.04em] text-accent">{t(`dish.${dish.type}`)}</div>
               <div className="-mt-1 text-[15px] font-bold leading-snug">{dish.name[lang]}</div>
+              {(dish.weight || dish.nutrition) && (
+                <div className="-mt-1 text-[11px] leading-snug text-ink-muted">
+                  {dish.weight && <div>{weightText(dish.weight, t)}</div>}
+                  {dish.nutrition && (
+                    <div>
+                      {t('dish.nutrition', { kcal: dish.nutrition.kcal, p: dish.nutrition.protein, f: dish.nutrition.fat, c: dish.nutrition.carbs })}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
+        {withNutrition.length > 0 && (
+          <div className="mx-5 rounded-md2 bg-bg px-4 py-3 text-[13px] leading-snug">
+            <div className="font-extrabold">{t('dish.total')}</div>
+            <div className="text-ink-2">{t('dish.nutrition', total)}</div>
+            <div className="mt-0.5 text-[11px] text-ink-muted">{t('dish.approx')}</div>
+          </div>
+        )}
         {active && (
           <div className="px-5 pt-1">
             <Button variant="outline" size="md" onClick={() => startOnce(active)}>
