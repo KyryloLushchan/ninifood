@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { withBasePath } from '@/lib/base-path';
 
 interface Props {
   src: string | null;
@@ -15,7 +16,7 @@ interface Props {
 /** `/photos/x-800.webp` → srcset с `/photos/x-400.webp`; прочие пути — как есть. */
 function srcSet(src: string): string | undefined {
   if (!/-800\.webp$/.test(src)) return undefined;
-  return `${encodeURI(src.replace(/-800\.webp$/, '-400.webp'))} 400w, ${encodeURI(src)} 800w`;
+  return `${withBasePath(src.replace(/-800\.webp$/, '-400.webp'))} 400w, ${withBasePath(src)} 800w`;
 }
 
 export function Photo({ src, alt = '', className = '', caption, captionClassName = '', eager, sizes = '(min-width: 480px) 240px, 50vw' }: Props) {
@@ -23,7 +24,7 @@ export function Photo({ src, alt = '', className = '', caption, captionClassName
     return (
       // eslint-disable-next-line @next/next/no-img-element
       <img
-        src={encodeURI(src)}
+        src={withBasePath(src)}
         srcSet={srcSet(src)}
         sizes={sizes}
         alt={alt}

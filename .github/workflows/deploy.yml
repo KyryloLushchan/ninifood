@@ -5,6 +5,11 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# Куда публикуем. Пусто → https://kyrylolushchan.github.io/ninifood/ (basePath /ninifood).
+# ninifoodvn.com → сайт в корне домена + файл CNAME. Переключение — правкой этой строки.
+env:
+  CUSTOM_DOMAIN: ''
+
 permissions:
   contents: read
   pages: write
@@ -24,7 +29,11 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - name: Build
+        run: |
+          if [ -z "$CUSTOM_DOMAIN" ]; then export NEXT_PUBLIC_BASE_PATH=/ninifood; fi
+          npm run build
+          if [ -n "$CUSTOM_DOMAIN" ]; then echo "$CUSTOM_DOMAIN" > out/CNAME; fi
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
