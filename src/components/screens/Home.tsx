@@ -130,7 +130,7 @@ export function Home() {
         <div className="flex justify-between text-[15px]">
           <span className="text-ink-muted">{t('contacts.telegram')}</span>
           <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
-            {CONTACTS.telegramHandle}
+            {settings.telegramHandle}
           </a>
         </div>
         <div className="flex justify-between text-[15px]">
