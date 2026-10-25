@@ -4,5 +4,5 @@ insert into public.settings (key, value, is_public) values
   ('price_single',       '170000',                   true),
   ('price_subscription', '750000',                   true),
   ('delivery_fee',       '0',                        true),
-  ('telegram_url',       'https://t.me/ninifood_dn', true)   -- заглушка
+  ('telegram_url',       'https://t.me/ninifoodvn', true)
 on conflict (key) do nothing;

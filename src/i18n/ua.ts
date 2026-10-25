@@ -48,7 +48,6 @@ export const ua: Record<TKey, string> = {
   'how.4.d': 'З {from} до {to} у вибрані дні.',
   'contacts.title': 'Контакти',
   'contacts.telegram': 'Telegram',
-  'contacts.phone': 'Телефон',
   'contacts.delivery': 'Доставка',
   'contacts.deliveryValue': 'Пн–Сб, {from}–{to}',
   'contacts.sunday': 'Неділя — вихідний.',

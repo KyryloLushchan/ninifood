@@ -48,7 +48,6 @@ export const en: Record<TKey, string> = {
   'how.4.d': '{from}–{to} on the days you chose.',
   'contacts.title': 'Contacts',
   'contacts.telegram': 'Telegram',
-  'contacts.phone': 'Phone',
   'contacts.delivery': 'Delivery',
   'contacts.deliveryValue': 'Mon–Sat, {from}–{to}',
   'contacts.sunday': 'Sunday is a day off.',

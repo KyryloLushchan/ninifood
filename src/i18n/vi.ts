@@ -48,7 +48,6 @@ export const vi: Record<TKey, string> = {
   'how.4.d': 'Từ {from} đến {to} vào các ngày đã chọn.',
   'contacts.title': 'Liên hệ',
   'contacts.telegram': 'Telegram',
-  'contacts.phone': 'Điện thoại',
   'contacts.delivery': 'Giao hàng',
   'contacts.deliveryValue': 'Thứ 2–Thứ 7, {from}–{to}',
   'contacts.sunday': 'Chủ nhật nghỉ.',

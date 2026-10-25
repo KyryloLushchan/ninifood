@@ -53,7 +53,6 @@ export const ru = {
 
   'contacts.title': 'Контакты',
   'contacts.telegram': 'Telegram',
-  'contacts.phone': 'Телефон',
   'contacts.delivery': 'Доставка',
   'contacts.deliveryValue': 'Пн–Сб, {from}–{to}',
   'contacts.sunday': 'Воскресенье — выходной.',

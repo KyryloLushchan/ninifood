@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CONTACTS, DELIVERY_FROM, DELIVERY_TO, TODAY_ORDER_DEADLINE } from '@/config/site';
+import { DELIVERY_FROM, DELIVERY_TO, TODAY_ORDER_DEADLINE } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
 import { useI18n } from '@/i18n';
 import { ddmm, isSunday, labelFull, weekdayShort } from '@/lib/dates';
@@ -172,10 +172,6 @@ export function Home() {
           <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
             {settings.telegramHandle}
           </a>
-        </div>
-        <div className="flex justify-between text-[15px]">
-          <span className="text-ink-muted">{t('contacts.phone')}</span>
-          <span className="font-bold">{CONTACTS.phone}</span>
         </div>
         <div className="flex justify-between text-[15px]">
           <span className="text-ink-muted">{t('contacts.delivery')}</span>

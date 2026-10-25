@@ -16,9 +16,8 @@ export const DELIVERY_TO = '16:00';
 export const TODAY_ORDER_DEADLINE = '10:00';
 
 export const CONTACTS = {
-  telegramHandle: '@ninifood_dn',
-  telegramUrl: 'https://t.me/ninifood_dn',
-  phone: '+84 90 000 00 00',
+  telegramHandle: '@ninifoodvn',
+  telegramUrl: 'https://t.me/ninifoodvn',
 };
 
 /** Реквизиты для VietQR (https://img.vietqr.io). Пока пусто — показывается плашка-заглушка. */
