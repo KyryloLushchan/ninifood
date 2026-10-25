@@ -5,7 +5,7 @@ import { adminDb } from '@/lib/admin/client';
 import { Btn, Card, Err, Label, inputCls } from './ui';
 
 const LANGS = [['ru', 'Русский'], ['ua', 'Українська'], ['en', 'English'], ['vi', 'Tiếng Việt']] as const;
-const POSITIONS = ['Суп', 'Салат', 'Горячее', 'Десерт'];
+const POSITIONS = ['Суп', 'Горячее', 'Салат', 'Десерт'];
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const NUTRITION = [['kcal', 'Ккал'], ['protein', 'Белки'], ['fat', 'Жиры'], ['carbs', 'Углеводы']] as const;
 

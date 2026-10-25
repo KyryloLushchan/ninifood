@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { CONTACTS, DELIVERY_FROM, DELIVERY_TO, TODAY_ORDER_DEADLINE } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
-import { useI18n, type TKey } from '@/i18n';
+import { useI18n } from '@/i18n';
 import { ddmm, isSunday, labelFull, weekdayShort } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
@@ -14,12 +14,22 @@ import { Logo } from '../ui/ScreenHeader';
 
 const hours = { from: DELIVERY_FROM, to: DELIVERY_TO };
 
-/** '450' → «450 г», '150+' → «150 г + гарнир», '2pc' → «2 шт». */
-function weightText(w: string, t: (k: TKey, v?: Record<string, string | number>) => string): string {
-  const m = /^(\d+)(\+|pc)?$/.exec(w.trim());
-  if (!m) return w;
-  const key = m[2] === '+' ? 'dish.weightSide' : m[2] === 'pc' ? 'dish.weightPc' : 'dish.weightG';
-  return t(key, { n: m[1] });
+function NutritionLine({ n, className, split }: { n: { kcal: number; protein: number; fat: number; carbs: number }; className: string; split?: boolean }) {
+  const { t } = useI18n();
+  // split: ккал отдельной строкой, Б/Ж/У — второй (в узкой карточке). Внутри строки переносов нет.
+  const kcal = <span className="whitespace-nowrap">{t('dish.kcal', { n: n.kcal })}</span>;
+  const macros = (
+    <span className="whitespace-nowrap">
+      {t('dish.p', { n: n.protein })}
+      <span className="mx-1.5">{t('dish.f', { n: n.fat })}</span>
+      {t('dish.c', { n: n.carbs })}
+    </span>
+  );
+  return split ? (
+    <div className={`flex flex-col text-ink ${className}`}>{kcal}{macros}</div>
+  ) : (
+    <div className={`flex flex-wrap gap-x-3 text-ink ${className}`}>{kcal}{macros}</div>
+  );
 }
 
 export function Home() {
@@ -35,11 +45,11 @@ export function Home() {
   const total = withNutrition.reduce(
     (a, d) => ({
       kcal: a.kcal + d.nutrition!.kcal,
-      p: a.p + d.nutrition!.protein,
-      f: a.f + d.nutrition!.fat,
-      c: a.c + d.nutrition!.carbs,
+      protein: a.protein + d.nutrition!.protein,
+      fat: a.fat + d.nutrition!.fat,
+      carbs: a.carbs + d.nutrition!.carbs,
     }),
-    { kcal: 0, p: 0, f: 0, c: 0 },
+    { kcal: 0, protein: 0, fat: 0, carbs: 0 },
   );
 
   return (
@@ -105,23 +115,14 @@ export function Home() {
               />
               <div className="text-xs font-extrabold uppercase tracking-[.04em] text-accent">{t(`dish.${dish.type}`)}</div>
               <div className="-mt-1 text-[15px] font-bold leading-snug">{dish.name[lang]}</div>
-              {(dish.weight || dish.nutrition) && (
-                <div className="-mt-1 text-[11px] leading-snug text-ink-muted">
-                  {dish.weight && <div>{weightText(dish.weight, t)}</div>}
-                  {dish.nutrition && (
-                    <div>
-                      {t('dish.nutrition', { kcal: dish.nutrition.kcal, p: dish.nutrition.protein, f: dish.nutrition.fat, c: dish.nutrition.carbs })}
-                    </div>
-                  )}
-                </div>
-              )}
+              {dish.nutrition && <NutritionLine split n={dish.nutrition} className="-mt-1 text-[13px] font-semibold leading-snug" />}
             </div>
           ))}
         </div>
         {withNutrition.length > 0 && (
           <div className="mx-5 rounded-md2 bg-bg px-4 py-3 text-[13px] leading-snug">
             <div className="font-extrabold">{t('dish.total')}</div>
-            <div className="text-ink-2">{t('dish.nutrition', total)}</div>
+            <NutritionLine n={total} className="mt-0.5 text-[15px] font-bold" />
             <div className="mt-0.5 text-[11px] text-ink-muted">{t('dish.approx')}</div>
           </div>
         )}

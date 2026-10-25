@@ -26,7 +26,7 @@ export interface Dish {
 /** ISO-дата (YYYY-MM-DD) → блюда дня (из недельного шаблона). */
 export type Menu = Record<string, Dish[]>;
 
-const TYPE_BY_POSITION: DishType[] = ['soup', 'salad', 'main', 'dessert'];
+const TYPE_BY_POSITION: DishType[] = ['soup', 'main', 'salad', 'dessert'];
 
 interface DishRow {
   weekday: number;
