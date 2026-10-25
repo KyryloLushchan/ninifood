@@ -42,7 +42,7 @@ week(weekday, pos, code) as (values
   (5, 2, 'ryba-s-pyure'),
   (5, 3, 'vinegret'),
   (5, 4, 'blinchiki'),
-  (6, 1, 'okroshka'),
+  (6, 1, 'norvezhskaya-ukha'),
   (6, 2, 'ris-s-kuritsey'),
   (6, 3, 'morkov-po-koreyski'),
   (6, 4, 'yogurt')
