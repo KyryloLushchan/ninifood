@@ -11,6 +11,7 @@ const config: Config = {
         accent: { DEFAULT: '#B9532F', dark: '#A24726', soft: '#F3DCCF', onDark: '#F3C9B5' },
         ink: { DEFAULT: '#3B2B22', 2: '#5E4B3E', muted: '#7A6656', onDark: '#E9DCCD' },
         line: '#E2D3BF',
+        danger: { DEFAULT: '#B3261E', bg: '#FDECEA' },
         disabled: '#C9B8A6',
         success: { DEFAULT: '#4F7A4A', bg: '#DDE8D6', bg2: '#EEF3EA' },
       },

@@ -1,6 +1,6 @@
 'use client';
 
-import { CONTACTS, DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
+import { DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
 import { useI18n } from '@/i18n';
 import { labelList } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
@@ -10,7 +10,7 @@ import { Logo } from '../ui/ScreenHeader';
 
 export function Thanks() {
   const { t, lang } = useI18n();
-  const { placed, reset } = useApp();
+  const { placed, reset, settings } = useApp();
   if (!placed) return null;
 
   const rows: [string, string][] = [
@@ -75,7 +75,7 @@ export function Thanks() {
         <Button onClick={reset}>{t('thanks.home')}</Button>
         <div className="text-center text-sm text-ink-2">
           {t('thanks.question')}{' '}
-          <a href={CONTACTS.telegramUrl} target="_blank" rel="noreferrer">
+          <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
             {t('thanks.questionLink')}
           </a>
         </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PRICE_SINGLE, PRICE_SUB, PRICE_SUB_PER_DAY, SUB_DAYS, TODAY_ORDER_DEADLINE, CONTACTS } from '@/config/site';
+import { SUB_DAYS, TODAY_ORDER_DEADLINE } from '@/config/site';
 import { useI18n } from '@/i18n';
 import { ddmm, isWeekday, labelFull, weekdayShort, weekStart } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
@@ -49,7 +49,7 @@ export function Order() {
 
 function OnceDays() {
   const { t, lang, pl } = useI18n();
-  const { today, bookableDays, onceDays, toggleOnceDay, setOrderType } = useApp();
+  const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings } = useApp();
   const n = onceDays.length;
   const showNudge = onceDays.filter(isWeekday).length >= SUB_DAYS;
 
@@ -70,7 +70,7 @@ function OnceDays() {
         {today && (
           <div className="text-[13px] text-ink-muted">
             {t('order.todayNote', { day: labelFull(today, lang) })}{' '}
-            <a href={CONTACTS.telegramUrl} target="_blank" rel="noreferrer">
+            <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
               {t('order.todayLink', { time: TODAY_ORDER_DEADLINE })}
             </a>
           </div>
@@ -80,7 +80,7 @@ function OnceDays() {
         <div className="flex flex-col gap-1.5 rounded-md2 bg-accent-soft px-4 py-3.5">
           <div className="text-[15px] font-extrabold">{t('order.nudgeTitle')}</div>
           <div className="text-sm leading-snug text-ink-2">
-            {t('order.nudgeText', { sub: fmtMoney(PRICE_SUB), once: fmtMoney(PRICE_SINGLE * SUB_DAYS) })}
+            {t('order.nudgeText', { sub: fmtMoney(settings.priceSub), once: fmtMoney(settings.priceSingle * SUB_DAYS) })}
           </div>
           <button onClick={() => setOrderType('sub')} className="self-start text-sm font-extrabold text-accent hover:underline">
             {t('order.nudgeCta')}
@@ -149,7 +149,7 @@ function SubDays() {
 
 function OrderBar() {
   const { t, pl } = useI18n();
-  const { orderType, onceDays, subDays, portions, total, go } = useApp();
+  const { orderType, onceDays, subDays, portions, total, go, settings } = useApp();
 
   if (orderType === 'once') {
     const n = onceDays.length;
@@ -165,7 +165,7 @@ function OrderBar() {
   const left = SUB_DAYS - subDays.length;
   return (
     <BottomBar>
-      <TotalRow label={t('sub.calc', { n: portions, perDay: fmtMoney(PRICE_SUB_PER_DAY) })} amount={fmtMoney(total)} />
+      <TotalRow label={t('sub.calc', { n: portions, perDay: fmtMoney(settings.perDay) })} amount={fmtMoney(total)} />
       <Button disabled={left > 0} onClick={() => go('checkout')}>
         {left > 0 ? t('sub.more', { n: left }) : t('order.next')}
       </Button>

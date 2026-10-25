@@ -56,3 +56,11 @@ export function labelList(days: string[], lang: Lang): string {
   const parts = sorted.map((x) => `${weekdayShort(x, lang)} ${x.slice(8, 10)}`);
   return `${parts.join(', ')}.${sorted[0].slice(5, 7)}`;
 }
+
+/** Границы суток по Дананг-времени в UTC ISO: [from, to). */
+export function dayRangeUTC(fromISO: string, toISO: string): { from: string; to: string } {
+  return {
+    from: new Date(`${fromISO}T00:00:00+07:00`).toISOString(),
+    to: new Date(`${addDays(toISO, 1)}T00:00:00+07:00`).toISOString(),
+  };
+}

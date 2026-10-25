@@ -6,6 +6,7 @@ import { fetchMenu, type Menu } from '@/data/mock-menu';
 import { useI18n } from '@/i18n';
 import { addDays, isSunday, isWeekday, todayISO } from '@/lib/dates';
 import { onceTotal, subTotal, type OrderType } from '@/lib/pricing';
+import { DEFAULT_SETTINGS, fetchSiteSettings, type SiteSettings } from '@/lib/site-settings';
 import { compressToJpeg } from '@/lib/compress-image';
 import { OrderError, submitOrder } from '@/lib/submit-order';
 
@@ -36,6 +37,8 @@ interface AppValue {
   today: string | null;
   menu: Menu;
   menuLoaded: boolean;
+  /** Цены и ссылка Telegram из settings (до загрузки — значения из config/site.ts). */
+  settings: SiteSettings & { perDay: number };
   /** Доступные для заказа дни: есть меню, не сегодня, не воскресенье. */
   availableDays: string[];
   /** Ближайшие BOOKABLE_DAYS дней: их видно в меню и можно выбрать в разовом заказе. */
@@ -83,6 +86,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [today, setToday] = useState<string | null>(null);
   const [menu, setMenu] = useState<Menu>({});
   const [menuLoaded, setMenuLoaded] = useState(false);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>(DEFAULT_SETTINGS);
+
+  useEffect(() => {
+    fetchSiteSettings().then(setSiteSettings);
+  }, []);
 
   const [orderType, setOrderType] = useState<OrderType>('once');
   const [onceDaysRaw, setOnceDays] = useState<string[]>([]);
@@ -149,7 +157,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const days = orderType === 'once' ? onceDays : subDays;
-  const total = orderType === 'once' ? onceTotal(onceDays.length, portions) : subTotal(portions);
+  const total = orderType === 'once' ? onceTotal(onceDays.length, portions, siteSettings.priceSingle) : subTotal(portions, siteSettings.priceSub);
 
   const toggleOnceDay = useCallback(
     (iso: string) => setOnceDays((prev) => (prev.includes(iso) ? prev.filter((d) => d !== iso) : [...prev, iso])),
@@ -231,6 +239,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     today,
     menu,
     menuLoaded,
+    settings: { ...siteSettings, perDay: siteSettings.priceSub / SUB_DAYS },
     availableDays,
     bookableDays,
     nearestDay,

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CONTACTS, DELIVERY_FROM, DELIVERY_TO, PRICE_SINGLE, PRICE_SUB, PRICE_SUB_PER_DAY, TODAY_ORDER_DEADLINE } from '@/config/site';
+import { CONTACTS, DELIVERY_FROM, DELIVERY_TO, TODAY_ORDER_DEADLINE } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
 import { useI18n } from '@/i18n';
 import { ddmm, isSunday, labelFull, weekdayShort } from '@/lib/dates';
@@ -16,7 +16,7 @@ const hours = { from: DELIVERY_FROM, to: DELIVERY_TO };
 
 export function Home() {
   const { t, lang } = useI18n();
-  const { today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub } = useApp();
+  const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub } = useApp();
   const [tab, setTab] = useState<string | null>(null);
 
   // Сегодня (если есть меню, неактивно) + ближайшие доступные дни.
@@ -44,7 +44,7 @@ export function Home() {
         </Button>
         <div className="text-center text-sm text-ink-2">
           {t('home.todayQ')}{' '}
-          <a href={CONTACTS.telegramUrl} target="_blank" rel="noreferrer">
+          <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
             {t('home.todayLink', { time: TODAY_ORDER_DEADLINE })}
           </a>
         </div>
@@ -93,7 +93,7 @@ export function Home() {
         {active && (
           <div className="px-5 pt-1">
             <Button variant="outline" size="md" onClick={() => startOnce(active)}>
-              {t('home.menuCta', { day: labelFull(active, lang), price: fmtMoney(PRICE_SINGLE) })}
+              {t('home.menuCta', { day: labelFull(active, lang), price: fmtMoney(settings.priceSingle) })}
             </Button>
           </div>
         )}
@@ -102,9 +102,9 @@ export function Home() {
       <section className="px-5 py-7">
         <div className="flex flex-col gap-3 rounded-xl2 bg-ink p-6 text-card">
           <div className="text-[13px] font-extrabold uppercase tracking-[.08em] text-accent-onDark">{t('sub.badge')}</div>
-          <div className="font-serif text-h2 font-semibold">{t('sub.cardTitle', { price: fmtMoney(PRICE_SUB) })}</div>
+          <div className="font-serif text-h2 font-semibold">{t('sub.cardTitle', { price: fmtMoney(settings.priceSub) })}</div>
           <div className="text-[15px] leading-normal text-ink-onDark">
-            {t('sub.cardText', { perDay: fmtMoney(PRICE_SUB_PER_DAY), single: fmtMoney(PRICE_SINGLE) })}
+            {t('sub.cardText', { perDay: fmtMoney(settings.perDay), single: fmtMoney(settings.priceSingle) })}
           </div>
           <Button variant="light" size="md" className="mt-1" onClick={startSub}>
             {t('sub.cardCta')}
@@ -129,7 +129,7 @@ export function Home() {
         <h2 className="mb-1 font-serif text-h2 font-semibold">{t('contacts.title')}</h2>
         <div className="flex justify-between text-[15px]">
           <span className="text-ink-muted">{t('contacts.telegram')}</span>
-          <a href={CONTACTS.telegramUrl} target="_blank" rel="noreferrer">
+          <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
             {CONTACTS.telegramHandle}
           </a>
         </div>

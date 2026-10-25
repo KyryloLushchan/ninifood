@@ -36,3 +36,8 @@ export function buildQrUrl(amount: number): string | null {
   });
   return `https://img.vietqr.io/image/${VIETQR.bankId}-${VIETQR.accountNo}-compact2.png?${q}`;
 }
+
+/** Группа Orders (id не секретный): нужен для ссылок на сообщения заказов в админке. */
+export const ORDERS_CHAT_ID = -1004499305461;
+export const orderMessageUrl = (messageId: number) =>
+  `https://t.me/c/${String(ORDERS_CHAT_ID).replace(/^-100/, '')}/${messageId}`;
