@@ -62,7 +62,9 @@ export function Home() {
       <section className="flex flex-col gap-4 px-5 pb-7">
         <Photo
           src={PHOTOS.hero}
-          className="h-[220px] rounded-xl2 p-3.5"
+          eager
+          sizes="(min-width: 480px) 480px, 100vw"
+          className="h-[220px] w-full rounded-xl2 p-3.5 [&:is(img)]:p-0"
           caption={<span className="rounded-md bg-card px-2 py-1 text-xs">{t('photo.hero')}</span>}
         />
         <h2 className="font-serif text-h1 font-semibold [text-wrap:pretty]">{t('home.heroTitle')}</h2>
