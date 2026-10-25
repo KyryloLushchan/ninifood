@@ -4,7 +4,7 @@ with dish(code, ru, ua, en, vi, w, kcal, p, f, c) as (values
   ('borsch', 'Борщ с курицей', 'Борщ з куркою', 'Chicken borscht', 'Súp borscht gà', '450', 225, 13, 8, 25),
   ('okroshka', 'Окрошка с говяжьим языком', 'Окрошка з яловичим язиком', 'Okroshka with beef tongue', 'Okroshka (súp lạnh) với lưỡi bò', '450', 290, 14, 16, 22),
   ('sup-s-frikadelkami', 'Суп с нежными куриными фрикадельками', 'Суп з ніжними курячими фрикадельками', 'Soup with tender chicken meatballs', 'Súp viên gà mềm', '450', 245, 14, 11, 22),
-  ('norvezhskaya-ukha', 'Норвежская уха', 'Норвезька юшка', 'Norwegian fish soup', 'Súp cá kiểu Na Uy', '450', 360, 18, 26, 14),
+  ('norvezhskaya-ukha', 'Норвежская уха', 'Норвезька рибна юшка', 'Norwegian fish soup', 'Súp cá kiểu Na Uy', '450', 360, 18, 26, 14),
   ('kuriny-sup-s-lapshoy', 'Домашний куриный суп с лапшой', 'Домашній курячий суп із локшиною', 'Homemade chicken noodle soup', 'Súp gà mì nhà làm', '450', 200, 14, 6, 22),
   ('grechka-s-gulyashom', 'Гречка с гуляшом из телятины', 'Гречка з гуляшем із телятини', 'Buckwheat with veal goulash', 'Kiều mạch với thịt bê hầm goulash', '100+', 370, 27, 11, 40),
   ('kuritsa-s-pyure', 'Куриная грудка с картофельным пюре', 'Куряча грудка з картопляним пюре', 'Chicken breast with mashed potatoes', 'Ức gà với khoai tây nghiền', '150+', 450, 50, 12, 35),
