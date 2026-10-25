@@ -25,9 +25,6 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-        env:
-          # Когда появится домен — удалить эту переменную.
-          NEXT_PUBLIC_BASE_PATH: /ninifood
       - run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:

@@ -9,19 +9,29 @@ const SUB_DAYS = 5;
 const MAX_QTY = 99;
 const MAX_FILE = 5 * 1024 * 1024;
 
-const CORS = {
-  'Access-Control-Allow-Origin': '*',
+// Разрешённые Origin для браузера (github.io — на переходный период, потом убрать).
+const ALLOWED_ORIGINS = new Set([
+  'https://ninifoodvn.com',
+  'https://www.ninifoodvn.com',
+  'https://kyrylolushchan.github.io',
+]);
+
+const corsFor = (origin: string | null): Record<string, string> => ({
+  ...(origin && ALLOWED_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}),
+  Vary: 'Origin',
   'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-const json = (body: unknown, status = 200) =>
-  new Response(JSON.stringify(body), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
-const fail = (code: string, status = 400) => json({ ok: false, code }, status);
+});
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
 Deno.serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
+  const cors = corsFor(req.headers.get('origin'));
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
+  const fail = (code: string, status = 400) => json({ ok: false, code }, status);
+
+  if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
   if (req.method !== 'POST') return fail('bad_request', 405);
 
   let form: FormData;

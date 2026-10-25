@@ -7,7 +7,10 @@
 
 ## Стек
 - Фронт: **Next.js 14 (App Router) + TypeScript + Tailwind**, mobile-first (макет 375 px, на десктопе контент по центру, max-width 480 px).
-- **Static export** (`output: 'export'`): `npm run build` собирает сайт в `out/`, оттуда он публикуется на GitHub Pages (свой домен).
+- **Static export** (`output: 'export'`): `npm run build` собирает сайт в `out/`, деплой на GitHub Pages через GitHub Actions (`.github/workflows/deploy.yml`) при push в `main`.
+- **Адреса:** сайт — https://ninifoodvn.com (основной, без www; `www` редиректит на него), админка — https://ninifoodvn.com/admin. Сайт лежит в корне домена, `basePath` не используется. Файл `public/CNAME` = `ninifoodvn.com`. Репозиторий: https://github.com/KyryloLushchan/ninifood. DNS — в GoDaddy (4 A-записи на IP GitHub Pages 185.199.108–111.153 + CNAME `www` → `kyrylolushchan.github.io`).
+- Supabase Auth: Site URL `https://ninifoodvn.com`, redirect URL `https://ninifoodvn.com/admin`, публичная регистрация отключена.
+- CORS у `send-order`: разрешены Origin `https://ninifoodvn.com`, `https://www.ninifoodvn.com` и (на переходный период) `https://kyrylolushchan.github.io` — после проверки домена github.io убрать из `ALLOWED_ORIGINS`.
 - Node: нужна версия ≥ 18.17 (локально — `/opt/homebrew/bin`, Node 26).
 - Бэкенд (БД подключена, функции и бот — позже, см. ниже): отдельный проект Supabase `nini_food`, Telegram-бот.
 
