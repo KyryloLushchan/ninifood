@@ -8,7 +8,7 @@ on:
 # Куда публикуем. Пусто → https://kyrylolushchan.github.io/ninifood/ (basePath /ninifood).
 # ninifoodvn.com → сайт в корне домена + файл CNAME. Переключение — правкой этой строки.
 env:
-  CUSTOM_DOMAIN: ''
+  CUSTOM_DOMAIN: 'ninifoodvn.com'
 
 permissions:
   contents: read
