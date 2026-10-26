@@ -1,30 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { addDays, dayRangeUTC, todayISO, weekStart } from '@/lib/dates';
+import { dayRangeUTC, todayISO } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
+import { ruError } from '@/lib/admin/errors';
 import { adminDb, type AdminOrder } from '@/lib/admin/client';
-import { computeRevenue, type Bucket } from '@/lib/admin/money';
+import { computeProfit, computeRevenue, type Bucket, type CashCategory, type CashMovement } from '@/lib/admin/money';
+import { PRESETS, periodRange, type Preset } from '@/lib/admin/period';
 import { Btn, Card, Err, Note, inputCls } from './ui';
-
-type Preset = 'today' | 'week' | 'month' | 'custom';
-
-function range(p: Preset, from: string, to: string): [string, string] {
-  const t = todayISO();
-  if (p === 'today') return [t, t];
-  if (p === 'week') {
-    const m = weekStart(t);
-    return [m, addDays(m, 6)];
-  }
-  if (p === 'month') {
-    const first = `${t.slice(0, 7)}-01`;
-    const next = new Date(Date.UTC(+t.slice(0, 4), +t.slice(5, 7), 1)).toISOString().slice(0, 10);
-    return [first, addDays(next, -1)];
-  }
-  return [from, to < from ? from : to];
-}
-
-const PRESETS: [Preset, string][] = [['today', 'Сегодня'], ['week', 'Неделя'], ['month', 'Месяц'], ['custom', 'Свой']];
 
 function Row({ title, b }: { title: string; b: Bucket }) {
   return (
@@ -43,9 +26,11 @@ export function MoneyTab() {
   const [from, setFrom] = useState(todayISO());
   const [to, setTo] = useState(todayISO());
   const [orders, setOrders] = useState<AdminOrder[] | null>(null);
+  const [moves, setMoves] = useState<CashMovement[] | null>(null);
+  const [cats, setCats] = useState<CashCategory[]>([]);
   const [error, setError] = useState('');
 
-  const [a, b] = range(preset, from, to);
+  const [a, b] = periodRange(preset, from, to);
 
   useEffect(() => {
     setOrders(null);
@@ -57,7 +42,7 @@ export function MoneyTab() {
       .gte('created_at', f)
       .lt('created_at', t)
       .then(({ data, error }) => {
-        if (error) setError(error.message);
+        if (error) setError(ruError(error.message));
         else {
           setError('');
           setOrders((data ?? []) as unknown as AdminOrder[]);
@@ -65,7 +50,24 @@ export function MoneyTab() {
       });
   }, [a, b]);
 
+  useEffect(() => {
+    setMoves(null);
+    Promise.all([
+      adminDb.from('cash_movements').select('id, date, type, category_id, amount, comment').gte('date', a).lte('date', b),
+      adminDb.from('cash_categories').select('*'),
+    ]).then(([m, c]) => {
+      const err = m.error ?? c.error;
+      if (err) setError(ruError(err.message));
+      else {
+        setMoves((m.data ?? []) as CashMovement[]);
+        setCats((c.data ?? []) as CashCategory[]);
+      }
+    });
+  }, [a, b]);
+
   const report = useMemo(() => (orders ? computeRevenue(orders) : null), [orders]);
+
+  const profit = useMemo(() => (report && moves ? computeProfit(report.total.revenue, moves, cats) : null), [report, moves, cats]);
 
   return (
     <div className="flex flex-col gap-3">
@@ -84,12 +86,32 @@ export function MoneyTab() {
         </div>
       )}
       <div className="text-center text-xs text-ink-muted">
-        По дате создания заказа · {a === b ? a : `${a} — ${b}`} · подтверждённые и доставленные
+        Заказы — по дате создания, касса — по дате операции · {a === b ? a : `${a} — ${b}`} · подтверждённые и доставленные
       </div>
       <Err>{error}</Err>
       {!report && !error && <Note>Загрузка…</Note>}
-      {report && (
+      {report && profit && (
         <>
+          <Card>
+            <div className="text-sm text-ink-muted">Прибыль</div>
+            <div className={`font-serif text-[32px] font-bold ${profit.profit < 0 ? 'text-danger' : ''}`}>{fmtMoney(profit.profit)}</div>
+            <div className="mt-1 flex flex-col gap-0.5 text-sm text-ink-2">
+              <div className="flex justify-between"><span>Выручка с заказов</span><span>{fmtMoney(profit.revenue)}</span></div>
+              <div className="flex justify-between"><span>+ Приход (касса)</span><span>{fmtMoney(profit.cashIn)}</span></div>
+              <div className="flex justify-between"><span>− Расход</span><span>{fmtMoney(profit.cashOut)}</span></div>
+            </div>
+          </Card>
+          {profit.expenses.length > 0 && (
+            <Card className="divide-y divide-line">
+              <div className="pb-2 text-sm text-ink-muted">Расходы по категориям</div>
+              {profit.expenses.map((e) => (
+                <div key={e.categoryId} className="flex items-baseline justify-between py-2 text-[15px]">
+                  <span className="font-bold">{e.name}</span>
+                  <span>{fmtMoney(e.amount)}</span>
+                </div>
+              ))}
+            </Card>
+          )}
           <Card>
             <div className="text-sm text-ink-muted">Выручка</div>
             <div className="font-serif text-[32px] font-bold">{fmtMoney(report.total.revenue)}</div>

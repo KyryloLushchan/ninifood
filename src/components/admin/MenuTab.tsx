@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
 import { Btn, Card, Err, Label, inputCls } from './ui';
 
@@ -58,7 +59,7 @@ export function MenuTab() {
   useEffect(() => {
     setMsg('');
     setError('');
-    loadDay(weekday).then(setForm).catch((e) => setError(e.message));
+    loadDay(weekday).then(setForm).catch((e) => setError(ruError(e.message)));
   }, [weekday]);
 
   const set = (i: number, k: string, v: string) => setForm((f) => f.map((d, j) => (j === i ? { ...d, [k]: v } : d)));
@@ -98,7 +99,7 @@ export function MenuTab() {
       setMsg(`Сохранено: ${upsert.length} из 4 блюд`);
       checkIncomplete();
     } catch (e) {
-      setError((e as Error).message);
+      setError(ruError((e as Error).message));
     } finally {
       setBusy(false);
     }

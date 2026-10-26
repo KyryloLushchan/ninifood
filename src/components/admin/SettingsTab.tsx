@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
 import { Btn, Card, Err, Label, inputCls } from './ui';
 
@@ -19,7 +20,7 @@ export function SettingsTab() {
 
   useEffect(() => {
     adminDb.from('settings').select('key, value').then(({ data, error }) => {
-      if (error) setError(error.message);
+      if (error) setError(ruError(error.message));
       else setValues(Object.fromEntries((data ?? []).map((r) => [r.key, r.value])));
     });
   }, []);
@@ -38,7 +39,7 @@ export function SettingsTab() {
     const rows = FIELDS.map((f) => ({ key: f.key, value: values[f.key].trim(), is_public: true }));
     const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
     setBusy(false);
-    if (error) setError(error.message);
+    if (error) setError(ruError(error.message));
     else setMsg('Сохранено. Сайт подхватит новые значения при следующей загрузке, сумму заказа сервер считает по ним сразу.');
   };
 

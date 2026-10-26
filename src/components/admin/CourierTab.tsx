@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { addDays, labelFull, todayISO } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
+import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { Btn, Card, Err, Note, inputCls } from './ui';
@@ -48,7 +49,7 @@ export function CourierTab() {
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed'])
       .order('id');
-    if (error) setError(error.message);
+    if (error) setError(ruError(error.message));
     else setRows((data ?? []) as unknown as Row[]);
   }, [date]);
 
@@ -59,7 +60,7 @@ export function CourierTab() {
 
   const toggle = async (r: Row) => {
     const { error } = await adminDb.from('order_days').update({ delivered: !r.delivered }).eq('id', r.id);
-    if (error) setError(error.message);
+    if (error) setError(ruError(error.message));
     else load(); // статус заказа меняет триггер в БД
   };
 

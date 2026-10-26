@@ -417,3 +417,6 @@ verify_jwt = true
 
 [functions.tg-webhook]
 verify_jwt = false
+
+[functions.delete-order]
+verify_jwt = true

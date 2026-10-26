@@ -40,5 +40,5 @@ export const STATUS_LABEL: Record<OrderStatus, string> = {
   new: 'Новый',
   confirmed: 'Подтверждён',
   delivered: 'Доставлен',
-  cancelled: 'Отклонён',
+  cancelled: 'Отменён',
 };

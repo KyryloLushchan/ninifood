@@ -3,6 +3,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { adminDb } from '@/lib/admin/client';
+import { CashTab } from './CashTab';
 import { CourierTab } from './CourierTab';
 import { MenuTab } from './MenuTab';
 import { MoneyTab } from './MoneyTab';
@@ -14,6 +15,7 @@ const TABS = [
   ['courier', 'Курьер', '🚚'],
   ['orders', 'Заказы', '📋'],
   ['menu', 'Меню', '🍲'],
+  ['cash', 'Касса', '🧾'],
   ['money', 'Деньги', '💰'],
   ['settings', 'Настройки', '⚙️'],
 ] as const;
@@ -31,13 +33,13 @@ function Login() {
     setError('');
     const { error } = await adminDb.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
-    if (error) setError('Неверный email или пароль');
+    if (error) setError('Неверная почта или пароль');
   };
 
   return (
     <form onSubmit={submit} className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-3 px-5">
       <div className="mb-2 text-center font-serif text-[26px] font-bold text-accent">NiniFood · админка</div>
-      <input className={inputCls} type="email" autoComplete="username" placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <input className={inputCls} type="email" autoComplete="username" placeholder="Электронная почта" value={email} onChange={(e) => setEmail(e.target.value)} required />
       <input className={inputCls} type="password" autoComplete="current-password" placeholder="Пароль" value={password} onChange={(e) => setPassword(e.target.value)} required />
       <Err>{error}</Err>
       <Btn type="submit" disabled={busy}>{busy ? 'Входим…' : 'Войти'}</Btn>
@@ -88,13 +90,14 @@ export function AdminApp() {
         {tab === 'courier' && <CourierTab />}
         {tab === 'orders' && <OrdersTab adminEmail={session.user.email ?? session.user.id} />}
         {tab === 'menu' && <MenuTab />}
+        {tab === 'cash' && <CashTab />}
         {tab === 'money' && <MoneyTab />}
         {tab === 'settings' && <SettingsTab />}
       </main>
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-card">
-        <div className="mx-auto grid max-w-[640px] grid-cols-5 pb-[env(safe-area-inset-bottom)]">
+        <div className="mx-auto grid max-w-[640px] grid-cols-6 pb-[env(safe-area-inset-bottom)]">
           {TABS.map(([id, label, icon]) => (
-            <button key={id} onClick={() => setTab(id)} aria-current={tab === id} className={`flex flex-col items-center gap-0.5 py-2 text-[11px] font-extrabold ${tab === id ? 'text-accent' : 'text-ink-muted'}`}>
+            <button key={id} onClick={() => setTab(id)} aria-current={tab === id} className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-extrabold ${tab === id ? 'text-accent' : 'text-ink-muted'}`}>
               <span className="text-[20px] leading-none">{icon}</span>
               {label}
             </button>

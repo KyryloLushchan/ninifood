@@ -4,8 +4,10 @@ import { useCallback, useEffect, useState } from 'react';
 import { orderMessageUrl } from '@/config/site';
 import { labelShort } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
+import { ruError } from '@/lib/admin/errors';
 import { adminDb, STATUS_LABEL, type AdminOrder, type OrderStatus } from '@/lib/admin/client';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
 
 const fmtCreated = (iso: string) =>
@@ -17,20 +19,24 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
   const [orders, setOrders] = useState<AdminOrder[] | null>(null);
   const [error, setError] = useState('');
   const [open, setOpen] = useState<string | null>(null);
+  const [delFor, setDelFor] = useState<string | null>(null);
+  const [delText, setDelText] = useState('');
+  const [delBusy, setDelBusy] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const load = useCallback(async () => {
     setError('');
     let ids: string[] | null = null;
     if (date) {
       const { data, error } = await adminDb.from('order_days').select('order_id').eq('delivery_date', date);
-      if (error) return setError(error.message);
+      if (error) return setError(ruError(error.message));
       ids = [...new Set((data ?? []).map((d) => d.order_id as string))];
     }
     let q = adminDb.from('orders').select('*, order_days(id, delivery_date, qty, delivered)').order('created_at', { ascending: false }).limit(100);
     if (status) q = q.eq('status', status);
     if (ids) q = q.in('id', ids);
     const { data, error } = await q;
-    if (error) setError(error.message);
+    if (error) setError(ruError(error.message));
     else setOrders((data ?? []) as unknown as AdminOrder[]);
   }, [date, status]);
 
@@ -44,8 +50,41 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
       .from('orders')
       .update({ status: next, status_changed_at: new Date().toISOString(), status_changed_by: adminEmail })
       .eq('id', o.id);
-    if (error) setError(error.message);
+    if (error) setError(ruError(error.message));
     else load();
+  };
+
+  // Удаление через edge-функцию: она удаляет заказ, проверяет, что вызывает админ, и правит сообщение в Telegram.
+  const deleteOrder = async (o: AdminOrder) => {
+    setDelBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const { data } = await adminDb.auth.getSession();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/delete-order`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${data.session?.access_token ?? ''}` },
+        body: JSON.stringify({ id: o.id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        setError(body.code === 'forbidden' ? 'Нет прав на удаление.' : body.code === 'not_found' ? 'Заказ уже удалён.' : 'Не удалось удалить заказ. Попробуйте ещё раз.');
+      } else {
+        setNotice(
+          body.telegram === 'failed'
+            ? `Заказ ${o.order_number} удалён, но сообщение в Telegram изменить не удалось.`
+            : `Заказ ${o.order_number} удалён.`,
+        );
+        setDelFor(null);
+        setDelText('');
+        setOpen(null);
+        load();
+      }
+    } catch (e) {
+      setError(ruError((e as Error).message));
+    } finally {
+      setDelBusy(false);
+    }
   };
 
   return (
@@ -63,6 +102,7 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
         {date && <Btn kind="ghost" onClick={() => setDate('')}>✕</Btn>}
       </div>
       <Err>{error}</Err>
+      {notice && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{notice}</div>}
       {orders === null && <Note>Загрузка…</Note>}
       {orders?.length === 0 && <Note>Заказов нет</Note>}
 
@@ -138,6 +178,26 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
                       ))}
                   </div>
                   <div className="mt-1 text-xs text-ink-muted">Сообщение в Telegram при этом не меняется.</div>
+                </div>
+                <div className="mt-2 border-t border-line pt-3">
+                  {delFor !== o.id ? (
+                    <Btn kind="danger" className="!min-h-9 !px-3 !text-sm" onClick={() => { setDelFor(o.id); setDelText(''); }}>
+                      Удалить заказ
+                    </Btn>
+                  ) : (
+                    <div className="flex flex-col gap-2">
+                      <div className="text-[13px] font-bold text-danger">
+                        Заказ будет удалён полностью и перестанет учитываться в деньгах. Введите номер заказа ({o.order_number}), чтобы подтвердить.
+                      </div>
+                      <input className={inputCls} value={delText} onChange={(e) => setDelText(e.target.value)} placeholder={o.order_number} autoCapitalize="characters" />
+                      <div className="flex gap-2">
+                        <Btn kind="danger" disabled={delBusy || delText.trim().toUpperCase() !== o.order_number} onClick={() => deleteOrder(o)}>
+                          {delBusy ? 'Удаляем…' : 'Удалить навсегда'}
+                        </Btn>
+                        <Btn kind="ghost" onClick={() => setDelFor(null)}>Отмена</Btn>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
