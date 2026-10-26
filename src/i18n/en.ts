@@ -33,6 +33,8 @@ export const en: Record<TKey, string> = {
   'home.todayTag': 'today',
   'home.menuCta': 'Order for {day} · {price}',
   'home.noDays': 'Menu coming soon',
+  'home.prevDay': 'Previous day',
+  'home.nextDay': 'Next day',
   'sub.badge': 'Subscription',
   'sub.cardTitle': '5 weekday lunches — {price}',
   'sub.cardText': '{perDay} per lunch instead of {single}. Pick any 5 days Mon–Fri from the menu.',

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DELIVERY_FROM, DELIVERY_TO, TODAY_ORDER_DEADLINE } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
 import { useI18n } from '@/i18n';
@@ -42,18 +42,75 @@ export function Home() {
   const active = tab && menuDays.includes(tab) ? tab : nearestDay;
   // Кнопка в hero следует за выбранной вкладкой дня; по умолчанию — ближайший доступный.
   const heroDay = active;
-  const dishes = active ? menu[active] ?? [] : [];
-  const withNutrition = dishes.filter((d) => d.nutrition);
-  const total = withNutrition.reduce(
-    (a, d) => ({
-      kcal: a.kcal + d.nutrition!.kcal,
-      protein: a.protein + d.nutrition!.protein,
-      fat: a.fat + d.nutrition!.fat,
-      carbs: a.carbs + d.nutrition!.carbs,
-    }),
-    { kcal: 0, protein: 0, fat: 0, carbs: 0 },
-  );
+  // Карусель: по слайду на каждый день, кроме сегодняшнего (он есть только во вкладках, неактивный).
+  const slides = menuDays.filter((d) => d !== today);
+  const activeIdx = active ? slides.indexOf(active) : -1;
+  const carouselRef = useRef<HTMLDivElement>(null);
+  const tabsRef = useRef<HTMLDivElement>(null);
+  const lockUntil = useRef(0);
+  const raf = useRef(0);
+  const drag = useRef<{ x: number; left: number; moved: boolean } | null>(null);
 
+  const goTo = useCallback((i: number, smooth = true) => {
+    const el = carouselRef.current;
+    if (!el) return;
+    lockUntil.current = smooth ? Date.now() + 700 : 0;
+    el.scrollTo({ left: i * el.clientWidth, behavior: smooth ? 'smooth' : 'auto' });
+  }, []);
+
+  const onScroll = () => {
+    cancelAnimationFrame(raf.current);
+    raf.current = requestAnimationFrame(() => {
+      const el = carouselRef.current;
+      if (!el || Date.now() < lockUntil.current || drag.current?.moved) return;
+      const i = Math.round(el.scrollLeft / el.clientWidth);
+      if (slides[i] && slides[i] !== active) setTab(slides[i]);
+    });
+  };
+
+  // Активная вкладка прокручивается в видимую зону (только по горизонтали, страница не двигается).
+  useEffect(() => {
+    const box = tabsRef.current;
+    const btn = box?.querySelector<HTMLElement>('[aria-pressed="true"]');
+    if (!box || !btn) return;
+    box.scrollTo({ left: btn.offsetLeft - (box.clientWidth - btn.offsetWidth) / 2, behavior: 'smooth' });
+  }, [active]);
+
+  // Стартовая позиция, когда активный день не первый слайд.
+  const slidesKey = slides.join();
+  useEffect(() => {
+    if (activeIdx > 0) goTo(activeIdx, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slidesKey]);
+
+  const onPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType !== 'mouse' || e.button !== 0) return;
+    const el = carouselRef.current!;
+    drag.current = { x: e.clientX, left: el.scrollLeft, moved: false };
+  };
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const d = drag.current;
+    const el = carouselRef.current;
+    if (!d || !el) return;
+    const dx = e.clientX - d.x;
+    if (!d.moved && Math.abs(dx) < 5) return;
+    if (!d.moved) {
+      d.moved = true;
+      el.style.scrollSnapType = 'none';
+      el.setPointerCapture(e.pointerId);
+    }
+    el.scrollLeft = d.left - dx;
+  };
+  const endDrag = () => {
+    const d = drag.current;
+    const el = carouselRef.current;
+    drag.current = null;
+    if (!d?.moved || !el) return;
+    const i = Math.min(slides.length - 1, Math.max(0, Math.round(el.scrollLeft / el.clientWidth)));
+    el.style.scrollSnapType = '';
+    if (slides[i]) setTab(slides[i]);
+    goTo(i);
+  };
   return (
     <>
       <header className="flex items-center justify-between px-5 py-4">
@@ -84,7 +141,7 @@ export function Home() {
 
       <section className="flex flex-col gap-4 bg-card py-7">
         <h2 className="px-5 font-serif text-h2 font-semibold">{t('home.menuTitle')}</h2>
-        <div className="flex gap-2 overflow-x-auto px-5 pb-1">
+        <div ref={tabsRef} className="flex gap-2 overflow-x-auto px-5 pb-1">
           {menuDays.map((d) => {
             const isToday = d === today;
             const on = d === active;
@@ -92,7 +149,7 @@ export function Home() {
               <button
                 key={d}
                 disabled={isToday}
-                onClick={() => setTab(d)}
+                onClick={() => { setTab(d); goTo(slides.indexOf(d)); }}
                 aria-pressed={on}
                 className={`flex h-[60px] w-16 flex-none flex-col items-center justify-center gap-0.5 rounded-md2 border ${
                   on ? 'border-accent bg-accent text-white' : 'border-line bg-card text-ink'
@@ -104,30 +161,87 @@ export function Home() {
             );
           })}
         </div>
-        {menuLoaded && active && dishes.length === 0 && (
-          <div className="px-5 py-6 text-center text-[15px] text-ink-muted">{t('home.noDays')}</div>
-        )}
-        <div className="grid grid-cols-2 gap-3 px-5">
-          {dishes.map((dish) => (
-            <div key={dish.type} className="flex flex-col gap-2">
-              <Photo
-                src={dish.photo}
-                alt={dish.name[lang]}
-                className="h-[120px] w-full rounded-lg2 p-2"
-                caption={t('photo.dish')}
-                captionClassName="text-[11px]"
-              />
-              <div className="text-xs font-extrabold uppercase tracking-[.04em] text-accent">{t(`dish.${dish.type}`)}</div>
-              <div className="-mt-1 text-[15px] font-bold leading-snug">{dish.name[lang]}</div>
-              {dish.nutrition && <NutritionLine split n={dish.nutrition} className="-mt-1 text-[13px] font-semibold leading-snug" />}
-            </div>
-          ))}
+        <div
+          ref={carouselRef}
+          onScroll={onScroll}
+          onPointerDown={onPointerDown}
+          onPointerMove={onPointerMove}
+          onPointerUp={endDrag}
+          onPointerCancel={endDrag}
+          className="flex snap-x snap-mandatory items-start overflow-x-auto overscroll-x-contain [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
+          {slides.map((d) => {
+            const list = menu[d] ?? [];
+            const nut = list.filter((x) => x.nutrition);
+            const sum = nut.reduce(
+              (a, x) => ({
+                kcal: a.kcal + x.nutrition!.kcal,
+                protein: a.protein + x.nutrition!.protein,
+                fat: a.fat + x.nutrition!.fat,
+                carbs: a.carbs + x.nutrition!.carbs,
+              }),
+              { kcal: 0, protein: 0, fat: 0, carbs: 0 },
+            );
+            return (
+              <div key={d} className="flex w-full flex-none snap-center snap-always flex-col gap-4 select-none">
+                {menuLoaded && list.length === 0 && (
+                  <div className="px-5 py-6 text-center text-[15px] text-ink-muted">{t('home.noDays')}</div>
+                )}
+                <div className="grid grid-cols-2 gap-3 px-5">
+                  {list.map((dish) => (
+                    <div key={dish.type} className="flex flex-col gap-2">
+                      <Photo
+                        src={dish.photo}
+                        alt={dish.name[lang]}
+                        className="h-[120px] w-full rounded-lg2 p-2 [-webkit-user-drag:none]"
+                        caption={t('photo.dish')}
+                        captionClassName="text-[11px]"
+                      />
+                      <div className="text-xs font-extrabold uppercase tracking-[.04em] text-accent">{t(`dish.${dish.type}`)}</div>
+                      <div className="-mt-1 text-[15px] font-bold leading-snug">{dish.name[lang]}</div>
+                      {dish.nutrition && <NutritionLine split n={dish.nutrition} className="-mt-1 text-[13px] font-semibold leading-snug" />}
+                    </div>
+                  ))}
+                </div>
+                {nut.length > 0 && (
+                  <div className="mx-5 rounded-md2 bg-bg px-4 py-3 text-[13px] leading-snug">
+                    <div className="font-extrabold">{t('dish.total')}</div>
+                    <NutritionLine n={sum} className="mt-0.5 text-[15px] font-bold" />
+                    <div className="mt-0.5 text-[11px] text-ink-muted">{t('dish.approx')}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
-        {withNutrition.length > 0 && (
-          <div className="mx-5 rounded-md2 bg-bg px-4 py-3 text-[13px] leading-snug">
-            <div className="font-extrabold">{t('dish.total')}</div>
-            <NutritionLine n={total} className="mt-0.5 text-[15px] font-bold" />
-            <div className="mt-0.5 text-[11px] text-ink-muted">{t('dish.approx')}</div>
+        {slides.length > 1 && (
+          <div className="flex items-center justify-center gap-3">
+            <button
+              aria-label={t('home.prevDay')}
+              disabled={activeIdx <= 0}
+              onClick={() => { setTab(slides[activeIdx - 1]); goTo(activeIdx - 1); }}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-ink disabled:opacity-30"
+            >
+              ‹
+            </button>
+            <div className="flex gap-1.5">
+              {slides.map((d, i) => (
+                <button
+                  key={d}
+                  aria-label={labelFull(d, lang)}
+                  onClick={() => { setTab(d); goTo(i); }}
+                  className={`h-2 rounded-full transition-all ${i === activeIdx ? 'w-5 bg-accent' : 'w-2 bg-line'}`}
+                />
+              ))}
+            </div>
+            <button
+              aria-label={t('home.nextDay')}
+              disabled={activeIdx < 0 || activeIdx >= slides.length - 1}
+              onClick={() => { setTab(slides[activeIdx + 1]); goTo(activeIdx + 1); }}
+              className="flex h-8 w-8 items-center justify-center rounded-full border border-line text-lg leading-none text-ink disabled:opacity-30"
+            >
+              ›
+            </button>
           </div>
         )}
         {active && (

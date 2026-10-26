@@ -35,6 +35,8 @@ export const ru = {
   'home.todayTag': 'сегодня',
   'home.menuCta': 'Заказать на {day} · {price}',
   'home.noDays': 'Меню скоро появится',
+  'home.prevDay': 'Предыдущий день',
+  'home.nextDay': 'Следующий день',
 
   'sub.badge': 'Подписка',
   'sub.cardTitle': '5 будних обедов — {price}',

@@ -33,6 +33,8 @@ export const ua: Record<TKey, string> = {
   'home.todayTag': 'сьогодні',
   'home.menuCta': 'Замовити на {day} · {price}',
   'home.noDays': 'Меню скоро з’явиться',
+  'home.prevDay': 'Попередній день',
+  'home.nextDay': 'Наступний день',
   'sub.badge': 'Підписка',
   'sub.cardTitle': '5 будніх обідів — {price}',
   'sub.cardText': '{perDay} за обід замість {single}. Обираєте будь-які 5 днів Пн–Пт із меню.',

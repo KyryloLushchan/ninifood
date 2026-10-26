@@ -33,6 +33,8 @@ export const vi: Record<TKey, string> = {
   'home.todayTag': 'hôm nay',
   'home.menuCta': 'Đặt cho {day} · {price}',
   'home.noDays': 'Thực đơn sắp có',
+  'home.prevDay': 'Ngày trước',
+  'home.nextDay': 'Ngày sau',
   'sub.badge': 'Gói đăng ký',
   'sub.cardTitle': '5 bữa trưa ngày thường — {price}',
   'sub.cardText': '{perDay} mỗi bữa thay vì {single}. Chọn bất kỳ 5 ngày Thứ 2–Thứ 6 từ thực đơn.',
