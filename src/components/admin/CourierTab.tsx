@@ -6,6 +6,7 @@ import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
 
 interface Row {
@@ -38,6 +39,8 @@ export function CourierTab() {
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [notice, setNotice] = useState('');
 
   const load = useCallback(async () => {
     setError('');
@@ -55,6 +58,7 @@ export function CourierTab() {
 
   useEffect(() => {
     setRows(null);
+    setNotice('');
     load();
   }, [load]);
 
@@ -90,6 +94,35 @@ export function CourierTab() {
     }
   };
 
+  // Ручной запуск той же функции, что и ночной cron: отчёт на выбранную дату уходит в группу Orders.
+  const sendReport = async () => {
+    setSending(true);
+    setError('');
+    setNotice('');
+    try {
+      const { data } = await adminDb.auth.getSession();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${data.session?.access_token ?? ''}` },
+        body: JSON.stringify({ date }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        setError(
+          body.code === 'forbidden' ? 'Нет прав на отправку отчёта.' : body.code === 'telegram_failed' ? 'Telegram не принял сообщение. Попробуйте ещё раз.' : 'Не удалось отправить отчёт. Попробуйте ещё раз.',
+        );
+      } else if (body.skipped) {
+        setNotice('Воскресенье — выходной, отчёт не отправляется.');
+      } else {
+        setNotice(body.addresses > 0 ? `Отправлено в Telegram: ${body.addresses} адр.` : 'Отправлено: доставок на эту дату нет.');
+      }
+    } catch (e) {
+      setError(ruError((e as Error).message));
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
@@ -99,6 +132,7 @@ export function CourierTab() {
       </div>
       <div className="text-center text-sm font-bold text-ink-2">{labelFull(date, 'ru')}</div>
       <Err>{error}</Err>
+      {notice && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{notice}</div>}
 
       {rows && (
         <Card className="flex flex-col gap-1">
@@ -156,6 +190,9 @@ export function CourierTab() {
           {copied ? 'Скопировано ✓' : 'Скопировать список'}
         </Btn>
       )}
+      <Btn kind="outline" onClick={sendReport} disabled={sending}>
+        {sending ? 'Отправляем…' : 'Отправить отчёт в Telegram'}
+      </Btn>
     </div>
   );
 }

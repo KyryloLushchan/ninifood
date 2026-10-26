@@ -420,3 +420,6 @@ verify_jwt = false
 
 [functions.delete-order]
 verify_jwt = true
+
+[functions.daily-report]
+verify_jwt = false
