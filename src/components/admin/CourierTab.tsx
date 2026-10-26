@@ -5,6 +5,7 @@ import { addDays, labelFull, todayISO } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
+import { subLabel } from '@/lib/admin/sub-label';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
@@ -17,6 +18,7 @@ interface Row {
   orders: {
     id: string;
     order_number: string;
+    type: 'single' | 'subscription';
     status: 'new' | 'confirmed';
     telegram: string;
     address: string;
@@ -34,6 +36,9 @@ const cashDue = (r: Row) =>
     ? r.orders.total
     : 0;
 
+/** Номер этого дня среди дней заказа. */
+const dayNo = (r: Row) => [...r.orders.order_days].map((d) => d.delivery_date).sort().indexOf(r.delivery_date) + 1;
+
 export function CourierTab() {
   const [date, setDate] = useState(() => addDays(todayISO(), 1));
   const [rows, setRows] = useState<Row[] | null>(null);
@@ -47,7 +52,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, orders!inner(id, order_number, status, telegram, address, hotel, comment, payment_method, total, order_days(delivery_date))',
+        'id, delivery_date, qty, delivered, orders!inner(id, order_number, type, status, telegram, address, hotel, comment, payment_method, total, order_days(delivery_date))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed'])
@@ -79,6 +84,7 @@ export function CourierTab() {
       lines.push(
         `${i + 1}) ${r.orders.address}${r.orders.hotel ? ` (${r.orders.hotel})` : ''}`,
         `   Telegram: ${tgLabel(r.orders.telegram)}`,
+        ...(r.orders.type === 'subscription' ? [`   ${subLabel(r.orders.order_days.length)}, день ${dayNo(r)} из ${r.orders.order_days.length}`] : []),
         `   Порций: ${r.qty}`,
         `   ${due ? `Взять наличными: ${fmtMoney(due)}` : 'Оплачено'}`,
         ...(r.orders.comment ? [`   Комментарий: ${r.orders.comment}`] : []),
@@ -169,6 +175,9 @@ export function CourierTab() {
                   )}
                   <span className="text-ink-muted"> · {r.orders.order_number}</span>
                 </div>
+                {r.orders.type === 'subscription' && (
+                  <div className="text-sm text-ink-2">🔁 {subLabel(r.orders.order_days.length)} · день {dayNo(r)} из {r.orders.order_days.length}</div>
+                )}
                 {r.orders.comment && <div className="text-sm text-ink-muted">💬 {r.orders.comment}</div>}
               </div>
               <div className="text-right">

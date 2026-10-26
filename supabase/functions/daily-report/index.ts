@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   const { data, error } = await db
     .from('order_days')
-    .select('qty, orders!inner(id, order_number, status, telegram, address, hotel, comment, payment_method, total, order_days(delivery_date))')
+    .select('qty, orders!inner(id, order_number, type, status, telegram, address, hotel, comment, payment_method, total, order_days(delivery_date))')
     .eq('delivery_date', date)
     .eq('orders.status', 'confirmed');
   if (error) {
@@ -55,7 +55,8 @@ Deno.serve(async (req) => {
 
   const deliveries: ReportDelivery[] = (data ?? []).map((r: any) => {
     const o = r.orders;
-    const first = [...o.order_days].map((d: any) => d.delivery_date).sort()[0];
+    const all: string[] = [...o.order_days].map((d: any) => d.delivery_date).sort();
+    const first = all[0];
     return {
       order_number: o.order_number,
       telegram: o.telegram,
@@ -65,6 +66,7 @@ Deno.serve(async (req) => {
       payment_method: o.payment_method,
       total: o.total,
       qty: r.qty,
+      sub: o.type === 'subscription' ? { total: all.length, dayNo: all.indexOf(date) + 1 } : null,
       firstDay: first === date,
     };
   });

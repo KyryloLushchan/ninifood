@@ -6,6 +6,7 @@ import { labelShort } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb, STATUS_LABEL, type AdminOrder, type OrderStatus } from '@/lib/admin/client';
+import { subLabel } from '@/lib/admin/sub-label';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
@@ -119,7 +120,7 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
                   {o.order_number} <span className="text-sm font-bold text-ink-muted">· {fmtCreated(o.created_at)}</span>
                 </div>
                 <div className="text-sm text-ink-2">
-                  {o.type === 'single' ? 'Разовый' : 'Подписка'} · {days.length} дн. × {o.qty} · {o.payment_method === 'qr' ? 'QR' : 'наличные'}
+                  {o.type === 'single' ? `Разовый · ${days.length} дн.` : subLabel(days.length)} × {o.qty} · {o.payment_method === 'qr' ? 'QR' : 'наличные'}
                 </div>
               </div>
               <div className="text-right">

@@ -1,6 +1,6 @@
 import { esc } from './telegram.ts';
 import { labelRu } from './dates.ts';
-import { money } from './order-text.ts';
+import { money, subLabel } from './order-text.ts';
 
 export interface ReportDelivery {
   order_number: string;
@@ -11,6 +11,8 @@ export interface ReportDelivery {
   payment_method: 'qr' | 'cash';
   total: number;
   qty: number; // порции за этот день (order_days.qty)
+  /** Для подписки: сколько всего дней в заказе и номер этого дня; для разового — null. */
+  sub: { total: number; dayNo: number } | null;
   firstDay: boolean; // первый день доставки заказа — наличные берём только в него
 }
 
@@ -35,6 +37,7 @@ function entry(d: ReportDelivery, i: number): string {
   const due = cashDue(d);
   const lines = [`<b>${i + 1}. ${esc(d.order_number)}</b> · ${esc(handle(d.telegram))}`, `📍 <code>${esc(d.address)}</code>`];
   if (d.hotel) lines.push(`🏨 ${esc(d.hotel)}`);
+  if (d.sub) lines.push(`🔁 ${subLabel(d.sub.total)} · день ${d.sub.dayNo} из ${d.sub.total}`);
   lines.push(`🍽 ${portions(d.qty)}`);
   lines.push(due ? `💵 Взять наличными: <b>${money(due)}</b>` : '✅ Оплачено');
   if (d.comment) lines.push(`💬 ${esc(d.comment)}`);

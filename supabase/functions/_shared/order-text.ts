@@ -3,6 +3,9 @@ import { labelRu } from './dates.ts';
 
 export const money = (n: number) => `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ₫`;
 
+/** «Подписка 5 дн.» или «Подписка 5 дн. + 2 доп. (всего 7)». */
+export const subLabel = (n: number) => (n <= 5 ? `Подписка ${n} дн.` : `Подписка 5 дн. + ${n - 5} доп. (всего ${n})`);
+
 export interface OrderRow {
   order_number: string;
   type: 'single' | 'subscription';
@@ -27,7 +30,7 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
   const lines = [
     `🆕 <b>Заказ ${o.order_number}</b>`,
     '',
-    `Тип: ${o.type === 'single' ? 'Разовый' : `Подписка (${days.length} дн.)`}`,
+    `Тип: ${o.type === 'single' ? 'Разовый' : subLabel(days.length)}`,
     `📅 Дни: ${sorted.map(labelRu).join(' · ')}`,
     `🍽 Порций: ${o.qty} в день (всего ${o.qty * sorted.length})`,
     `🍱 Обеды: ${money(o.total - o.delivery_total)}`,

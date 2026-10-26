@@ -257,7 +257,7 @@ export function Home() {
       <section className="px-5 py-7">
         <div className="flex flex-col gap-3 rounded-xl2 bg-ink p-6 text-card">
           <div className="text-[13px] font-extrabold uppercase tracking-[.08em] text-accent-onDark">{t('sub.badge')}</div>
-          <div className="font-serif text-h2 font-semibold">{t('sub.cardTitle', { price: fmtMoney(settings.priceSub) })}</div>
+          <div className="font-serif text-h2 font-semibold">{t('sub.cardTitle')}</div>
           <div className="text-[15px] leading-normal text-ink-onDark">
             {t('sub.cardText')}
           </div>

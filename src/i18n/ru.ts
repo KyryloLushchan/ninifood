@@ -39,8 +39,8 @@ export const ru = {
   'home.nextDay': 'Следующий день',
 
   'sub.badge': 'Подписка',
-  'sub.cardTitle': 'Подписка от 5 дней',
-  'sub.cardText': 'Любые дни Пн–Сб из меню — от 5 дней.',
+  'sub.cardTitle': 'Подписка на 5 дней',
+  'sub.cardText': '5 дней + можно добавить ещё — до 12 дней Пн–Сб из меню.',
   'home.heroDelivery': 'Доставка {from}–{to}',
   'summary.food': 'Обеды',
   'summary.delivery': 'Доставка',
@@ -49,7 +49,7 @@ export const ru = {
 
   'how.title': 'Как это работает',
   'how.1.t': 'Выберите дни',
-  'how.1.d': 'Разово на любой день Пн–Сб или подпиской от 5 дней.',
+  'how.1.d': 'Разово на любой день Пн–Сб или подпиской на 5 дней (можно добавить ещё).',
   'how.2.t': 'Оставьте контакты',
   'how.2.d': 'Telegram и адрес, название отеля.',
   'how.3.t': 'Оплатите',
@@ -65,7 +65,7 @@ export const ru = {
 
   'order.title': 'Ваш заказ',
   'order.tabOnce': 'Разовый',
-  'order.tabSub': 'Подписка',
+  'order.tabSub': 'Подписка на 5 дней',
   'order.daysTitle': 'Дни доставки',
   'order.selected': 'выбрано {text}',
   'order.pickDay': 'выберите день',
@@ -80,9 +80,9 @@ export const ru = {
   'order.minus': 'Меньше',
   'order.plus': 'Больше',
 
-  'sub.pickTitle': 'Выберите от 5 дней',
+  'sub.pickTitle': '5 дней + можно добавить ещё',
   'sub.count': 'выбрано {n}',
-  'sub.autoHint': 'Мы отметили ближайшие 5 дней — добавьте или замените дни.',
+  'sub.autoHint': 'Мы отметили ближайшие 5 дней. Можно добавить ещё — до 12 дней.',
   'sub.portionsTitle': 'Порций в день',
   'sub.portionsHint': 'Одинаково на все дни',
   'sub.more': 'Выберите ещё {n}',
