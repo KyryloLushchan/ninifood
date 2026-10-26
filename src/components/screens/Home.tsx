@@ -128,7 +128,7 @@ export function Home() {
         />
         <h2 className="font-serif text-h1 font-semibold [text-wrap:pretty]">{t('home.heroTitle')}</h2>
         <p className="text-base leading-normal text-ink-2">{t('home.heroText', hours)}</p>
-        <div className="-mt-1 text-[15px] font-extrabold">{t('home.heroDelivery', { ...hours, fee: fmtMoney(settings.deliverySingle) })}</div>
+        <div className="-mt-1 text-[15px] font-extrabold">{t('home.heroDelivery', hours)}</div>
         <Button size="xl" shadow disabled={!heroDay} onClick={() => heroDay && startOnce(heroDay)}>
           {heroDay ? t('home.heroCta', { day: labelFull(heroDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
         </Button>
@@ -261,7 +261,6 @@ export function Home() {
           <div className="text-[15px] leading-normal text-ink-onDark">
             {t('sub.cardText')}
           </div>
-          <div className="text-[15px] font-extrabold">{t('sub.delivery', { fee: fmtMoney(settings.deliverySub) })}</div>
           <Button variant="light" size="md" className="mt-1" onClick={startSub}>
             {t('sub.cardCta')}
           </Button>
@@ -275,7 +274,7 @@ export function Home() {
             <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent-soft font-extrabold text-accent">{n}</div>
             <div className="flex flex-col gap-0.5 pt-1.5">
               <div className="text-base font-extrabold">{t(`how.${n}.t` as 'how.1.t')}</div>
-              <div className="text-sm leading-snug text-ink-2">{t(`how.${n}.d` as 'how.1.d', { ...hours, fee: fmtMoney(settings.deliverySingle), feeSub: fmtMoney(settings.deliverySub) })}</div>
+              <div className="text-sm leading-snug text-ink-2">{t(`how.${n}.d` as 'how.1.d', hours)}</div>
             </div>
           </div>
         ))}
@@ -292,10 +291,6 @@ export function Home() {
         <div className="flex justify-between text-[15px]">
           <span className="text-ink-muted">{t('contacts.delivery')}</span>
           <span className="font-bold">{t('contacts.deliveryValue', hours)}</span>
-        </div>
-        <div className="flex justify-between gap-4 text-[15px]">
-          <span className="text-ink-muted">{t('contacts.fee')}</span>
-          <span className="text-right font-bold">{t('contacts.feeValue', { fee: fmtMoney(settings.deliverySingle), feeSub: fmtMoney(settings.deliverySub) })}</span>
         </div>
         <div className="mt-2 text-[13px] text-ink-muted">{t('contacts.sunday')}</div>
       </footer>
