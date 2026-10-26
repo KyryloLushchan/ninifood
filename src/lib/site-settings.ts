@@ -1,9 +1,11 @@
-import { CONTACTS, PRICE_SINGLE, PRICE_SUB } from '@/config/site';
+import { CONTACTS, DELIVERY_SINGLE, DELIVERY_SUB, PRICE_SINGLE, PRICE_SUB } from '@/config/site';
 import { supabase } from './supabase';
 
 export interface SiteSettings {
   priceSingle: number;
   priceSub: number;
+  deliverySingle: number;
+  deliverySub: number;
   telegramUrl: string;
   /** @username из telegramUrl (t.me/username) — для подписи ссылок. */
   telegramHandle: string;
@@ -18,6 +20,8 @@ export function handleFromUrl(url: string, fallback: string): string {
 export const DEFAULT_SETTINGS: SiteSettings = {
   priceSingle: PRICE_SINGLE,
   priceSub: PRICE_SUB,
+  deliverySingle: DELIVERY_SINGLE,
+  deliverySub: DELIVERY_SUB,
   telegramUrl: CONTACTS.telegramUrl,
   telegramHandle: CONTACTS.telegramHandle,
 };
@@ -31,9 +35,12 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
   }
   const m = Object.fromEntries(data.map((r) => [r.key, r.value as string]));
   const num = (v: string | undefined, d: number) => (v && Number(v) > 0 ? Number(v) : d);
+  const fee = (v: string | undefined, d: number) => (v !== undefined && v !== '' && Number(v) >= 0 ? Number(v) : d);
   return {
     priceSingle: num(m.price_single, DEFAULT_SETTINGS.priceSingle),
     priceSub: num(m.price_subscription, DEFAULT_SETTINGS.priceSub),
+    deliverySingle: fee(m.delivery_single, DEFAULT_SETTINGS.deliverySingle),
+    deliverySub: fee(m.delivery_subscription, DEFAULT_SETTINGS.deliverySub),
     telegramUrl: m.telegram_url || DEFAULT_SETTINGS.telegramUrl,
     telegramHandle: handleFromUrl(m.telegram_url || '', DEFAULT_SETTINGS.telegramHandle),
   };

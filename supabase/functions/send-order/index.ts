@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
   });
 
   // ── цена: только из settings ──
-  const { data: settings, error: sErr } = await db.from('settings').select('key, value').in('key', ['price_single', 'price_subscription']);
+  const { data: settings, error: sErr } = await db.from('settings').select('key, value').in('key', ['price_single', 'price_subscription', 'delivery_single', 'delivery_subscription']);
   if (sErr || !settings) {
     console.error('settings error', sErr?.message);
     return fail('server_error', 500);
@@ -94,7 +94,14 @@ Deno.serve(async (req) => {
     console.error('settings: prices missing');
     return fail('server_error', 500);
   }
-  const total = type === 'single' ? days.length * qty * price.price_single : qty * price.price_subscription;
+  if (!(price.delivery_single >= 0) || !(price.delivery_subscription >= 0)) {
+    console.error('settings: delivery fees missing');
+    return fail('server_error', 500);
+  }
+  // Доставка — за день доставки (разовый, не за порцию) или за всю подписку (не зависит от порций).
+  const food = type === 'single' ? days.length * qty * price.price_single : qty * price.price_subscription;
+  const delivery_total = type === 'single' ? days.length * price.delivery_single : price.delivery_subscription;
+  const total = food + delivery_total;
 
   // ── сохраняем заказ (номер выдаёт БД) ──
   const { data: order, error: oErr } = await db
@@ -108,6 +115,7 @@ Deno.serve(async (req) => {
       payment_method: payment,
       qty,
       total,
+      delivery_total,
       lang,
     })
     .select('id, order_number')
@@ -124,7 +132,7 @@ Deno.serve(async (req) => {
   }
 
   // ── Telegram ──
-  const row: OrderRow = { order_number: order.order_number, type, telegram, address, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, lang };
+  const row: OrderRow = { order_number: order.order_number, type, telegram, address, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, lang };
   const text = buildOrderText(row, days);
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
   let messageId: number | null = null;

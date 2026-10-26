@@ -4,6 +4,8 @@ export interface Bucket {
   orders: number;
   portions: number;
   revenue: number;
+  /** Доставка внутри revenue. */
+  delivery: number;
 }
 export interface RevenueReport {
   total: Bucket;
@@ -13,7 +15,7 @@ export interface RevenueReport {
   subscription: Bucket;
 }
 
-const empty = (): Bucket => ({ orders: 0, portions: 0, revenue: 0 });
+const empty = (): Bucket => ({ orders: 0, portions: 0, revenue: 0, delivery: 0 });
 
 /**
  * Выручка по заказам confirmed + delivered (период уже отфильтрован по дате создания).
@@ -29,6 +31,7 @@ export function computeRevenue(orders: AdminOrder[]): RevenueReport {
       b.orders += 1;
       b.portions += portions;
       b.revenue += o.total;
+      b.delivery += o.delivery_total;
     }
   }
   return r;

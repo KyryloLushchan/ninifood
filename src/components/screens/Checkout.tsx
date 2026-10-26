@@ -4,18 +4,18 @@ import { useState } from 'react';
 import { DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
 import { useI18n, type TKey } from '@/i18n';
 import { labelShort } from '@/lib/dates';
-import { fmtMoney } from '@/lib/format';
 import { useApp, type Contact, type Payment } from '@/state/app-context';
-import { BottomBar, TotalRow } from '../ui/BottomBar';
+import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
 import { Field } from '../ui/Field';
+import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
 
 const REQUIRED: (keyof Contact)[] = ['telegram', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
-  const { go, orderType, days, portions, total, contact, setContactField, payment, setPayment, placeOrder, sending, submitError } = useApp();
+  const { go, orderType, days, portions, sum, contact, setContactField, payment, setPayment, placeOrder, sending, submitError } = useApp();
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
   const text = `${days.length} ${pl('unit.day', days.length)} × ${portions} ${pl('unit.portion', portions)}`;
@@ -96,7 +96,7 @@ export function Checkout() {
       </div>
       <div className="flex-1" />
       <BottomBar>
-        <TotalRow label={t('checkout.total')} amount={fmtMoney(total)} />
+        <OrderSummary sum={sum} />
         {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}
         <Button disabled={sending} onClick={submit}>
           {sending ? t('checkout.sending') : payment === 'qr' ? t('checkout.toPayment') : t('checkout.send')}

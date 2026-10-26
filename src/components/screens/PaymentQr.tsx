@@ -3,15 +3,15 @@
 import { useRef } from 'react';
 import { buildQrUrl } from '@/config/site';
 import { useI18n, type TKey } from '@/i18n';
-import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
+import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
 
 export function PaymentQr() {
   const { t } = useI18n();
-  const { go, total, screenshot, setScreenshot, placeOrder, sending, submitError } = useApp();
+  const { go, total, sum, screenshot, setScreenshot, placeOrder, sending, submitError } = useApp();
   const fileRef = useRef<HTMLInputElement>(null);
   const qrUrl = buildQrUrl(total);
   const ok = !!screenshot;
@@ -22,7 +22,9 @@ export function PaymentQr() {
       <div className="flex flex-1 flex-col gap-[18px] px-5 pb-6">
         <div className="flex flex-col items-center gap-3 rounded-xl2 bg-card p-5">
           <div className="text-sm text-ink-2">{t('payment.due')}</div>
-          <div className="-mt-1.5 font-serif text-[32px] font-bold">{fmtMoney(total)}</div>
+          <div className="w-full">
+            <OrderSummary sum={sum} big />
+          </div>
           {qrUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={qrUrl} alt="VietQR" width={220} height={220} className="h-[220px] w-[220px] rounded-md2" />

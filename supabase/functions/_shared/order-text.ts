@@ -13,6 +13,7 @@ export interface OrderRow {
   payment_method: 'qr' | 'cash';
   qty: number;
   total: number;
+  delivery_total: number;
   lang: string | null;
 }
 
@@ -29,7 +30,9 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
     `Тип: ${o.type === 'single' ? 'Разовый' : 'Подписка (5 дней)'}`,
     `📅 Дни: ${sorted.map(labelRu).join(' · ')}`,
     `🍽 Порций: ${o.qty} в день (всего ${o.qty * sorted.length})`,
-    `💰 Сумма: <b>${money(o.total)}</b>`,
+    `🍱 Обеды: ${money(o.total - o.delivery_total)}`,
+    `🚚 Доставка: ${money(o.delivery_total)}`,
+    `💰 Итого: <b>${money(o.total)}</b>`,
     o.payment_method === 'qr'
       ? '💳 Оплата: QR (скриншот приложен)'
       : `💳 Оплата: наличными — к получению: <b>${money(o.total)}</b>`,

@@ -5,7 +5,7 @@ import { BOOKABLE_DAYS, SUB_DAYS, SUB_WINDOW_DAYS } from '@/config/site';
 import { fetchMenu, type Menu } from '@/data/menu';
 import { useI18n } from '@/i18n';
 import { addDays, isSunday, isWeekday, todayISO } from '@/lib/dates';
-import { onceTotal, subTotal, type OrderType } from '@/lib/pricing';
+import { onceTotals, subTotals, type OrderType, type Totals } from '@/lib/pricing';
 import { DEFAULT_SETTINGS, fetchSiteSettings, type SiteSettings } from '@/lib/site-settings';
 import { compressToJpeg } from '@/lib/compress-image';
 import { OrderError, submitOrder } from '@/lib/submit-order';
@@ -38,7 +38,7 @@ interface AppValue {
   menu: Menu;
   menuLoaded: boolean;
   /** Цены и ссылка Telegram из settings (до загрузки — значения из config/site.ts). */
-  settings: SiteSettings & { perDay: number };
+  settings: SiteSettings;
   /** Доступные для заказа дни: есть меню, не сегодня, не воскресенье. */
   availableDays: string[];
   /** Ближайшие BOOKABLE_DAYS дней: их видно в меню и можно выбрать в разовом заказе. */
@@ -59,6 +59,8 @@ interface AppValue {
 
   days: string[];
   total: number;
+  /** Разбивка итога: обеды / доставка / всего. */
+  sum: Totals;
 
   startOnce: (iso: string) => void;
   startSub: () => void;
@@ -157,7 +159,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const days = orderType === 'once' ? onceDays : subDays;
-  const total = orderType === 'once' ? onceTotal(onceDays.length, portions, siteSettings.priceSingle) : subTotal(portions, siteSettings.priceSub);
+  const sum: Totals =
+    orderType === 'once'
+      ? onceTotals(onceDays.length, portions, siteSettings.priceSingle, siteSettings.deliverySingle)
+      : subTotals(portions, siteSettings.priceSub, siteSettings.deliverySub);
+  const { total } = sum;
 
   const toggleOnceDay = useCallback(
     (iso: string) => setOnceDays((prev) => (prev.includes(iso) ? prev.filter((d) => d !== iso) : [...prev, iso])),
@@ -239,7 +245,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     today,
     menu,
     menuLoaded,
-    settings: { ...siteSettings, perDay: siteSettings.priceSub / SUB_DAYS },
+    settings: siteSettings,
     availableDays,
     bookableDays,
     nearestDay,
@@ -254,6 +260,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPortions: (n) => setPortionsState(Math.max(1, n)),
     days,
     total,
+    sum,
     startOnce,
     startSub,
     contact,

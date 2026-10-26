@@ -6,9 +6,10 @@ import { useI18n } from '@/i18n';
 import { ddmm, isWeekday, labelFull, weekdayShort, weekStart } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
-import { BottomBar, TotalRow } from '../ui/BottomBar';
+import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
 import { DayChip } from '../ui/DayChip';
+import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
 import { Stepper } from '../ui/Stepper';
 
@@ -80,7 +81,7 @@ function OnceDays() {
         <div className="flex flex-col gap-1.5 rounded-md2 bg-accent-soft px-4 py-3.5">
           <div className="text-[15px] font-extrabold">{t('order.nudgeTitle')}</div>
           <div className="text-sm leading-snug text-ink-2">
-            {t('order.nudgeText', { sub: fmtMoney(settings.priceSub), once: fmtMoney(settings.priceSingle * SUB_DAYS) })}
+            {t('order.nudgeText', { sub: fmtMoney(settings.priceSub + settings.deliverySub), once: fmtMoney((settings.priceSingle + settings.deliverySingle) * SUB_DAYS) })}
           </div>
           <button onClick={() => setOrderType('sub')} className="self-start text-sm font-extrabold text-accent hover:underline">
             {t('order.nudgeCta')}
@@ -149,13 +150,13 @@ function SubDays() {
 
 function OrderBar() {
   const { t, pl } = useI18n();
-  const { orderType, onceDays, subDays, portions, total, go, settings } = useApp();
+  const { orderType, onceDays, subDays, portions, sum, go } = useApp();
 
   if (orderType === 'once') {
     const n = onceDays.length;
     return (
       <BottomBar>
-        <TotalRow label={`${n} ${pl('unit.day', n)} × ${portions} ${pl('unit.portion', portions)}`} amount={fmtMoney(total)} />
+        <OrderSummary sum={sum} title={`${t('summary.food')} · ${n} ${pl('unit.day', n)} × ${portions} ${pl('unit.portion', portions)}`} />
         <Button disabled={n === 0} onClick={() => go('checkout')}>
           {t('order.next')}
         </Button>
@@ -165,7 +166,7 @@ function OrderBar() {
   const left = SUB_DAYS - subDays.length;
   return (
     <BottomBar>
-      <TotalRow label={t('sub.calc', { n: portions, perDay: fmtMoney(settings.perDay) })} amount={fmtMoney(total)} />
+      <OrderSummary sum={sum} title={`${t('summary.food')} · ${t('sub.calc', { n: portions })}`} />
       <Button disabled={left > 0} onClick={() => go('checkout')}>
         {left > 0 ? t('sub.more', { n: left }) : t('order.next')}
       </Button>

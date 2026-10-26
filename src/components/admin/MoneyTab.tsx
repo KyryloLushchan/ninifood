@@ -115,6 +115,9 @@ export function MoneyTab() {
           <Card>
             <div className="text-sm text-ink-muted">Выручка</div>
             <div className="font-serif text-[32px] font-bold">{fmtMoney(report.total.revenue)}</div>
+            <div className="text-sm text-ink-2">
+              обеды {fmtMoney(report.total.revenue - report.total.delivery)} · доставка {fmtMoney(report.total.delivery)}
+            </div>
             <div className="text-sm text-ink-2">{report.total.orders} заказов · {report.total.portions} порций</div>
           </Card>
           <Card className="divide-y divide-line">
