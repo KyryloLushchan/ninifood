@@ -27,7 +27,7 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
   const lines = [
     `🆕 <b>Заказ ${o.order_number}</b>`,
     '',
-    `Тип: ${o.type === 'single' ? 'Разовый' : 'Подписка (5 дней)'}`,
+    `Тип: ${o.type === 'single' ? 'Разовый' : `Подписка (${days.length} дн.)`}`,
     `📅 Дни: ${sorted.map(labelRu).join(' · ')}`,
     `🍽 Порций: ${o.qty} в день (всего ${o.qty * sorted.length})`,
     `🍱 Обеды: ${money(o.total - o.delivery_total)}`,

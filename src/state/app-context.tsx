@@ -1,10 +1,10 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { BOOKABLE_DAYS, SUB_DAYS, SUB_WINDOW_DAYS } from '@/config/site';
+import { BOOKABLE_DAYS, SUB_MIN_DAYS, SUB_WINDOW_DAYS } from '@/config/site';
 import { fetchMenu, type Menu } from '@/data/menu';
 import { useI18n } from '@/i18n';
-import { addDays, isSunday, isWeekday, todayISO } from '@/lib/dates';
+import { addDays, isSunday, todayISO } from '@/lib/dates';
 import { onceTotals, subTotals, type OrderType, type Totals } from '@/lib/pricing';
 import { DEFAULT_SETTINGS, fetchSiteSettings, type SiteSettings } from '@/lib/site-settings';
 import { compressToJpeg } from '@/lib/compress-image';
@@ -44,7 +44,7 @@ interface AppValue {
   /** Ближайшие BOOKABLE_DAYS дней: их видно в меню и можно выбрать в разовом заказе. */
   bookableDays: string[];
   nearestDay: string | null;
-  /** Будние дни ближайших 2 недель (кроме сегодня) — кандидаты для подписки, независимо от наличия меню. */
+  /** Дни Пн–Сб ближайших 2 недель (кроме сегодня) — кандидаты для подписки, независимо от наличия меню. */
   subscriptionDays: string[];
 
   orderType: OrderType;
@@ -52,8 +52,7 @@ interface AppValue {
   onceDays: string[];
   toggleOnceDay: (iso: string) => void;
   subDays: string[];
-  /** false, если 5 дней уже выбрано и новый добавить нельзя. */
-  toggleSubDay: (iso: string) => boolean;
+  toggleSubDay: (iso: string) => void;
   portions: number;
   setPortions: (n: number) => void;
 
@@ -146,7 +145,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const subscriptionDays = useMemo(
     () =>
       today
-        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + 1)).filter(isWeekday)
+        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + 1)).filter((d) => !isSunday(d))
         : [],
     [today],
   );
@@ -154,7 +153,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const onceDays = useMemo(() => onceDaysRaw.filter((d) => bookableSet.has(d)).sort(), [onceDaysRaw, bookableSet]);
   const subDays = useMemo(
-    () => (subDaysRaw ? subDaysRaw.filter((d) => subscriptionSet.has(d)) : subscriptionDays.slice(0, SUB_DAYS)).sort(),
+    () => (subDaysRaw ? subDaysRaw.filter((d) => subscriptionSet.has(d)) : subscriptionDays.slice(0, SUB_MIN_DAYS)).sort(),
     [subDaysRaw, subscriptionSet, subscriptionDays],
   );
 
@@ -162,7 +161,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const sum: Totals =
     orderType === 'once'
       ? onceTotals(onceDays.length, portions, siteSettings.priceSingle, siteSettings.deliverySingle)
-      : subTotals(portions, siteSettings.priceSub, siteSettings.deliverySub);
+      : subTotals(subDays.length, portions, siteSettings.priceSub, SUB_MIN_DAYS, siteSettings.deliverySingle);
   const { total } = sum;
 
   const toggleOnceDay = useCallback(
@@ -172,13 +171,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const toggleSubDay = useCallback(
     (iso: string) => {
-      if (subDays.includes(iso)) {
-        setSubDays(subDays.filter((d) => d !== iso));
-        return true;
-      }
-      if (subDays.length >= SUB_DAYS) return false;
-      setSubDays([...subDays, iso]);
-      return true;
+      setSubDays(subDays.includes(iso) ? subDays.filter((d) => d !== iso) : [...subDays, iso]);
     },
     [subDays],
   );

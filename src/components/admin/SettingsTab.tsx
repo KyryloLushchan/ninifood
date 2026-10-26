@@ -7,9 +7,8 @@ import { Btn, Card, Err, Label, inputCls } from './ui';
 
 const FIELDS = [
   { key: 'price_single', label: 'Цена обеда, ₫', numeric: true },
-  { key: 'price_subscription', label: 'Цена подписки (5 дней), ₫', numeric: true },
-  { key: 'delivery_single', label: 'Доставка разового заказа, ₫ за каждый день доставки', numeric: true },
-  { key: 'delivery_subscription', label: 'Доставка подписки, ₫ за все 5 дней', numeric: true },
+  { key: 'price_subscription', label: 'Цена подписки за 5 дней, ₫ (обед в подписке = 1/5)', numeric: true },
+  { key: 'delivery_single', label: 'Доставка, ₫ за каждый день доставки (разовый и подписка)', numeric: true },
   { key: 'telegram_url', label: 'Ссылка Telegram для заказов на сегодня', numeric: false },
 ] as const;
 

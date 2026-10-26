@@ -2,15 +2,15 @@ export const TIMEZONE = 'Asia/Ho_Chi_Minh';
 
 export const PRICE_SINGLE = 165_000;
 export const PRICE_SUB = 750_000;
-/** Доставка: за каждый день доставки (не за порцию) / за всю подписку. */
+/** Доставка: за каждый день доставки (не за порцию), и для разового заказа, и для подписки. */
 export const DELIVERY_SINGLE = 20_000;
-export const DELIVERY_SUB = 100_000;
-export const SUB_DAYS = 5;
+/** Подписка — от 5 дней (Пн–Сб); обед в подписке = PRICE_SUB / SUB_MIN_DAYS. */
+export const SUB_MIN_DAYS = 5;
 
 /** Сколько ближайших дней доступно для разового заказа и показывается в меню. */
 export const BOOKABLE_DAYS = 6;
 
-/** Подписку можно оформить на будние дни из ближайших N дней (кроме сегодня), даже если меню ещё не опубликовано. */
+/** Подписку можно оформить на дни Пн–Сб из ближайших N дней (кроме сегодня), даже если меню ещё не опубликовано. */
 export const SUB_WINDOW_DAYS = 14;
 
 export const DELIVERY_FROM = '14:00';

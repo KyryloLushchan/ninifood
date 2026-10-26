@@ -54,7 +54,7 @@ export function Checkout() {
         <div className="flex items-center justify-between gap-3 rounded-md2 bg-card px-4 py-3.5">
           <div className="flex flex-col gap-0.5">
             <div className="text-[15px] font-extrabold">
-              {orderType === 'once' ? t('checkout.summaryOnce', { text }) : t('checkout.summarySub', { text: `${portions} ${pl('unit.portion', portions)}` })}
+              {orderType === 'once' ? t('checkout.summaryOnce', { text }) : t('checkout.summarySub', { text })}
             </div>
             <div className="text-[13px] text-ink-muted">
               {days.map((d) => labelShort(d, lang)).join(', ')} · {DELIVERY_FROM}–{DELIVERY_TO}

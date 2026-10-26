@@ -1,11 +1,11 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
-import { addDays, isSunday, isWeekday, todayISO } from '../_shared/dates.ts';
+import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { buildOrderText, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
 import { tg } from '../_shared/telegram.ts';
 
 const BOOKABLE_DAYS = 6; // как на фронте: ближайшие 6 доступных дней для разового заказа
 const WINDOW_DAYS = 14; // окно для подписки
-const SUB_DAYS = 5;
+const SUB_MIN_DAYS = 5; // подписка: от 5 дней; обед = price_subscription / 5
 const MAX_QTY = 99;
 const MAX_FILE = 5 * 1024 * 1024;
 
@@ -66,9 +66,9 @@ Deno.serve(async (req) => {
   const today = todayISO();
   const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i + 1)).filter((d) => !isSunday(d));
   const days: string[] = Array.isArray(p.days) ? [...new Set<string>(p.days.map(String))].sort() : [];
-  const allowed = new Set(type === 'single' ? window.slice(0, BOOKABLE_DAYS) : window.filter(isWeekday));
+  const allowed = new Set(type === 'single' ? window.slice(0, BOOKABLE_DAYS) : window);
   if (days.length < 1 || !days.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && allowed.has(d))) return fail('bad_days');
-  if (type === 'subscription' && days.length !== SUB_DAYS) return fail('bad_days');
+  if (type === 'subscription' && days.length < SUB_MIN_DAYS) return fail('bad_days');
 
   let shot: File | null = null;
   if (payment === 'qr') {
@@ -84,7 +84,7 @@ Deno.serve(async (req) => {
   });
 
   // ── цена: только из settings ──
-  const { data: settings, error: sErr } = await db.from('settings').select('key, value').in('key', ['price_single', 'price_subscription', 'delivery_single', 'delivery_subscription']);
+  const { data: settings, error: sErr } = await db.from('settings').select('key, value').in('key', ['price_single', 'price_subscription', 'delivery_single']);
   if (sErr || !settings) {
     console.error('settings error', sErr?.message);
     return fail('server_error', 500);
@@ -94,13 +94,14 @@ Deno.serve(async (req) => {
     console.error('settings: prices missing');
     return fail('server_error', 500);
   }
-  if (!(price.delivery_single >= 0) || !(price.delivery_subscription >= 0)) {
+  if (!(price.delivery_single >= 0)) {
     console.error('settings: delivery fees missing');
     return fail('server_error', 500);
   }
-  // Доставка — за день доставки (разовый, не за порцию) или за всю подписку (не зависит от порций).
-  const food = type === 'single' ? days.length * qty * price.price_single : qty * price.price_subscription;
-  const delivery_total = type === 'single' ? days.length * price.delivery_single : price.delivery_subscription;
+  // Доставка — за каждый день доставки (не за порцию), для разового и для подписки. Обед в подписке = цена за 5 дней / 5.
+  const unit = type === 'single' ? price.price_single : Math.round(price.price_subscription / SUB_MIN_DAYS);
+  const food = days.length * qty * unit;
+  const delivery_total = days.length * price.delivery_single;
   const total = food + delivery_total;
 
   // ── сохраняем заказ (номер выдаёт БД) ──

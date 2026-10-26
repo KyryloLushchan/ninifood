@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { SUB_DAYS, TODAY_ORDER_DEADLINE } from '@/config/site';
+import { SUB_MIN_DAYS, TODAY_ORDER_DEADLINE } from '@/config/site';
 import { useI18n } from '@/i18n';
-import { ddmm, isWeekday, labelFull, weekdayShort, weekStart } from '@/lib/dates';
+import { ddmm, labelFull, weekdayShort, weekStart } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
+import { onceTotals, subTotals } from '@/lib/pricing';
 import { useApp } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
@@ -52,7 +53,7 @@ function OnceDays() {
   const { t, lang, pl } = useI18n();
   const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings } = useApp();
   const n = onceDays.length;
-  const showNudge = onceDays.filter(isWeekday).length >= SUB_DAYS;
+  const showNudge = n >= SUB_MIN_DAYS;
 
   return (
     <>
@@ -81,7 +82,7 @@ function OnceDays() {
         <div className="flex flex-col gap-1.5 rounded-md2 bg-accent-soft px-4 py-3.5">
           <div className="text-[15px] font-extrabold">{t('order.nudgeTitle')}</div>
           <div className="text-sm leading-snug text-ink-2">
-            {t('order.nudgeText', { sub: fmtMoney(settings.priceSub + settings.deliverySub), once: fmtMoney((settings.priceSingle + settings.deliverySingle) * SUB_DAYS) })}
+            {t('order.nudgeText', { n, sub: fmtMoney(subTotals(n, 1, settings.priceSub, SUB_MIN_DAYS, settings.deliverySingle).total), once: fmtMoney(onceTotals(n, 1, settings.priceSingle, settings.deliverySingle).total) })}
           </div>
           <button onClick={() => setOrderType('sub')} className="self-start text-sm font-extrabold text-accent hover:underline">
             {t('order.nudgeCta')}
@@ -95,7 +96,6 @@ function OnceDays() {
 function SubDays() {
   const { t, lang } = useI18n();
   const { subscriptionDays, menu, subDays, toggleSubDay } = useApp();
-  const [full, setFull] = useState(false);
   const count = subDays.length;
 
   const weeks = new Map<string, string[]>();
@@ -104,19 +104,12 @@ function SubDays() {
     weeks.set(k, [...(weeks.get(k) ?? []), d]);
   }
 
-  const onToggle = (d: string) => setFull(!toggleSubDay(d));
-
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <div className="text-[17px] font-extrabold">{t('sub.pickTitle')}</div>
         <div className="flex items-center gap-2">
-          <div className="flex gap-1">
-            {Array.from({ length: SUB_DAYS }, (_, i) => (
-              <div key={i} className={`h-2 w-2 rounded-full ${i < count ? 'bg-accent' : 'bg-line'}`} />
-            ))}
-          </div>
-          <div className={`text-[15px] font-extrabold ${count === SUB_DAYS ? 'text-success' : 'text-accent'}`}>{t('sub.count', { n: count })}</div>
+          <div className={`text-[15px] font-extrabold ${count >= SUB_MIN_DAYS ? 'text-success' : 'text-accent'}`}>{t('sub.count', { n: count })}</div>
         </div>
       </div>
       <div className="-mt-1 text-[13px] text-ink-muted">{t('sub.autoHint')}</div>
@@ -125,11 +118,11 @@ function SubDays() {
           <div className="text-xs font-extrabold tracking-[.06em] text-ink-muted">
             {ddmm(list[0])} – {ddmm(list[list.length - 1])}
           </div>
-          <div className="grid grid-cols-5 gap-1.5">
-            {[0, 1, 2, 3, 4].map((i) => {
+          <div className="grid grid-cols-6 gap-1.5">
+            {[0, 1, 2, 3, 4, 5].map((i) => {
               const d = list.find((x) => new Date(`${x}T00:00:00Z`).getUTCDay() === i + 1);
               return d ? (
-                <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={subDays.includes(d)} noMenu={!menu[d]} onClick={() => onToggle(d)} />
+                <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={subDays.includes(d)} noMenu={!menu[d]} onClick={() => toggleSubDay(d)} />
               ) : (
                 <div key={i} />
               );
@@ -143,7 +136,6 @@ function SubDays() {
           {t('home.noDays')}
         </div>
       )}
-      {full && <div className="text-[13px] font-bold text-accent">{t('sub.full')}</div>}
     </div>
   );
 }
@@ -163,10 +155,10 @@ function OrderBar() {
       </BottomBar>
     );
   }
-  const left = SUB_DAYS - subDays.length;
+  const left = SUB_MIN_DAYS - subDays.length;
   return (
     <BottomBar>
-      <OrderSummary sum={sum} title={`${t('summary.food')} · ${t('sub.calc', { n: portions })}`} />
+      <OrderSummary sum={sum} title={`${t('summary.food')} · ${subDays.length} ${pl('unit.day', subDays.length)} × ${portions} ${pl('unit.portion', portions)}`} />
       <Button disabled={left > 0} onClick={() => go('checkout')}>
         {left > 0 ? t('sub.more', { n: left }) : t('order.next')}
       </Button>
