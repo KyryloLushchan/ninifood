@@ -1,6 +1,6 @@
 export const TIMEZONE = 'Asia/Ho_Chi_Minh';
 
-export const PRICE_SINGLE = 165_000;
+export const PRICE_SINGLE = 170_000;
 export const PRICE_SUB = 750_000;
 /** Доставка: за каждый день доставки (не за порцию), и для разового заказа, и для подписки. */
 export const DELIVERY_SINGLE = 20_000;
