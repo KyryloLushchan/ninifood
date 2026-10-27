@@ -16,11 +16,13 @@ export type Payment = 'qr' | 'cash';
 
 export interface Contact {
   telegram: string;
+  /** Только национальные цифры без +84 (до 9). */
+  phone: string;
   address: string;
   hotel: string;
   comment: string;
 }
-const EMPTY_CONTACT: Contact = { telegram: '', address: '', hotel: '', comment: '' };
+const EMPTY_CONTACT: Contact = { telegram: '', phone: '', address: '', hotel: '', comment: '' };
 
 export interface PlacedOrder {
   orderId: string;
@@ -234,7 +236,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       go('thanks');
     } catch (e) {
       const code = e instanceof OrderError ? e.code : 'generic';
-      setSubmitError(`error.${['bad_days', 'bad_portions', 'telegram_required', 'address_required', 'screenshot_required', 'screenshot_type', 'screenshot_size', 'network'].includes(code) ? code : 'generic'}`);
+      setSubmitError(`error.${['bad_days', 'bad_portions', 'telegram_required', 'phone_invalid', 'address_required', 'screenshot_required', 'screenshot_type', 'screenshot_size', 'network'].includes(code) ? code : 'generic'}`);
     } finally {
       setSending(false);
     }

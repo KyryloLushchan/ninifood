@@ -1,10 +1,11 @@
 import { esc } from './telegram.ts';
 import { labelRu } from './dates.ts';
-import { mapLinkHtml, money, subLabel } from './order-text.ts';
+import { mapLinkHtml, money, phoneText, subLabel } from './order-text.ts';
 
 export interface ReportDelivery {
   order_number: string;
   telegram: string;
+  phone?: string | null;
   address: string;
   place_id?: string | null;
   lat?: number | null;
@@ -42,6 +43,7 @@ function entry(d: ReportDelivery, i: number): string {
   const map = mapLinkHtml(d.lat, d.lng, d.place_id);
   if (map) lines.push(map);
   if (d.hotel) lines.push(`🏨 ${esc(d.hotel)}`);
+  if (d.phone) lines.push(`📞 ${esc(phoneText(d.phone))}`);
   if (d.sub) lines.push(`🔁 ${subLabel(d.sub.total)} · день ${d.sub.dayNo} из ${d.sub.total}`);
   lines.push(`🍽 ${portions(d.qty)}`);
   lines.push(due ? `💵 Взять наличными: <b>${money(due)}</b>` : '✅ Оплачено');

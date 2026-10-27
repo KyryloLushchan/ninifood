@@ -21,6 +21,7 @@ export interface AdminOrder {
   created_at: string;
   type: 'single' | 'subscription';
   telegram: string;
+  phone: string | null;
   address: string;
   hotel: string | null;
   comment: string | null;

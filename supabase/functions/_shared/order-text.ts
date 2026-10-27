@@ -10,6 +10,7 @@ export interface OrderRow {
   order_number: string;
   type: 'single' | 'subscription';
   telegram: string;
+  phone?: string | null;
   address: string;
   place_id?: string | null;
   lat?: number | null;
@@ -35,6 +36,12 @@ export const mapLinkHtml = (lat: number | null | undefined, lng: number | null |
   return u ? `<a href="${u.replace(/&/g, '&amp;')}">📍 Карта</a>` : '';
 };
 
+/** «+84901234567» → «+84 90 123 45 67» (другой формат — как есть). */
+export function phoneText(stored: string): string {
+  const m = /^\+84(\d{2})(\d{3})(\d{2})(\d{2})$/.exec(stored.trim());
+  return m ? `+84 ${m[1]} ${m[2]} ${m[3]} ${m[4]}` : stored.trim();
+}
+
 function telegramLink(raw: string): string {
   const h = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
   return /^[A-Za-z0-9_]{4,32}$/.test(h) ? `<a href="https://t.me/${h}">@${h}</a>` : esc(raw.trim());
@@ -56,6 +63,7 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
       : `💳 Оплата: наличными — к получению: <b>${money(o.total)}</b>`,
     '',
     `👤 Telegram: ${telegramLink(o.telegram)}`,
+    ...(o.phone ? [`📞 ${esc(phoneText(o.phone))}`] : []),
     `📍 Адрес: ${esc(o.address)}`,
   ];
   const map = mapLinkHtml(o.lat, o.lng, o.place_id);

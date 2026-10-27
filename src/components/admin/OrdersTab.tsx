@@ -7,6 +7,7 @@ import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb, STATUS_LABEL, type AdminOrder, type OrderStatus } from '@/lib/admin/client';
 import { subLabel } from '@/lib/admin/sub-label';
+import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
@@ -143,6 +144,11 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
                     tgLabel(o.telegram)
                   )}
                 </div>
+                {o.phone && (
+                  <div>
+                    <b>Телефон:</b> <a href={phoneHref(o.phone)}>{formatPhone(o.phone)}</a>
+                  </div>
+                )}
                 <div><b>Адрес:</b> {o.address}</div>
                 {o.hotel && <div><b>Отель:</b> {o.hotel}</div>}
                 {o.comment && <div><b>Комментарий:</b> {o.comment}</div>}

@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
   const type = p.type === 'once' || p.type === 'single' ? 'single' : p.type === 'sub' || p.type === 'subscription' ? 'subscription' : null;
   const payment = p.payment === 'qr' || p.payment === 'cash' ? p.payment : null;
   const telegram = str(p.telegram, 64);
+  const phone = str(p.phone, 32).replace(/[\s-]/g, '');
   const address = str(p.address, 300);
   const hotel = str(p.hotel, 150);
   const comment = str(p.comment, 500);
@@ -66,6 +67,7 @@ Deno.serve(async (req) => {
 
   if (!type || !payment) return fail('bad_request');
   if (!telegram) return fail('telegram_required');
+  if (!/^\+84\d{9}$/.test(phone)) return fail('phone_invalid');
   if (!address) return fail('address_required');
   if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return fail('bad_portions');
 
@@ -116,6 +118,7 @@ Deno.serve(async (req) => {
     .insert({
       type,
       telegram,
+      phone,
       address,
       place_id,
       lat,
@@ -142,7 +145,7 @@ Deno.serve(async (req) => {
   }
 
   // ── Telegram ──
-  const row: OrderRow = { order_number: order.order_number, type, telegram, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, lang };
+  const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, lang };
   const text = buildOrderText(row, days);
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
   let messageId: number | null = null;

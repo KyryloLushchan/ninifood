@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
 import { useI18n, type TKey } from '@/i18n';
 import { labelShort } from '@/lib/dates';
+import { isValidPhone, PHONE_PREFIX, formatDigits, phoneDigits } from '@/lib/phone';
 import { useApp, type Contact, type Payment } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
@@ -12,7 +13,7 @@ import { Field } from '../ui/Field';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
 
-const REQUIRED: (keyof Contact)[] = ['telegram', 'address'];
+const REQUIRED: (keyof Contact)[] = ['telegram', 'phone', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
@@ -20,7 +21,7 @@ export function Checkout() {
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
   const text = `${days.length} ${pl('unit.day', days.length)} × ${portions} ${pl('unit.portion', portions)}`;
-  const err = (k: keyof Contact) => (errors[k] ? t('checkout.required') : undefined);
+  const err = (k: keyof Contact) => (errors[k] ? t(k === 'phone' ? 'error.phone_invalid' : 'checkout.required') : undefined);
   const bind = (k: keyof Contact) => ({
     value: contact[k],
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -30,7 +31,7 @@ export function Checkout() {
   });
 
   const submit = () => {
-    const bad = REQUIRED.filter((k) => !contact[k].trim());
+    const bad = REQUIRED.filter((k) => (k === 'phone' ? !isValidPhone(contact.phone) : !contact[k].trim()));
     setErrors(Object.fromEntries(bad.map((k) => [k, true])));
     if (bad.length) {
       document.querySelector<HTMLInputElement>(`input[name="${bad[0]}"]`)?.focus();
@@ -66,7 +67,22 @@ export function Checkout() {
           </button>
         </div>
 
-        <Field name="telegram" label={t('checkout.telegram')} placeholder={t('checkout.telegramPh')} hint={t('checkout.telegramHint')} autoCapitalize="none" error={err('telegram')} {...bind('telegram')} />
+        <Field name="telegram" label={t('checkout.telegram')} placeholder={t('checkout.telegramPh')} autoCapitalize="none" error={err('telegram')} {...bind('telegram')} />
+        <Field
+          name="phone"
+          label={t('checkout.phone')}
+          placeholder={t('checkout.phonePh')}
+          prefix={PHONE_PREFIX}
+          type="tel"
+          inputMode="tel"
+          autoComplete="tel-national"
+          error={err('phone')}
+          value={formatDigits(contact.phone)}
+          onChange={(e) => {
+            setContactField('phone', phoneDigits(e.target.value));
+            if (errors.phone) setErrors((x) => ({ ...x, phone: false }));
+          }}
+        />
         <AddressField
           label={t('checkout.address')}
           placeholder={t('checkout.addressPh')}

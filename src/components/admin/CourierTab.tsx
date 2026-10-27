@@ -6,6 +6,7 @@ import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
 import { subLabel } from '@/lib/admin/sub-label';
+import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
@@ -21,6 +22,7 @@ interface Row {
     type: 'single' | 'subscription';
     status: 'new' | 'confirmed';
     telegram: string;
+    phone: string | null;
     address: string;
     hotel: string | null;
     comment: string | null;
@@ -52,7 +54,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, orders!inner(id, order_number, type, status, telegram, address, hotel, comment, payment_method, total, order_days(delivery_date))',
+        'id, delivery_date, qty, delivered, orders!inner(id, order_number, type, status, telegram, phone, address, hotel, comment, payment_method, total, order_days(delivery_date))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed'])
@@ -84,6 +86,7 @@ export function CourierTab() {
       lines.push(
         `${i + 1}) ${r.orders.address}${r.orders.hotel ? ` (${r.orders.hotel})` : ''}`,
         `   Telegram: ${tgLabel(r.orders.telegram)}`,
+        ...(r.orders.phone ? [`   Тел.: ${formatPhone(r.orders.phone)}`] : []),
         ...(r.orders.type === 'subscription' ? [`   ${subLabel(r.orders.order_days.length)}, день ${dayNo(r)} из ${r.orders.order_days.length}`] : []),
         `   Порций: ${r.qty}`,
         `   ${due ? `Взять наличными: ${fmtMoney(due)}` : 'Оплачено'}`,
@@ -175,6 +178,11 @@ export function CourierTab() {
                   )}
                   <span className="text-ink-muted"> · {r.orders.order_number}</span>
                 </div>
+                {r.orders.phone && (
+                  <div className="text-sm">
+                    📞 <a href={phoneHref(r.orders.phone)}>{formatPhone(r.orders.phone)}</a>
+                  </div>
+                )}
                 {r.orders.type === 'subscription' && (
                   <div className="text-sm text-ink-2">🔁 {subLabel(r.orders.order_days.length)} · день {dayNo(r)} из {r.orders.order_days.length}</div>
                 )}

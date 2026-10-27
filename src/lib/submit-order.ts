@@ -1,4 +1,5 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
+import { PHONE_PREFIX } from './phone';
 import type { PlaceInfo } from './places';
 import type { OrderType } from './pricing';
 
@@ -9,6 +10,8 @@ export interface OrderPayload {
   payment: 'qr' | 'cash';
   contact: {
     telegram: string;
+    /** Национальные цифры (9), без +84. */
+    phone: string;
     address: string;
     hotel: string;
     comment: string;
@@ -42,6 +45,7 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
       payment: payload.payment,
       lang: payload.lang,
       ...payload.contact,
+      phone: `${PHONE_PREFIX}${payload.contact.phone}`,
       ...(payload.place ? { place_id: payload.place.placeId, lat: payload.place.lat, lng: payload.place.lng } : {}),
     }),
   );
