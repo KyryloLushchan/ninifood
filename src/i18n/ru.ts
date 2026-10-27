@@ -96,6 +96,7 @@ export const ru = {
   'checkout.telegramHint': 'Сюда напишем подтверждение',
   'checkout.address': 'Адрес *',
   'checkout.addressPh': 'Улица, дом, район',
+  'checkout.poweredBy': 'Powered by Google',
   'checkout.hotel': 'Отель',
   'checkout.comment': 'Комментарий',
   'checkout.required': 'Заполните поле',

@@ -11,6 +11,9 @@ export interface OrderRow {
   type: 'single' | 'subscription';
   telegram: string;
   address: string;
+  place_id?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   hotel: string | null;
   comment: string | null;
   payment_method: 'qr' | 'cash';
@@ -19,6 +22,18 @@ export interface OrderRow {
   delivery_total: number;
   lang: string | null;
 }
+
+/** Ссылка на Google Maps по координатам (и place_id, если есть); null — координат нет. */
+export function mapUrl(lat: number | null | undefined, lng: number | null | undefined, placeId?: string | null): string | null {
+  if (lat == null || lng == null) return null;
+  return `https://www.google.com/maps/search/?api=1&query=${lat},${lng}${placeId ? `&query_place_id=${encodeURIComponent(placeId)}` : ''}`;
+}
+
+/** HTML-ссылка «📍 Карта» для сообщений Telegram; пустая строка, если координат нет. */
+export const mapLinkHtml = (lat: number | null | undefined, lng: number | null | undefined, placeId?: string | null) => {
+  const u = mapUrl(lat, lng, placeId);
+  return u ? `<a href="${u.replace(/&/g, '&amp;')}">📍 Карта</a>` : '';
+};
 
 function telegramLink(raw: string): string {
   const h = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
@@ -43,6 +58,8 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
     `👤 Telegram: ${telegramLink(o.telegram)}`,
     `📍 Адрес: ${esc(o.address)}`,
   ];
+  const map = mapLinkHtml(o.lat, o.lng, o.place_id);
+  if (map) lines.push(map);
   if (o.hotel) lines.push(`🏨 Отель: ${esc(o.hotel)}`);
   if (o.comment) lines.push(`💬 Комментарий: ${esc(o.comment)}`);
   lines.push(`🌐 Язык: ${(o.lang ?? '—').toUpperCase()}`);

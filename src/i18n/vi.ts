@@ -88,6 +88,7 @@ export const vi: Record<TKey, string> = {
   'checkout.telegramHint': 'Chúng tôi sẽ nhắn xác nhận tại đây',
   'checkout.address': 'Địa chỉ *',
   'checkout.addressPh': 'Đường, số nhà, quận',
+  'checkout.poweredBy': 'Powered by Google',
   'checkout.hotel': 'Khách sạn',
   'checkout.comment': 'Ghi chú',
   'checkout.required': 'Vui lòng điền thông tin',

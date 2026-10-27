@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
+import { inDanang } from '../_shared/danang.ts';
 import { buildOrderText, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
 import { tg } from '../_shared/telegram.ts';
 
@@ -55,6 +56,11 @@ Deno.serve(async (req) => {
   const address = str(p.address, 300);
   const hotel = str(p.hotel, 150);
   const comment = str(p.comment, 500);
+  // Координаты из подсказок; вне Дананга или битые — всё сбрасываем (адрес остаётся текстом).
+  const geoOk = inDanang(Number(p.lat), Number(p.lng));
+  const place_id = geoOk ? str(p.place_id, 300) || null : null;
+  const lat = geoOk ? Number(p.lat) : null;
+  const lng = geoOk ? Number(p.lng) : null;
   const lang = ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? p.lang : null;
   const qty = Number(p.portions);
 
@@ -111,6 +117,9 @@ Deno.serve(async (req) => {
       type,
       telegram,
       address,
+      place_id,
+      lat,
+      lng,
       hotel: hotel || null,
       comment: comment || null,
       payment_method: payment,
@@ -133,7 +142,7 @@ Deno.serve(async (req) => {
   }
 
   // ── Telegram ──
-  const row: OrderRow = { order_number: order.order_number, type, telegram, address, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, lang };
+  const row: OrderRow = { order_number: order.order_number, type, telegram, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, lang };
   const text = buildOrderText(row, days);
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
   let messageId: number | null = null;

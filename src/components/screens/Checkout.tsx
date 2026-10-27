@@ -7,6 +7,7 @@ import { labelShort } from '@/lib/dates';
 import { useApp, type Contact, type Payment } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
+import { AddressField } from '../ui/AddressField';
 import { Field } from '../ui/Field';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
@@ -15,7 +16,7 @@ const REQUIRED: (keyof Contact)[] = ['telegram', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
-  const { go, orderType, days, portions, sum, contact, setContactField, payment, setPayment, placeOrder, sending, submitError } = useApp();
+  const { go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, payment, setPayment, placeOrder, sending, submitError } = useApp();
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
   const text = `${days.length} ${pl('unit.day', days.length)} × ${portions} ${pl('unit.portion', portions)}`;
@@ -66,7 +67,21 @@ export function Checkout() {
         </div>
 
         <Field name="telegram" label={t('checkout.telegram')} placeholder={t('checkout.telegramPh')} hint={t('checkout.telegramHint')} autoCapitalize="none" error={err('telegram')} {...bind('telegram')} />
-        <Field name="address" label={t('checkout.address')} placeholder={t('checkout.addressPh')} autoComplete="street-address" error={err('address')} {...bind('address')} />
+        <AddressField
+          label={t('checkout.address')}
+          placeholder={t('checkout.addressPh')}
+          error={err('address')}
+          value={contact.address}
+          place={place}
+          onText={(v) => {
+            setContactField('address', v);
+            if (errors.address) setErrors((x) => ({ ...x, address: false }));
+          }}
+          onPlace={(p) => {
+            selectPlace(p);
+            setErrors((x) => ({ ...x, address: false }));
+          }}
+        />
         <Field name="hotel" label={t('checkout.hotel')} {...bind('hotel')} />
         <Field name="comment" label={t('checkout.comment')} {...bind('comment')} />
 

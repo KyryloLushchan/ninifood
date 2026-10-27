@@ -88,6 +88,7 @@ export const en: Record<TKey, string> = {
   'checkout.telegramHint': 'We will send the confirmation here',
   'checkout.address': 'Address *',
   'checkout.addressPh': 'Street, building, district',
+  'checkout.poweredBy': 'Powered by Google',
   'checkout.hotel': 'Hotel',
   'checkout.comment': 'Comment',
   'checkout.required': 'Please fill in this field',

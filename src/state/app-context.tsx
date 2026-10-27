@@ -8,6 +8,7 @@ import { addDays, isSunday, todayISO } from '@/lib/dates';
 import { onceTotals, subTotals, type OrderType, type Totals } from '@/lib/pricing';
 import { DEFAULT_SETTINGS, fetchSiteSettings, type SiteSettings } from '@/lib/site-settings';
 import { compressToJpeg } from '@/lib/compress-image';
+import type { PlaceInfo } from '@/lib/places';
 import { OrderError, submitOrder } from '@/lib/submit-order';
 
 export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks';
@@ -66,6 +67,10 @@ interface AppValue {
 
   contact: Contact;
   setContactField: (k: keyof Contact, v: string) => void;
+  /** Выбранное в подсказках место (place_id + координаты); null — адрес введён вручную. */
+  place: PlaceInfo | null;
+  /** Подставляет выбранное место в поле адреса и запоминает координаты. */
+  selectPlace: (p: PlaceInfo) => void;
   payment: Payment;
   setPayment: (p: Payment) => void;
   screenshot: File | null;
@@ -99,6 +104,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [portions, setPortionsState] = useState(1);
 
   const [contact, setContact] = useState<Contact>(EMPTY_CONTACT);
+  const [place, setPlace] = useState<PlaceInfo | null>(null);
   const [payment, setPayment] = useState<Payment>('qr');
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -201,6 +207,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubDays(null);
     setPortionsState(1);
     setContact(EMPTY_CONTACT);
+    setPlace(null);
     setPayment('qr');
     setScreenshot(null);
     setSubmitError(null);
@@ -219,6 +226,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         portions,
         payment,
         contact,
+        place,
         screenshot: shot,
         lang,
       });
@@ -230,7 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setSending(false);
     }
-  }, [orderType, days, portions, total, payment, contact, screenshot, lang, go]);
+  }, [orderType, days, portions, total, payment, contact, place, screenshot, lang, go]);
 
   const value: AppValue = {
     screen,
@@ -257,7 +265,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     startOnce,
     startSub,
     contact,
-    setContactField: (k, v) => setContact((c) => ({ ...c, [k]: v })),
+    setContactField: (k, v) => {
+      setContact((c) => ({ ...c, [k]: v }));
+      // Адрес изменён руками после выбора — координаты больше не относятся к тексту.
+      if (k === 'address') setPlace((pl) => (pl && pl.text !== v ? null : pl));
+    },
+    place,
+    selectPlace: (pl) => {
+      setContact((c) => ({ ...c, address: pl.text }));
+      setPlace(pl);
+    },
     payment,
     setPayment,
     screenshot,

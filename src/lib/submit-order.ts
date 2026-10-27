@@ -1,4 +1,5 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
+import type { PlaceInfo } from './places';
 import type { OrderType } from './pricing';
 
 export interface OrderPayload {
@@ -12,6 +13,8 @@ export interface OrderPayload {
     hotel: string;
     comment: string;
   };
+  /** Место, выбранное в подсказках Google; null — адрес свободным текстом. */
+  place: PlaceInfo | null;
   /** Уже сжатый JPEG; обязателен при оплате QR. */
   screenshot: File | null;
   lang: string;
@@ -39,6 +42,7 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
       payment: payload.payment,
       lang: payload.lang,
       ...payload.contact,
+      ...(payload.place ? { place_id: payload.place.placeId, lat: payload.place.lat, lng: payload.place.lng } : {}),
     }),
   );
   if (payload.screenshot) form.set('screenshot', payload.screenshot, payload.screenshot.name);

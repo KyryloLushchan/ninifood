@@ -1,11 +1,14 @@
 import { esc } from './telegram.ts';
 import { labelRu } from './dates.ts';
-import { money, subLabel } from './order-text.ts';
+import { mapLinkHtml, money, subLabel } from './order-text.ts';
 
 export interface ReportDelivery {
   order_number: string;
   telegram: string;
   address: string;
+  place_id?: string | null;
+  lat?: number | null;
+  lng?: number | null;
   hotel: string | null;
   comment: string | null;
   payment_method: 'qr' | 'cash';
@@ -36,6 +39,8 @@ const cashDue = (d: ReportDelivery) => (d.payment_method === 'cash' && d.firstDa
 function entry(d: ReportDelivery, i: number): string {
   const due = cashDue(d);
   const lines = [`<b>${i + 1}. ${esc(d.order_number)}</b> · ${esc(handle(d.telegram))}`, `📍 <code>${esc(d.address)}</code>`];
+  const map = mapLinkHtml(d.lat, d.lng, d.place_id);
+  if (map) lines.push(map);
   if (d.hotel) lines.push(`🏨 ${esc(d.hotel)}`);
   if (d.sub) lines.push(`🔁 ${subLabel(d.sub.total)} · день ${d.sub.dayNo} из ${d.sub.total}`);
   lines.push(`🍽 ${portions(d.qty)}`);

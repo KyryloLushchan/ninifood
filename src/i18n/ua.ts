@@ -88,6 +88,7 @@ export const ua: Record<TKey, string> = {
   'checkout.telegramHint': 'Сюди напишемо підтвердження',
   'checkout.address': 'Адреса *',
   'checkout.addressPh': 'Вулиця, будинок, район',
+  'checkout.poweredBy': 'Powered by Google',
   'checkout.hotel': 'Готель',
   'checkout.comment': 'Коментар',
   'checkout.required': 'Заповніть поле',
