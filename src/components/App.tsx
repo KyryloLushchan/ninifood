@@ -7,11 +7,12 @@ import { Checkout } from './screens/Checkout';
 import { Home } from './screens/Home';
 import { LanguageSheet } from './screens/LanguageSheet';
 import { Order } from './screens/Order';
+import { PaymentOther } from './screens/PaymentOther';
 import { PaymentQr } from './screens/PaymentQr';
 import { Thanks } from './screens/Thanks';
 
 function Screens() {
-  const { screen } = useApp();
+  const { screen, payment } = useApp();
   switch (screen) {
     case 'home':
       return <Home />;
@@ -20,7 +21,7 @@ function Screens() {
     case 'checkout':
       return <Checkout />;
     case 'payment':
-      return <PaymentQr />;
+      return payment === 'other' ? <PaymentOther /> : <PaymentQr />;
     case 'thanks':
       return <Thanks />;
   }

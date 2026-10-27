@@ -12,7 +12,7 @@ export interface ReportDelivery {
   lng?: number | null;
   hotel: string | null;
   comment: string | null;
-  payment_method: 'qr' | 'cash';
+  payment_method: 'qr' | 'cash' | 'other';
   total: number;
   qty: number; // порции за этот день (order_days.qty)
   /** Для подписки: сколько всего дней в заказе и номер этого дня; для разового — null. */

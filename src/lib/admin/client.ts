@@ -25,7 +25,7 @@ export interface AdminOrder {
   address: string;
   hotel: string | null;
   comment: string | null;
-  payment_method: 'qr' | 'cash';
+  payment_method: 'qr' | 'cash' | 'other';
   qty: number;
   total: number;
   /** Доставка внутри total; обеды = total − delivery_total. */
@@ -38,6 +38,12 @@ export interface AdminOrder {
   receipt_file_id: string | null;
   order_days: OrderDay[];
 }
+
+export const PAYMENT_LABEL: Record<AdminOrder['payment_method'], string> = {
+  qr: 'QR',
+  cash: 'наличные',
+  other: 'другой способ',
+};
 
 export const STATUS_LABEL: Record<OrderStatus, string> = {
   new: 'Новый',

@@ -12,7 +12,7 @@ import type { PlaceInfo } from '@/lib/places';
 import { OrderError, submitOrder } from '@/lib/submit-order';
 
 export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks';
-export type Payment = 'qr' | 'cash';
+export type Payment = 'qr' | 'cash' | 'other';
 
 export interface Contact {
   telegram: string;
@@ -221,7 +221,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSending(true);
     setSubmitError(null);
     try {
-      const shot = payment === 'qr' && screenshot ? await compressToJpeg(screenshot) : null;
+      const shot = payment !== 'cash' && screenshot ? await compressToJpeg(screenshot) : null;
       const { orderNumber } = await submitOrder({
         type: orderType,
         days,

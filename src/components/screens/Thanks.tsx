@@ -18,7 +18,7 @@ export function Thanks() {
     [t('thanks.days'), labelList(placed.days, lang)],
     [t('thanks.portions'), t('thanks.portionsValue', { n: placed.portions })],
     [t('thanks.delivery'), `${DELIVERY_FROM}–${DELIVERY_TO}`],
-    [t('thanks.payment'), `${placed.payment === 'qr' ? t('thanks.payQr') : t('thanks.payCash')} · ${fmtMoney(placed.total)}`],
+    [t('thanks.payment'), `${placed.payment === 'qr' ? t('thanks.payQr') : placed.payment === 'other' ? t('thanks.payOther') : t('thanks.payCash')} · ${fmtMoney(placed.total)}`],
   ];
 
   const dot = 'box-border h-[18px] w-[18px] flex-none rounded-full border-2 border-disabled bg-card';

@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
 
   // ── валидация ──
   const type = p.type === 'once' || p.type === 'single' ? 'single' : p.type === 'sub' || p.type === 'subscription' ? 'subscription' : null;
-  const payment = p.payment === 'qr' || p.payment === 'cash' ? p.payment : null;
+  const payment = p.payment === 'qr' || p.payment === 'cash' || p.payment === 'other' ? p.payment : null;
   const telegram = str(p.telegram, 64);
   const phone = str(p.phone, 32).replace(/[\s-]/g, '');
   const address = str(p.address, 300);
@@ -79,7 +79,7 @@ Deno.serve(async (req) => {
   if (type === 'subscription' && days.length < SUB_MIN_DAYS) return fail('bad_days');
 
   let shot: File | null = null;
-  if (payment === 'qr') {
+  if (payment !== 'cash') {
     const f = form.get('screenshot');
     if (!(f instanceof File) || f.size === 0) return fail('screenshot_required');
     if (!['image/jpeg', 'image/png'].includes(f.type)) return fail('screenshot_type');
@@ -161,7 +161,7 @@ Deno.serve(async (req) => {
   const pickFileId = (r: any) => (r?.photo?.length ? r.photo[r.photo.length - 1].file_id : null);
 
   try {
-    if (payment === 'qr' && plainLength(text) <= 1024) {
+    if (shot && plainLength(text) <= 1024) {
       const r = await tg('sendPhoto', photoForm({ caption: text, parse_mode: 'HTML', reply_markup: JSON.stringify(keyboardNew(order.order_number)) }));
       if (r.ok) {
         messageId = r.result.message_id;
@@ -171,7 +171,7 @@ Deno.serve(async (req) => {
       const r = await tg('sendMessage', { chat_id, text, parse_mode: 'HTML', reply_markup: keyboardNew(order.order_number), disable_web_page_preview: true });
       if (r.ok) {
         messageId = r.result.message_id;
-        if (payment === 'qr') {
+        if (shot) {
           const pr = await tg('sendPhoto', photoForm({ reply_to_message_id: String(messageId) }));
           if (pr.ok) fileId = pickFileId(pr.result);
           else console.error(`telegram sendPhoto (reply) failed for ${order.order_number}:`, pr.description);

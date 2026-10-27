@@ -26,7 +26,7 @@ interface Row {
     address: string;
     hotel: string | null;
     comment: string | null;
-    payment_method: 'qr' | 'cash';
+    payment_method: 'qr' | 'cash' | 'other';
     total: number;
     order_days: { delivery_date: string }[];
   };

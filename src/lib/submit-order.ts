@@ -7,7 +7,7 @@ export interface OrderPayload {
   type: OrderType;
   days: string[];
   portions: number;
-  payment: 'qr' | 'cash';
+  payment: 'qr' | 'cash' | 'other';
   contact: {
     telegram: string;
     /** Национальные цифры (9), без +84. */

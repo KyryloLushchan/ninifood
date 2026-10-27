@@ -17,7 +17,7 @@ export interface OrderRow {
   lng?: number | null;
   hotel: string | null;
   comment: string | null;
-  payment_method: 'qr' | 'cash';
+  payment_method: 'qr' | 'cash' | 'other';
   qty: number;
   total: number;
   delivery_total: number;
@@ -60,7 +60,9 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
     `💰 Итого: <b>${money(o.total)}</b>`,
     o.payment_method === 'qr'
       ? '💳 Оплата: QR (скриншот приложен)'
-      : `💳 Оплата: наличными — к получению: <b>${money(o.total)}</b>`,
+      : o.payment_method === 'other'
+        ? '💳 Оплата: другой способ (скриншот приложен)'
+        : `💳 Оплата: наличными — к получению: <b>${money(o.total)}</b>`,
     '',
     `👤 Telegram: ${telegramLink(o.telegram)}`,
     ...(o.phone ? [`📞 ${esc(phoneText(o.phone))}`] : []),

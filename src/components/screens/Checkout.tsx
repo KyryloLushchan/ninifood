@@ -37,7 +37,7 @@ export function Checkout() {
       document.querySelector<HTMLInputElement>(`input[name="${bad[0]}"]`)?.focus();
       return;
     }
-    if (payment === 'qr') {
+    if (payment !== 'cash') {
       go('payment');
     } else {
       void placeOrder();
@@ -47,6 +47,7 @@ export function Checkout() {
   const payOpts: [Payment, TKey, TKey][] = [
     ['qr', 'checkout.payQr', 'checkout.payQrDesc'],
     ['cash', 'checkout.payCash', 'checkout.payCashDesc'],
+    ['other', 'checkout.payOther', 'checkout.payOtherDesc'],
   ];
 
   return (
@@ -130,7 +131,7 @@ export function Checkout() {
         <OrderSummary sum={sum} />
         {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}
         <Button disabled={sending} onClick={submit}>
-          {sending ? t('checkout.sending') : payment === 'qr' ? t('checkout.toPayment') : t('checkout.send')}
+          {sending ? t('checkout.sending') : payment !== 'cash' ? t('checkout.toPayment') : t('checkout.send')}
         </Button>
       </BottomBar>
     </>

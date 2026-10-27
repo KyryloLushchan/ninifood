@@ -123,6 +123,7 @@ export function MoneyTab() {
           <Card className="divide-y divide-line">
             <Row title="Наличные" b={report.cash} />
             <Row title="QR" b={report.qr} />
+            <Row title="Другой способ" b={report.other} />
           </Card>
           <Card className="divide-y divide-line">
             <Row title="Разовые" b={report.single} />
