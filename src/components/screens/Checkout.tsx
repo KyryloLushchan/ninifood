@@ -12,12 +12,13 @@ import { AddressField } from '../ui/AddressField';
 import { Field } from '../ui/Field';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
+import { TurnstileWidget } from '../ui/TurnstileWidget';
 
 const REQUIRED: (keyof Contact)[] = ['telegram', 'phone', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
-  const { go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, payment, setPayment, placeOrder, sending, submitError } = useApp();
+  const { go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError } = useApp();
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
   const text = `${days.length} ${pl('unit.day', days.length)} × ${portions} ${pl('unit.portion', portions)}`;
@@ -125,12 +126,13 @@ export function Checkout() {
             );
           })}
         </div>
+        {payment === 'cash' && <TurnstileWidget />}
       </div>
       <div className="flex-1" />
       <BottomBar>
         <OrderSummary sum={sum} />
         {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}
-        <Button disabled={sending} onClick={submit}>
+        <Button disabled={sending || (payment === 'cash' && !captcha)} onClick={submit}>
           {sending ? t('checkout.sending') : payment !== 'cash' ? t('checkout.toPayment') : t('checkout.send')}
         </Button>
       </BottomBar>

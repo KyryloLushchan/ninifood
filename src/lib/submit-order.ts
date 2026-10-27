@@ -18,6 +18,8 @@ export interface OrderPayload {
   };
   /** Место, выбранное в подсказках Google; null — адрес свободным текстом. */
   place: PlaceInfo | null;
+  /** Токен Cloudflare Turnstile. */
+  captcha: string | null;
   /** Уже сжатый JPEG; обязателен при оплате QR. */
   screenshot: File | null;
   lang: string;
@@ -44,6 +46,7 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
       portions: payload.portions,
       payment: payload.payment,
       lang: payload.lang,
+      captcha: payload.captcha,
       ...payload.contact,
       phone: `${PHONE_PREFIX}${payload.contact.phone}`,
       ...(payload.place ? { place_id: payload.place.placeId, lat: payload.place.lat, lng: payload.place.lng } : {}),

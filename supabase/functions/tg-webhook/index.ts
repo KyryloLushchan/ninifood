@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { nowDanang } from '../_shared/dates.ts';
 import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
+import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
@@ -11,7 +12,7 @@ const ADMINS = new Set((Deno.env.get('ADMIN_TG_IDS') ?? '').split(',').map((s) =
 const ok = () => new Response('ok');
 
 Deno.serve(async (req) => {
-  if (req.headers.get('x-telegram-bot-api-secret-token') !== Deno.env.get('TG_WEBHOOK_SECRET')) {
+  if (!(await safeEqual(req.headers.get('x-telegram-bot-api-secret-token') ?? '', Deno.env.get('TG_WEBHOOK_SECRET') ?? ''))) {
     return new Response('forbidden', { status: 401 });
   }
   let update: any;

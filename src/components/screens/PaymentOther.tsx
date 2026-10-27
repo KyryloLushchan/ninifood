@@ -6,12 +6,13 @@ import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
+import { TurnstileWidget } from '../ui/TurnstileWidget';
 import { ScreenshotUpload } from '../ui/ScreenshotUpload';
 
 /** Оплата «Другой способ»: как экран QR, но без QR-кода — способ уточняется в Telegram, скриншот обязателен. */
 export function PaymentOther() {
   const { t } = useI18n();
-  const { go, sum, settings, screenshot, placeOrder, sending, submitError } = useApp();
+  const { go, sum, settings, screenshot, captcha, placeOrder, sending, submitError } = useApp();
   const ok = !!screenshot;
 
   return (
@@ -35,9 +36,10 @@ export function PaymentOther() {
         </div>
 
         <ScreenshotUpload />
+        <TurnstileWidget />
       </div>
       <BottomBar>
-        <Button disabled={!ok || sending} onClick={() => void placeOrder()}>
+        <Button disabled={!ok || sending || !captcha} onClick={() => void placeOrder()}>
           {t('payment.send')}
         </Button>
         {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}

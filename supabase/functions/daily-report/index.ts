@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { buildCourierReport, type ReportDelivery } from '../_shared/courier-report.ts';
 import { isSunday, todayISO } from '../_shared/dates.ts';
+import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
 const FROM = '14:00';
@@ -22,7 +23,7 @@ Deno.serve(async (req) => {
 
   const secret = Deno.env.get('CRON_SECRET') ?? '';
   const given = req.headers.get('x-cron-secret') ?? '';
-  let allowed = secret.length > 0 && given === secret;
+  let allowed = await safeEqual(given, secret);
   if (!allowed) {
     const auth = req.headers.get('authorization') ?? '';
     const anon = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {

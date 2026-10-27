@@ -139,6 +139,8 @@ export const ua: Record<TKey, string> = {
   'error.bad_portions': 'Перевірте кількість порцій.',
   'error.telegram_required': 'Вкажіть Telegram.',
   'error.phone_invalid': 'Введіть номер: після +84 рівно 9 цифр.',
+  'error.captcha_failed': 'Не вдалося підтвердити, що ви не робот. Оновіть перевірку й повторіть.',
+  'error.rate_limited': 'Забагато замовлень. Спробуйте пізніше або напишіть нам у Telegram.',
   'error.address_required': 'Вкажіть адресу.',
   'error.screenshot_required': 'Завантажте скріншот оплати.',
   'error.screenshot_type': 'Скріншот має бути JPG або PNG.',

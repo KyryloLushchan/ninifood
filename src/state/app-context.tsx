@@ -70,6 +70,9 @@ interface AppValue {
   contact: Contact;
   setContactField: (k: keyof Contact, v: string) => void;
   /** Выбранное в подсказках место (place_id + координаты); null — адрес введён вручную. */
+  /** Токен Cloudflare Turnstile для текущей отправки (null — проверка не пройдена). */
+  captcha: string | null;
+  setCaptcha: (t: string | null) => void;
   place: PlaceInfo | null;
   /** Подставляет выбранное место в поле адреса и запоминает координаты. */
   selectPlace: (p: PlaceInfo) => void;
@@ -107,6 +110,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [contact, setContact] = useState<Contact>(EMPTY_CONTACT);
   const [place, setPlace] = useState<PlaceInfo | null>(null);
+  const [captcha, setCaptcha] = useState<string | null>(null);
   const [payment, setPayment] = useState<Payment>('qr');
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -229,6 +233,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         payment,
         contact,
         place,
+        captcha,
         screenshot: shot,
         lang,
       });
@@ -236,11 +241,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       go('thanks');
     } catch (e) {
       const code = e instanceof OrderError ? e.code : 'generic';
-      setSubmitError(`error.${['bad_days', 'bad_portions', 'telegram_required', 'phone_invalid', 'address_required', 'screenshot_required', 'screenshot_type', 'screenshot_size', 'network'].includes(code) ? code : 'generic'}`);
+      setSubmitError(`error.${['bad_days', 'bad_portions', 'telegram_required', 'phone_invalid', 'captcha_failed', 'rate_limited', 'address_required', 'screenshot_required', 'screenshot_type', 'screenshot_size', 'network'].includes(code) ? code : 'generic'}`);
     } finally {
       setSending(false);
     }
-  }, [orderType, days, portions, total, payment, contact, place, screenshot, lang, go]);
+  }, [orderType, days, portions, total, payment, contact, place, captcha, screenshot, lang, go]);
 
   const value: AppValue = {
     screen,
@@ -273,6 +278,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (k === 'address') setPlace((pl) => (pl && pl.text !== v ? null : pl));
     },
     place,
+    captcha,
+    setCaptcha,
     selectPlace: (pl) => {
       setContact((c) => ({ ...c, address: pl.text }));
       setPlace(pl);

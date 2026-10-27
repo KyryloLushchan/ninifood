@@ -2,27 +2,19 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { buildOrderText, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
-import { tg } from '../_shared/telegram.ts';
+import { corsFor } from '../_shared/cors.ts';
+import { clientIp, detectImage, sha256hex, verifyTurnstile } from '../_shared/security.ts';
+import { esc, tg } from '../_shared/telegram.ts';
 
 const BOOKABLE_DAYS = 6; // как на фронте: ближайшие 6 доступных дней для разового заказа
 const WINDOW_DAYS = 14; // окно для подписки
 const SUB_MIN_DAYS = 5; // подписка: от 5 дней; обед = price_subscription / 5
 const MAX_QTY = 99;
 const MAX_FILE = 5 * 1024 * 1024;
-
-// Разрешённые Origin для браузера (github.io — на переходный период, потом убрать).
-const ALLOWED_ORIGINS = new Set([
-  'https://ninifoodvn.com',
-  'https://www.ninifoodvn.com',
-  'https://kyrylolushchan.github.io',
-]);
-
-const corsFor = (origin: string | null): Record<string, string> => ({
-  ...(origin && ALLOWED_ORIGINS.has(origin) ? { 'Access-Control-Allow-Origin': origin } : {}),
-  Vary: 'Origin',
-  'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-});
+const RATE_IP = { max: 3, windowMin: 10 }; // заказов с одного IP за 10 минут
+const RATE_CONTACT = { max: 5, windowH: 24 }; // заказов с одного телефона / Telegram за сутки
+const ALERT_THRESHOLD = 20; // заказов или ошибок за час → «подозрительная активность»
+const SALT = Deno.env.get('IP_HASH_SALT') ?? '';
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
@@ -30,10 +22,49 @@ Deno.serve(async (req) => {
   const cors = corsFor(req.headers.get('origin'));
   const json = (body: unknown, status = 200) =>
     new Response(JSON.stringify(body), { status, headers: { ...cors, 'Content-Type': 'application/json' } });
-  const fail = (code: string, status = 400) => json({ ok: false, code }, status);
 
   if (req.method === 'OPTIONS') return new Response(null, { headers: cors });
-  if (req.method !== 'POST') return fail('bad_request', 405);
+  if (req.method !== 'POST') return json({ ok: false, code: 'bad_request' }, 405);
+
+  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
+    auth: { persistSession: false },
+  });
+  const ip = clientIp(req);
+  const ipHash = ip ? await sha256hex(`${SALT}:${ip}`) : null;
+  const country = (req.headers.get('cf-ipcountry') ?? '').slice(0, 8) || null; // гео-фильтра нет — только лог
+  const who: { phone: string | null; telegram: string | null } = { phone: null, telegram: null };
+
+  // Каждая попытка пишется в order_attempts: по ней — лимиты и мониторинг (>20 заказов/ошибок за час → алерт в группу).
+  const record = async (outcome: string, orderNumber?: string) => {
+    try {
+      const { error } = await db.from('order_attempts').insert({ ip_hash: ipHash, phone: who.phone, telegram: who.telegram, country, outcome, order_number: orderNumber ?? null });
+      if (error) console.error('order_attempts insert failed:', error.message);
+      await checkAlerts();
+    } catch (e) {
+      console.error('record attempt error:', (e as Error).message);
+    }
+  };
+  const checkAlerts = async () => {
+    const since = new Date(Date.now() - 3600_000).toISOString();
+    const count = async (ok: boolean) => {
+      const q = db.from('order_attempts').select('id', { count: 'exact', head: true }).gte('created_at', since);
+      return (await (ok ? q.eq('outcome', 'ok') : q.neq('outcome', 'ok'))).count ?? 0;
+    };
+    const [orders, errors] = await Promise.all([count(true), count(false)]);
+    for (const [kind, n, what] of [['orders_spike', orders, 'заказов'], ['errors_spike', errors, 'ошибок send-order']] as const) {
+      if (n <= ALERT_THRESHOLD) continue;
+      // Не чаще раза в час на вид: обновление проходит только у того, кто первым сдвинул last_sent_at.
+      const { data } = await db.from('security_alerts').update({ last_sent_at: new Date().toISOString() }).eq('kind', kind).lt('last_sent_at', since).select('kind');
+      if (data?.length) await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text: `⚠️ <b>Подозрительная активность</b>\nЗа последний час ${n} ${esc(what)} (порог ${ALERT_THRESHOLD}).`, parse_mode: 'HTML' });
+    }
+  };
+  const fail = async (code: string, status = 400) => {
+    await record(code);
+    return json({ ok: false, code }, status);
+  };
+
+  // Тело больше файла + текстовых полей не разбираем вообще.
+  if (Number(req.headers.get('content-length') ?? 0) > MAX_FILE + 200_000) return fail('screenshot_size', 413);
 
   let form: FormData;
   try {
@@ -64,6 +95,8 @@ Deno.serve(async (req) => {
   const lng = geoOk ? Number(p.lng) : null;
   const lang = ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? p.lang : null;
   const qty = Number(p.portions);
+  who.phone = /^\+84\d{9}$/.test(phone) ? phone : null;
+  who.telegram = telegram.toLowerCase().replace(/^https?:\/\/(www\.)?t\.me\//, '').replace(/^t\.me\//, '').replace(/^@/, '').slice(0, 64) || null;
 
   if (!type || !payment) return fail('bad_request');
   if (!telegram) return fail('telegram_required');
@@ -82,14 +115,25 @@ Deno.serve(async (req) => {
   if (payment !== 'cash') {
     const f = form.get('screenshot');
     if (!(f instanceof File) || f.size === 0) return fail('screenshot_required');
-    if (!['image/jpeg', 'image/png'].includes(f.type)) return fail('screenshot_type');
     if (f.size > MAX_FILE) return fail('screenshot_size');
-    shot = f;
+    const kind = await detectImage(f); // по сигнатуре файла, не по расширению и Content-Type
+    if (!kind) return fail('screenshot_type');
+    shot = new File([f], kind === 'png' ? 'payment.png' : 'payment.jpg', { type: kind === 'png' ? 'image/png' : 'image/jpeg' });
   }
 
-  const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
-    auth: { persistSession: false },
-  });
+  // ── лимиты: считаем только принятые заказы ──
+  const since = (ms: number) => new Date(Date.now() - ms).toISOString();
+  const okCount = async (col: 'ip_hash' | 'phone' | 'telegram', val: string | null, ms: number) =>
+    val ? ((await db.from('order_attempts').select('id', { count: 'exact', head: true }).eq('outcome', 'ok').eq(col, val).gte('created_at', since(ms))).count ?? 0) : 0;
+  const [byIp, byPhone, byTg] = await Promise.all([
+    okCount('ip_hash', ipHash, RATE_IP.windowMin * 60_000),
+    okCount('phone', who.phone, RATE_CONTACT.windowH * 3600_000),
+    okCount('telegram', who.telegram, RATE_CONTACT.windowH * 3600_000),
+  ]);
+  if (byIp >= RATE_IP.max || byPhone >= RATE_CONTACT.max || byTg >= RATE_CONTACT.max) return fail('rate_limited', 429);
+
+  // ── Turnstile: проверяем после валидации, чтобы токен не сгорал на ошибках формы ──
+  if (!(await verifyTurnstile(str(p.captcha, 4096), ip))) return fail('captcha_failed', 403);
 
   // ── цена: только из settings ──
   const { data: settings, error: sErr } = await db.from('settings').select('key, value').in('key', ['price_single', 'price_subscription', 'delivery_single']);
@@ -189,5 +233,6 @@ Deno.serve(async (req) => {
     console.error(`order ${order.order_number} saved but NOT delivered to Telegram (tg_message_id = null)`);
   }
 
+  await record('ok', order.order_number);
   return json({ ok: true, orderNumber: order.order_number });
 });

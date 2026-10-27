@@ -139,6 +139,8 @@ export const vi: Record<TKey, string> = {
   'error.bad_portions': 'Vui lòng kiểm tra số phần.',
   'error.telegram_required': 'Vui lòng nhập Telegram.',
   'error.phone_invalid': 'Nhập đúng 9 chữ số sau +84.',
+  'error.captcha_failed': 'Không xác minh được bạn không phải robot. Hãy làm mới bước kiểm tra và thử lại.',
+  'error.rate_limited': 'Quá nhiều đơn hàng. Vui lòng thử lại sau hoặc nhắn cho chúng tôi trên Telegram.',
   'error.address_required': 'Vui lòng nhập địa chỉ.',
   'error.screenshot_required': 'Vui lòng tải ảnh chụp thanh toán.',
   'error.screenshot_type': 'Ảnh chụp phải là JPG hoặc PNG.',

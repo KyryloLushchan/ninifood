@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
+import { SecurityCard } from './Mfa';
 import { Btn, Card, Err, Label, inputCls } from './ui';
 
 const FIELDS = [
@@ -63,6 +64,7 @@ export function SettingsTab() {
       <Err>{error}</Err>
       {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}
       <Btn onClick={save} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить'}</Btn>
+      <SecurityCard />
     </div>
   );
 }

@@ -139,6 +139,8 @@ export const en: Record<TKey, string> = {
   'error.bad_portions': 'Please check the number of portions.',
   'error.telegram_required': 'Please enter your Telegram.',
   'error.phone_invalid': 'Enter exactly 9 digits after +84.',
+  'error.captcha_failed': 'We could not verify you are human. Refresh the check and try again.',
+  'error.rate_limited': 'Too many orders. Please try again later or message us on Telegram.',
   'error.address_required': 'Please enter your address.',
   'error.screenshot_required': 'Please upload the payment screenshot.',
   'error.screenshot_type': 'The screenshot must be JPG or PNG.',

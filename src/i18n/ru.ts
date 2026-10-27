@@ -149,6 +149,8 @@ export const ru = {
   'error.bad_portions': 'Проверьте количество порций.',
   'error.telegram_required': 'Укажите Telegram.',
   'error.phone_invalid': 'Введите номер: после +84 ровно 9 цифр.',
+  'error.captcha_failed': 'Не удалось подтвердить, что вы не робот. Обновите проверку и повторите.',
+  'error.rate_limited': 'Слишком много заказов. Попробуйте позже или напишите нам в Telegram.',
   'error.address_required': 'Укажите адрес.',
   'error.screenshot_required': 'Загрузите скриншот оплаты.',
   'error.screenshot_type': 'Скриншот должен быть JPG или PNG.',

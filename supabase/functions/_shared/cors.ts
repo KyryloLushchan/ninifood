@@ -1,8 +1,7 @@
-// Разрешённые Origin для браузера (github.io — на переходный период, потом убрать).
+// Разрешённые Origin для браузера.
 const ALLOWED_ORIGINS = new Set([
   'https://ninifoodvn.com',
   'https://www.ninifoodvn.com',
-  'https://kyrylolushchan.github.io',
 ]);
 
 export const corsFor = (origin: string | null): Record<string, string> => ({

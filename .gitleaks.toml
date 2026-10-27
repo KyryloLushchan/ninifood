@@ -1,0 +1,8 @@
+# Публичные по замыслу ключи: anon JWT Supabase (роль anon, права — только через RLS) и ключ Google Places (ограничен по домену и API).
+# Любые другие секреты — только в секретах Supabase / GitHub, не в файлах.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "public client-side keys"
+paths = ['''src/config/supabase\.ts''', '''src/config/google\.ts''']

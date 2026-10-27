@@ -7,11 +7,12 @@ import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
+import { TurnstileWidget } from '../ui/TurnstileWidget';
 import { ScreenshotUpload } from '../ui/ScreenshotUpload';
 
 export function PaymentQr() {
   const { t } = useI18n();
-  const { go, total, sum, screenshot, placeOrder, sending, submitError } = useApp();
+  const { go, total, sum, screenshot, captcha, placeOrder, sending, submitError } = useApp();
   const qrUrl = buildQrUrl(total);
   const ok = !!screenshot;
 
@@ -43,9 +44,10 @@ export function PaymentQr() {
         </div>
 
         <ScreenshotUpload />
+        <TurnstileWidget />
       </div>
       <BottomBar>
-        <Button disabled={!ok || sending} onClick={() => void placeOrder()}>
+        <Button disabled={!ok || sending || !captcha} onClick={() => void placeOrder()}>
           {t('payment.send')}
         </Button>
         {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}

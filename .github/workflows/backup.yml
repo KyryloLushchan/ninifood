@@ -1,0 +1,66 @@
+name: Database backup
+
+# Раз в сутки (02:17 по Дананг-времени): pg_dump → шифрование age → приватный репозиторий ninifood-backups.
+# Репозиторий ninifood публичный, поэтому дамп НИКОГДА не кладётся сюда и не сохраняется артефактом.
+# Секреты Actions: BACKUP_DB_URL (Session pooler, порт 5432), BACKUP_REPO_TOKEN (fine-grained, Contents: write только на ninifood-backups).
+# Публичный ключ age — backup/age-recipient.txt; приватный — только у владельца (менеджер паролей).
+on:
+  schedule:
+    - cron: '17 19 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: backup
+
+      - name: Install pg_dump 17 and age
+        run: |
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y
+          sudo apt-get install -y postgresql-client-17 age
+
+      - name: Dump and encrypt
+        env:
+          DB_URL: ${{ secrets.BACKUP_DB_URL }}
+        run: |
+          set -euo pipefail
+          stamp=$(date -u +%Y-%m-%d_%H%M)
+          mkdir dump
+          # public: схема и данные (заказы, меню, настройки, касса, admins, журнал попыток)
+          pg_dump "$DB_URL" --no-owner --no-privileges --schema=public --file=dump/public.sql
+          # auth: только данные учёток админа и его 2FA-устройств (нужны, чтобы admins ссылались на пользователя)
+          pg_dump "$DB_URL" --no-owner --no-privileges --data-only --table=auth.users --table=auth.identities --table=auth.mfa_factors --file=dump/auth-data.sql
+          test "$(stat -c %s dump/public.sql)" -gt 5000
+          tar -C dump -cf - . | age -R backup/age-recipient.txt -o "ninifood-$stamp.tar.age"
+          test "$(stat -c %s "ninifood-$stamp.tar.age")" -gt 1000
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          rm -rf dump
+
+      - name: Push to private repo (keep last 30)
+        env:
+          TOKEN: ${{ secrets.BACKUP_REPO_TOKEN }}
+        run: |
+          set -euo pipefail
+          auth=$(printf 'x-access-token:%s' "$TOKEN" | base64 -w0)
+          echo "::add-mask::$auth"
+          git -c http.extraheader="AUTHORIZATION: basic $auth" clone --depth 1 https://github.com/KyryloLushchan/ninifood-backups.git repo
+          mkdir -p repo/backups
+          mv "ninifood-$STAMP.tar.age" repo/backups/
+          cd repo
+          ls -1 backups/*.age | sort | head -n -30 | xargs -r git rm -q
+          git config user.name "ninifood-backup"
+          git config user.email "backup@users.noreply.github.com"
+          git add backups
+          git commit -q -m "backup $STAMP"
+          git -c http.extraheader="AUTHORIZATION: basic $auth" push -q origin HEAD

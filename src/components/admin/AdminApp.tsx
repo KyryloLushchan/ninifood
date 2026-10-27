@@ -9,6 +9,7 @@ import { MenuTab } from './MenuTab';
 import { MoneyTab } from './MoneyTab';
 import { OrdersTab } from './OrdersTab';
 import { SettingsTab } from './SettingsTab';
+import { MfaChallenge, MfaRequired } from './Mfa';
 import { Btn, Err, inputCls } from './ui';
 
 const TABS = [
@@ -47,9 +48,16 @@ function Login() {
   );
 }
 
+/** Автовыход: сессия админа живёт не дольше 12 часов от входа по паролю. */
+const SESSION_MAX_MS = 12 * 3600 * 1000;
+
+type Mfa = { state: 'checking' } | { state: 'ok' } | { state: 'enroll' } | { state: 'challenge'; factors: { id: string; name: string }[] };
+
 export function AdminApp() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [mfa, setMfa] = useState<Mfa>({ state: 'checking' });
+  const [mfaTick, setMfaTick] = useState(0);
   const [tab, setTab] = useState<Tab>('courier');
 
   useEffect(() => {
@@ -58,16 +66,51 @@ export function AdminApp() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
+  // Вторая ступень (TOTP): без aal2 админских прав нет — is_admin() в БД проверяет claim aal2.
+  useEffect(() => {
+    setMfa({ state: 'checking' });
+    if (!session) return;
+    let dead = false;
+    (async () => {
+      const { data: aal } = await adminDb.auth.mfa.getAuthenticatorAssuranceLevel();
+      if (dead) return;
+      if (aal?.currentLevel === 'aal2') return setMfa({ state: 'ok' });
+      const { data: list } = await adminDb.auth.mfa.listFactors();
+      if (dead) return;
+      const factors = (list?.totp ?? []).map((f) => ({ id: f.id, name: f.friendly_name || 'Устройство' }));
+      setMfa(factors.length ? { state: 'challenge', factors } : { state: 'enroll' });
+    })();
+    return () => {
+      dead = true;
+    };
+  }, [session?.user.id, mfaTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     setIsAdmin(null);
-    if (!session) return;
+    if (!session || mfa.state !== 'ok') return;
     adminDb.rpc('is_admin').then(({ data, error }) => setIsAdmin(!error && data === true));
-  }, [session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session?.user.id, mfa.state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Автовыход через 12 часов после входа по паролю (проверка при загрузке и раз в минуту).
+  useEffect(() => {
+    const at = session?.user.last_sign_in_at ? Date.parse(session.user.last_sign_in_at) : NaN;
+    if (!session || Number.isNaN(at)) return;
+    const check = () => {
+      if (Date.now() - at > SESSION_MAX_MS) void adminDb.auth.signOut();
+    };
+    check();
+    const id = setInterval(check, 60_000);
+    return () => clearInterval(id);
+  }, [session?.user.last_sign_in_at]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (session === undefined) return <div className="p-10 text-center text-ink-muted">Загрузка…</div>;
   if (!session) return <Login />;
 
   const signOut = () => adminDb.auth.signOut();
+
+  if (mfa.state === 'checking') return <div className="p-10 text-center text-ink-muted">Проверяем защиту…</div>;
+  if (mfa.state === 'enroll') return <MfaRequired onDone={() => setMfaTick((n) => n + 1)} onSignOut={signOut} />;
+  if (mfa.state === 'challenge') return <MfaChallenge factorIds={mfa.factors} onDone={() => setMfaTick((n) => n + 1)} onSignOut={signOut} />;
 
   if (isAdmin === null) return <div className="p-10 text-center text-ink-muted">Проверяем доступ…</div>;
   if (!isAdmin) {
