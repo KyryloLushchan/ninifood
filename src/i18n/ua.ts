@@ -85,6 +85,7 @@ export const ua: Record<TKey, string> = {
   'checkout.telegramPh': '@username',
   'checkout.phone': 'Телефон *',
   'checkout.phonePh': '90 123 45 67',
+  'checkout.phoneForeign': "Вкажіть в'єтнамський номер",
   'checkout.address': 'Адреса *',
   'checkout.addressPh': 'Вулиця, будинок, район',
   'checkout.poweredBy': 'Powered by Google',

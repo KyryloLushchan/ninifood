@@ -93,6 +93,7 @@ export const ru = {
   'checkout.telegramPh': '@username',
   'checkout.phone': 'Телефон *',
   'checkout.phonePh': '90 123 45 67',
+  'checkout.phoneForeign': "Укажите вьетнамский номер",
   'checkout.address': 'Адрес *',
   'checkout.addressPh': 'Улица, дом, район',
   'checkout.poweredBy': 'Powered by Google',

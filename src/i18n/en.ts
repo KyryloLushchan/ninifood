@@ -85,6 +85,7 @@ export const en: Record<TKey, string> = {
   'checkout.telegramPh': '@username',
   'checkout.phone': 'Phone *',
   'checkout.phonePh': '90 123 45 67',
+  'checkout.phoneForeign': "Please enter a Vietnamese number",
   'checkout.address': 'Address *',
   'checkout.addressPh': 'Street, building, district',
   'checkout.poweredBy': 'Powered by Google',

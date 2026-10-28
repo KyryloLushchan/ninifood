@@ -106,12 +106,22 @@ export function AddressField({ label, placeholder, error, value, place, onText, 
         name="address"
         label={label}
         placeholder={placeholder}
-        autoComplete="off"
+        autoComplete="street-address"
         error={error}
         value={value}
         onChange={(e) => {
-          typed.current = true;
+          // Подсказки Google — только на набор/вставку руками; подставленное браузером — обычный текст без place_id, список не открываем.
+          const it = (e.nativeEvent as InputEvent).inputType;
+          typed.current = typeof it === 'string' && it !== 'insertReplacementText';
+          if (!typed.current) close();
           onText(e.target.value);
+        }}
+        onAnimationStart={(e) => {
+          if (e.currentTarget.value !== value) {
+            typed.current = false;
+            close();
+            onText(e.currentTarget.value);
+          }
         }}
         onFocus={() => items.length > 0 && setOpen(true)}
         onKeyDown={(e) => e.key === 'Escape' && close()}

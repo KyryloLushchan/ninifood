@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
 import { useI18n, type TKey } from '@/i18n';
 import { labelShort } from '@/lib/dates';
-import { isValidPhone, PHONE_PREFIX, formatDigits, phoneDigits } from '@/lib/phone';
+import { isValidPhone, PHONE_PREFIX, formatDigits, parsePhoneInput, phoneDigits } from '@/lib/phone';
 import { useApp, type Contact, type Payment } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
@@ -21,6 +21,7 @@ const REQUIRED: (keyof Contact)[] = ['telegram', 'phone', 'address'];
 export function Checkout() {
   const { t, lang, pl } = useI18n();
   const { customer, go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError } = useApp();
+  const [phoneForeign, setPhoneForeign] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
   const text = `${days.length} ${pl('unit.day', days.length)} × ${portions} ${pl('unit.portion', portions)}`;
@@ -32,6 +33,18 @@ export function Checkout() {
       if (errors[k]) setErrors((x) => ({ ...x, [k]: false }));
     },
   });
+
+  // Телефон: ручной ввод — как раньше; автозаполнение/вставка (не «набранный» символ) — через разбор формата, чужой номер не подставляем.
+  const onPhone = (el: HTMLInputElement, typing: boolean) => {
+    const { digits, foreign } = typing ? { digits: phoneDigits(el.value), foreign: false } : parsePhoneInput(el.value);
+    setPhoneForeign(foreign);
+    setContactField('phone', digits);
+    if (errors.phone) setErrors((x) => ({ ...x, phone: false }));
+  };
+  const isTyping = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const it = (e.nativeEvent as InputEvent).inputType;
+    return typeof it === 'string' && it !== 'insertReplacementText' && it !== 'insertFromPaste' && it !== 'insertFromDrop';
+  };
 
   const submit = () => {
     const bad = REQUIRED.filter((k) => (k === 'phone' ? !isValidPhone(contact.phone) : !contact[k].trim()));
@@ -56,7 +69,7 @@ export function Checkout() {
   return (
     <>
       <ScreenHeader title={t('checkout.title')} onBack={() => go('order')} />
-      <div className="flex flex-col gap-[18px] px-5 pb-6">
+      <form autoComplete="on" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-[18px] px-5 pb-6">
         <div className="flex items-center justify-between gap-3 rounded-md2 bg-card px-4 py-3.5">
           <div className="flex flex-col gap-0.5">
             <div className="text-[15px] font-extrabold">
@@ -66,7 +79,7 @@ export function Checkout() {
               {days.map((d) => labelShort(d, lang)).join(', ')} · {DELIVERY_FROM}–{DELIVERY_TO}
             </div>
           </div>
-          <button onClick={() => go('order')} className="text-sm font-bold text-accent hover:underline">
+          <button type="button" onClick={() => go('order')} className="text-sm font-bold text-accent hover:underline">
             {t('checkout.edit')}
           </button>
         </div>
@@ -83,6 +96,7 @@ export function Checkout() {
           label={t('checkout.telegram')}
           placeholder={t('checkout.telegramPh')}
           autoCapitalize="none"
+          autoComplete="nickname"
           error={err('telegram')}
           {...bind('telegram')}
         />
@@ -95,11 +109,11 @@ export function Checkout() {
           inputMode="tel"
           autoComplete="tel-national"
           error={err('phone')}
+          hint={phoneForeign ? t('checkout.phoneForeign') : undefined}
           value={formatDigits(contact.phone)}
-          onChange={(e) => {
-            setContactField('phone', phoneDigits(e.target.value));
-            if (errors.phone) setErrors((x) => ({ ...x, phone: false }));
-          }}
+          onChange={(e) => onPhone(e.target, isTyping(e))}
+          onBlur={(e) => e.target.value !== formatDigits(contact.phone) && onPhone(e.target, false)}
+          onAnimationStart={(e) => onPhone(e.currentTarget, false)}
         />
         <AddressField
           label={t('checkout.address')}
@@ -126,6 +140,7 @@ export function Checkout() {
             return (
               <button
                 key={id}
+                type="button"
                 role="radio"
                 aria-checked={on}
                 onClick={() => setPayment(id)}
@@ -143,7 +158,7 @@ export function Checkout() {
           })}
         </div>
         {payment === 'cash' && <TurnstileWidget />}
-      </div>
+      </form>
       <div className="flex-1" />
       <BottomBar>
         <OrderSummary sum={sum} />

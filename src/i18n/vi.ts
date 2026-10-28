@@ -85,6 +85,7 @@ export const vi: Record<TKey, string> = {
   'checkout.telegramPh': '@username',
   'checkout.phone': 'Số điện thoại *',
   'checkout.phonePh': '90 123 45 67',
+  'checkout.phoneForeign': "Vui lòng nhập số điện thoại Việt Nam",
   'checkout.address': 'Địa chỉ *',
   'checkout.addressPh': 'Đường, số nhà, quận',
   'checkout.poweredBy': 'Powered by Google',
