@@ -27,8 +27,6 @@ export const en: Record<TKey, string> = {
   'home.heroTitle': 'Order today — we deliver tomorrow',
   'home.heroText': 'Home-style lunch of 4 dishes: soup, main, salad and dessert',
   'home.heroCta': 'Order for {day}',
-  'home.todayQ': 'Need lunch today?',
-  'home.todayLink': 'Message us on Telegram before {time}',
   'home.menuTitle': 'Menu for the week',
   'home.todayTag': 'today',
   'home.menuCta': 'Order for {day} · {price}',

@@ -27,8 +27,6 @@ export const ua: Record<TKey, string> = {
   'home.heroTitle': 'Замовте сьогодні — привеземо завтра',
   'home.heroText': 'Домашній обід із 4 страв: суп, основне, салат і десерт',
   'home.heroCta': 'Замовити на {day}',
-  'home.todayQ': 'Потрібен обід сьогодні?',
-  'home.todayLink': 'Напишіть у Telegram до {time}',
   'home.menuTitle': 'Меню на тиждень',
   'home.todayTag': 'сьогодні',
   'home.menuCta': 'Замовити на {day} · {price}',

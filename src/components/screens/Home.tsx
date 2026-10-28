@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DELIVERY_FROM, DELIVERY_TO, TODAY_ORDER_DEADLINE } from '@/config/site';
+import { DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
 import { useI18n } from '@/i18n';
 import { ddmm, isSunday, labelFull, weekdayShort } from '@/lib/dates';
@@ -133,12 +133,6 @@ export function Home() {
             {heroDay ? t('home.heroCta', { day: labelFull(heroDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
           </Button>
           <div className="text-sm text-ink-2 min-[420px]:flex-none">{t('home.heroDeliveryNote', hours)}</div>
-        </div>
-        <div className="text-center text-sm text-ink-2">
-          {t('home.todayQ')}{' '}
-          <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
-            {t('home.todayLink', { time: TODAY_ORDER_DEADLINE })}
-          </a>
         </div>
       </section>
 

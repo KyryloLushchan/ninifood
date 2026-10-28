@@ -29,8 +29,6 @@ export const ru = {
   'home.heroTitle': 'Закажите сегодня — привезём завтра',
   'home.heroText': 'Домашний обед из 4 блюд: суп, основное, салат и десерт',
   'home.heroCta': 'Заказать на {day}',
-  'home.todayQ': 'Нужен обед сегодня?',
-  'home.todayLink': 'Напишите в Telegram до {time}',
   'home.menuTitle': 'Меню на неделю',
   'home.todayTag': 'сегодня',
   'home.menuCta': 'Заказать на {day} · {price}',
