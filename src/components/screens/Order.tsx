@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { SUB_MIN_DAYS } from '@/config/site';
 import { useI18n } from '@/i18n';
-import { ddmm, labelFull, weekdayShort, weekStart } from '@/lib/dates';
+import { addDays, ddmm, labelFull, weekdayShort, weekStart } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { onceTotals, subTotals } from '@/lib/pricing';
 import { useApp } from '@/state/app-context';
@@ -49,6 +49,42 @@ export function Order() {
   );
 }
 
+/** Недели Пн–Вс, 7 колонок; воскресенье — неактивная ячейка «вихідний». Дней вне списка `days` — пустые ячейки. */
+function WeekGrid({ days, isSelected, onToggle, markNoMenu }: { days: string[]; isSelected: (d: string) => boolean; onToggle: (d: string) => void; markNoMenu?: boolean }) {
+  const { t, lang } = useI18n();
+  const { menu } = useApp();
+  const weeks = new Map<string, string[]>();
+  for (const d of days) {
+    const k = weekStart(d);
+    weeks.set(k, [...(weeks.get(k) ?? []), d]);
+  }
+  return (
+    <>
+      {[...weeks.entries()].map(([monday, list]) => {
+        const sunday = addDays(monday, 6);
+        return (
+          <div key={monday} className="flex flex-col gap-1.5">
+            <div className="text-xs font-extrabold tracking-[.06em] text-ink-muted">
+              {ddmm(list[0])} – {ddmm(list[list.length - 1])}
+            </div>
+            <div className="grid grid-cols-7 gap-0.5 min-[360px]:gap-1">
+              {[0, 1, 2, 3, 4, 5].map((i) => {
+                const d = list.find((x) => new Date(`${x}T00:00:00Z`).getUTCDay() === i + 1);
+                return d ? (
+                  <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={isSelected(d)} noMenu={markNoMenu && !menu[d]} onClick={() => onToggle(d)} />
+                ) : (
+                  <div key={i} />
+                );
+              })}
+              <DayChip weekday={weekdayShort(sunday, lang)} date={ddmm(sunday)} selected={false} dayOff={t('calendar.dayOff')} onClick={() => {}} />
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function OnceDays() {
   const { t, lang, pl } = useI18n();
   const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings, isVip, discount } = useApp();
@@ -64,11 +100,7 @@ function OnceDays() {
             {n ? t('order.selected', { text: `${n} ${pl('unit.day', n)}` }) : t('order.pickDay')}
           </div>
         </div>
-        <div className="grid grid-cols-3 gap-2">
-          {bookableDays.map((d) => (
-            <DayChip key={d} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={onceDays.includes(d)} onClick={() => toggleOnceDay(d)} />
-          ))}
-        </div>
+        <WeekGrid days={bookableDays} isSelected={(d) => onceDays.includes(d)} onToggle={toggleOnceDay} />
       </div>
       {showNudge && (
         <div className="flex flex-col gap-1.5 rounded-md2 bg-accent-soft px-4 py-3.5">
@@ -90,11 +122,6 @@ function SubDays() {
   const { subscriptionDays, menu, subDays, toggleSubDay } = useApp();
   const count = subDays.length;
 
-  const weeks = new Map<string, string[]>();
-  for (const d of subscriptionDays) {
-    const k = weekStart(d);
-    weeks.set(k, [...(weeks.get(k) ?? []), d]);
-  }
 
   return (
     <div className="flex flex-col gap-3">
@@ -105,23 +132,7 @@ function SubDays() {
         </div>
       </div>
       <div className="-mt-1 text-[13px] text-ink-muted">{t('sub.autoHint')}</div>
-      {[...weeks.entries()].map(([monday, list]) => (
-        <div key={monday} className="flex flex-col gap-1.5">
-          <div className="text-xs font-extrabold tracking-[.06em] text-ink-muted">
-            {ddmm(list[0])} – {ddmm(list[list.length - 1])}
-          </div>
-          <div className="grid grid-cols-6 gap-1.5">
-            {[0, 1, 2, 3, 4, 5].map((i) => {
-              const d = list.find((x) => new Date(`${x}T00:00:00Z`).getUTCDay() === i + 1);
-              return d ? (
-                <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={subDays.includes(d)} noMenu={!menu[d]} onClick={() => toggleSubDay(d)} />
-              ) : (
-                <div key={i} />
-              );
-            })}
-          </div>
-        </div>
-      ))}
+      <WeekGrid days={subscriptionDays} isSelected={(d) => subDays.includes(d)} onToggle={toggleSubDay} markNoMenu />
       {subscriptionDays.some((d) => !menu[d]) && (
         <div className="flex items-center gap-2 text-[13px] text-ink-muted">
           <span className="h-3.5 w-5 rounded-[5px] border border-dashed border-ink-muted" />

@@ -61,6 +61,7 @@ export const vi: Record<TKey, string> = {
   'order.tabOnce': 'Một lần',
   'order.tabSub': 'Gói 5 ngày',
   'order.daysTitle': 'Ngày giao hàng',
+  'calendar.dayOff': "nghỉ",
   'order.selected': 'đã chọn {text}',
   'order.pickDay': 'chọn ngày',
   'order.nudgeTitle': 'Đã chọn 5+ ngày',

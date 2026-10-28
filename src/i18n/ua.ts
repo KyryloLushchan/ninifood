@@ -61,6 +61,7 @@ export const ua: Record<TKey, string> = {
   'order.tabOnce': 'Разове',
   'order.tabSub': 'Підписка на 5 днів',
   'order.daysTitle': 'Дні доставки',
+  'calendar.dayOff': "вихідний",
   'order.selected': 'обрано {text}',
   'order.pickDay': 'оберіть день',
   'order.nudgeTitle': 'Обрано 5+ днів',

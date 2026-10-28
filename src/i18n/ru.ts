@@ -67,6 +67,7 @@ export const ru = {
   'order.tabOnce': 'Разовый',
   'order.tabSub': 'Подписка на 5 дней',
   'order.daysTitle': 'Дни доставки',
+  'calendar.dayOff': "выходной",
   'order.selected': 'выбрано {text}',
   'order.pickDay': 'выберите день',
   'order.nudgeTitle': 'Выбрано 5+ дней',
