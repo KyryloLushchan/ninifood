@@ -18,7 +18,7 @@ function DraftNotice() {
   const { draftStale, dismissDraftStale } = useApp();
   if (!draftStale) return null;
   return (
-    <div role="alert" className="fixed inset-x-0 top-0 z-50 mx-auto flex w-full max-w-app items-start gap-3 bg-accent px-5 py-3 text-sm font-bold text-white">
+    <div role="alert" className="flex w-full items-start gap-3 bg-accent px-5 py-3 text-sm font-bold text-white">
       <span className="flex-1">{t('phone.stale')}</span>
       <button type="button" aria-label="×" onClick={dismissDraftStale} className="text-lg leading-none">×</button>
     </div>
