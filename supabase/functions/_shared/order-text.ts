@@ -46,10 +46,19 @@ export function phoneText(stored: string): string {
   return m ? `+84 ${m[1]} ${m[2]} ${m[3]} ${m[4]}` : stored.trim();
 }
 
+/** Ник в <code> (копируется одним нажатием; внутри code ссылки невозможны, поэтому рядом — «открыть»). */
 function telegramLink(raw: string): string {
   const h = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
-  return /^[A-Za-z0-9_]{4,32}$/.test(h) ? `<a href="https://t.me/${h}">@${h}</a>` : esc(raw.trim());
+  return /^[A-Za-z0-9_]{4,32}$/.test(h) ? `<code>@${h}</code> · <a href="https://t.me/${h}">открыть</a>` : `<code>${esc(raw.trim())}</code>`;
 }
+
+/** «Спасибо за заказ» на языке клиента (поле lang заказа); нет языка — русский. */
+const THANKS: Record<string, string> = {
+  ua: 'Дякуємо за замовлення! 🙏',
+  ru: 'Спасибо за заказ! 🙏',
+  en: 'Thank you for your order! 🙏',
+  vi: 'Cảm ơn bạn đã đặt hàng! 🙏',
+};
 
 export function buildOrderText(o: OrderRow, days: string[], statusLine?: string): string {
   const sorted = [...days].sort();
@@ -70,8 +79,8 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
         : `💳 Оплата: наличными — к получению: <b>${money(o.total)}</b>`,
     '',
     `👤 Telegram: ${telegramLink(o.telegram)}`,
-    ...(o.phone ? [`📞 ${esc(phoneText(o.phone))}`] : []),
-    `📍 Адрес: ${esc(o.address)}`,
+    ...(o.phone ? [`📞 <code>${esc(phoneText(o.phone))}</code>`] : []),
+    `📍 Адрес: <code>${esc(o.address)}</code>`,
   ];
   const map = mapLinkHtml(o.lat, o.lng, o.place_id);
   if (map) lines.push(map);
@@ -79,6 +88,7 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
   if (o.comment) lines.push(`💬 Комментарий: ${esc(o.comment)}`);
   lines.push(`🌐 Язык: ${(o.lang ?? '—').toUpperCase()}`);
   if (statusLine) lines.push('', statusLine);
+  lines.push('', THANKS[o.lang ?? ''] ?? THANKS.ru);
   return lines.join('\n');
 }
 
