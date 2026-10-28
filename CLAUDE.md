@@ -33,7 +33,7 @@
 - `src/lib/` — `dates.ts` (даты по Дананг-времени), `pricing.ts`, `format.ts`, `submit-order.ts`.
 - `src/state/app-context.tsx` — состояние заказа.
 - `design/` — дизайн-референс (README с описанием экранов, HTML-макет, support.js). Это не продакшн-код.
-- `public/photos/` — оптимизированные фото блюд: `<slug>-800.webp` и `<slug>-400.webp` (srcset в `Photo`, lazy loading); `photo_url` в БД = путь к `-800.webp`. Оригиналы — `design/photos-original/` (в сайт не попадают). Новое фото: сжать до WebP (800 px и 400 px, качество ~75), положить в `public/photos/`, прописать путь в меню (админка → Меню). Нет фото — полосатая заглушка. Hero на главной — `hero-800/400.webp`, путь в `src/config/photos.ts` (оригинал `design/photos-original/Hero.jpg`).
+- `public/photos/` — оптимизированные фото блюд: `<slug>-800.webp` и `<slug>-400.webp` (srcset в `Photo`, lazy loading); `photo_url` в БД = путь к `-800.webp`. Оригиналы — `design/photos-original/` (в сайт не попадают). Новое фото: сжать до WebP (800 px и 400 px, качество ~75), положить в `public/photos/`, прописать путь в меню (админка → Меню). Нет фото — полосатая заглушка. Сейчас у всех 24 блюд есть фото; гречка с гуляшом, рагу из телятины и рис с курицей в грибном соусе — новые (коммит b3324e2), файлы-дубли и старое фото риса в кисло-сладком соусе удалены (перезаписаны под тем же slug), неиспользуемых файлов в `public/photos/` нет (кроме `hero-*` и `payment-qr.jpg` из `config`). Hero на главной — `hero-800/400.webp`, путь в `src/config/photos.ts` (оригинал `design/photos-original/Hero.jpg`).
 - Дизайн-токены (цвета, радиусы, шрифты, тени) — в `tailwind.config.ts`, значения строго из `design/README.md`.
 
 ## Флоу и экраны
