@@ -424,5 +424,5 @@ verify_jwt = true
 [functions.daily-report]
 verify_jwt = false
 
-[functions.tg-auth]
+[functions.auth-gate]
 verify_jwt = false

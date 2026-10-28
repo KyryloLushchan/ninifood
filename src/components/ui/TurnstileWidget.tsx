@@ -36,31 +36,34 @@ function loadTurnstile(): Promise<TurnstileApi> {
   return scriptPromise;
 }
 
-/** Cloudflare Turnstile (Managed) перед отправкой заказа: токен уходит в send-order, сервер проверяет его через siteverify. */
-export function TurnstileWidget() {
-  const { t, lang } = useI18n();
-  const { setCaptcha, submitError } = useApp();
+/**
+ * Cloudflare Turnstile (Managed), без привязки к i18n и состоянию заказа (годится и для админки).
+ * onToken(null) — токен пропал (истёк/ошибка). Токен одноразовый: смена resetKey просит новый.
+ */
+export function TurnstileBox({ language, onToken, resetKey = 0, failedText }: { language: string; onToken: (t: string | null) => void; resetKey?: number; failedText: string }) {
   const box = useRef<HTMLDivElement>(null);
   const widget = useRef<string | null>(null);
+  const cb = useRef(onToken);
+  cb.current = onToken;
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let dead = false;
-    setCaptcha(null);
+    cb.current(null);
     loadTurnstile()
       .then((api) => {
         if (dead || !box.current) return;
         widget.current = api.render(box.current, {
           sitekey: TURNSTILE_SITE_KEY,
           theme: 'light',
-          language: WIDGET_LANG[lang],
+          language,
           callback: (token: string) => {
             setFailed(false);
-            setCaptcha(token);
+            cb.current(token);
           },
-          'expired-callback': () => setCaptcha(null),
+          'expired-callback': () => cb.current(null),
           'error-callback': () => {
-            setCaptcha(null);
+            cb.current(null);
             setFailed(true);
           },
         });
@@ -73,22 +76,37 @@ export function TurnstileWidget() {
       dead = true;
       if (widget.current) window.turnstile?.remove(widget.current);
       widget.current = null;
-      setCaptcha(null);
+      cb.current(null);
     };
-  }, [lang, setCaptcha]);
+  }, [language]);
 
-  // Токен одноразовый: после любой ошибки отправки просим новый.
   useEffect(() => {
-    if (submitError && widget.current) {
-      setCaptcha(null);
+    if (resetKey > 0 && widget.current) {
+      cb.current(null);
       window.turnstile?.reset(widget.current);
     }
-  }, [submitError, setCaptcha]);
+  }, [resetKey]);
 
   return (
     <div className="flex flex-col items-center gap-1.5">
       <div ref={box} />
-      {failed && <div className="text-center text-[13px] font-bold text-accent">{t('error.captcha_failed')}</div>}
+      {failed && <div className="text-center text-[13px] font-bold text-accent">{failedText}</div>}
     </div>
   );
+}
+
+export const turnstileLang = (lang: Lang) => WIDGET_LANG[lang];
+
+/** Turnstile перед отправкой заказа: токен уходит в send-order, сервер проверяет его через siteverify. */
+export function TurnstileWidget() {
+  const { t, lang } = useI18n();
+  const { setCaptcha, submitError } = useApp();
+  const [resetKey, setResetKey] = useState(0);
+
+  // Токен одноразовый: после любой ошибки отправки просим новый.
+  useEffect(() => {
+    if (submitError) setResetKey((k) => k + 1);
+  }, [submitError]);
+
+  return <TurnstileBox language={WIDGET_LANG[lang]} onToken={setCaptcha} resetKey={resetKey} failedText={t('error.captcha_failed')} />;
 }

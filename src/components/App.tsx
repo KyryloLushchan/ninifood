@@ -3,6 +3,7 @@
 import { I18nProvider } from '@/i18n';
 import { useKeyboardAwareness } from '@/lib/use-keyboard';
 import { AppProvider, useApp } from '@/state/app-context';
+import { Auth } from './screens/Auth';
 import { Checkout } from './screens/Checkout';
 import { Home } from './screens/Home';
 import { LanguageSheet } from './screens/LanguageSheet';
@@ -27,6 +28,8 @@ function Screens() {
       return <Thanks />;
     case 'orders':
       return <MyOrders />;
+    case 'auth':
+      return <Auth />;
   }
 }
 

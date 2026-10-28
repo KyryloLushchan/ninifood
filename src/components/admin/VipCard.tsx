@@ -7,27 +7,26 @@ import { Btn, Card, Err, inputCls } from './ui';
 
 interface Vip {
   id: number;
-  telegram_username: string;
-  telegram_id: number | null;
+  email: string;
   note: string | null;
 }
 
-/** Ник из ввода: «@Name», «t.me/Name», «Name» → name; null — не похоже на ник Telegram. */
-const parseNick = (raw: string) => {
-  const n = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '').toLowerCase();
-  return /^[a-z0-9_]{4,32}$/.test(n) ? n : null;
+/** Email из ввода (нижний регистр); null — не похоже на адрес. */
+const parseEmail = (raw: string) => {
+  const e = raw.trim().toLowerCase();
+  return e.length <= 254 && /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e) ? e : null;
 };
 
 export function VipCard() {
   const [list, setList] = useState<Vip[] | null>(null);
-  const [nick, setNick] = useState('');
+  const [mail, setMail] = useState('');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [confirmId, setConfirmId] = useState<number | null>(null);
 
   const load = useCallback(async () => {
-    const { data, error } = await adminDb.from('vip_customers').select('id, telegram_username, telegram_id, note').order('id');
+    const { data, error } = await adminDb.from('vip_customers').select('id, email, note').order('id');
     if (error) setError(ruError(error.message));
     else setList(data ?? []);
   }, []);
@@ -36,14 +35,14 @@ export function VipCard() {
   }, [load]);
 
   const add = async () => {
-    const n = parseNick(nick);
-    if (!n) return setError('Введите ник Telegram: 4–32 символа, латиница, цифры и _.');
+    const n = parseEmail(mail);
+    if (!n) return setError('Введите email клиента, например name@gmail.com.');
     setError('');
     setBusy(true);
-    const { error } = await adminDb.from('vip_customers').insert({ telegram_username: n, note: note.trim() || null });
+    const { error } = await adminDb.from('vip_customers').insert({ email: n, note: note.trim() || null });
     setBusy(false);
     if (error) return setError(ruError(error.message));
-    setNick('');
+    setMail('');
     setNote('');
     void load();
   };
@@ -61,7 +60,7 @@ export function VipCard() {
       <div>
         <div className="text-[15px] font-extrabold">VIP-клиенты</div>
         <div className="text-[13px] text-ink-muted">
-          Могут заказать на любой день, включая сегодня, но только если вошли на сайте через Telegram. После первого входа привязываются к Telegram id (дальше смена ника не мешает).
+          Могут заказать на любой день, включая сегодня, но только если вошли на сайте под этим email. Воскресенье по-прежнему недоступно.
         </div>
       </div>
       {!list ? (
@@ -72,10 +71,9 @@ export function VipCard() {
         list.map((v) => (
           <div key={v.id} className="flex items-center justify-between gap-2 rounded-chip bg-bg px-3 py-2">
             <div className="min-w-0">
-              <div className="truncate text-[15px] font-bold">@{v.telegram_username}</div>
+              <div className="truncate text-[15px] font-bold">{v.email}</div>
               <div className="truncate text-xs text-ink-muted">
-                {v.telegram_id ? 'привязан к id' : 'ещё не входил'}
-                {v.note ? ` · ${v.note}` : ''}
+                {v.note ?? 'без заметки'}
               </div>
             </div>
             <Btn kind={confirmId === v.id ? 'danger' : 'ghost'} className="min-h-9 flex-none px-3 text-sm" onClick={() => void remove(v.id)}>
@@ -85,9 +83,9 @@ export function VipCard() {
         ))
       )}
       <div className="flex flex-col gap-2">
-        <input className={inputCls} placeholder="@ник" autoCapitalize="none" value={nick} onChange={(e) => setNick(e.target.value)} />
+        <input className={inputCls} type="email" placeholder="email клиента" autoCapitalize="none" value={mail} onChange={(e) => setMail(e.target.value)} />
         <input className={inputCls} placeholder="Заметка (необязательно)" value={note} onChange={(e) => setNote(e.target.value)} />
-        <Btn onClick={add} disabled={busy || !nick.trim()}>{busy ? 'Добавляем…' : 'Добавить VIP'}</Btn>
+        <Btn onClick={add} disabled={busy || !mail.trim()}>{busy ? 'Добавляем…' : 'Добавить VIP'}</Btn>
       </div>
       <Err>{error}</Err>
     </Card>

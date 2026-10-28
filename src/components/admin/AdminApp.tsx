@@ -3,13 +3,14 @@
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { adminDb } from '@/lib/admin/client';
+import { callGate } from '@/lib/auth-gate';
+import { TurnstileBox } from '@/components/ui/TurnstileWidget';
 import { CashTab } from './CashTab';
 import { CourierTab } from './CourierTab';
 import { MenuTab } from './MenuTab';
 import { MoneyTab } from './MoneyTab';
 import { OrdersTab } from './OrdersTab';
 import { SettingsTab } from './SettingsTab';
-import { MfaChallenge, MfaRequired } from './Mfa';
 import { Btn, Err, inputCls } from './ui';
 
 const TABS = [
@@ -22,42 +23,53 @@ const TABS = [
 ] as const;
 type Tab = (typeof TABS)[number][0];
 
+const LOGIN_ERRORS: Record<string, string> = {
+  invalid_credentials: 'Неверная почта или пароль',
+  locked: 'Слишком много неудачных попыток. Подождите 15 минут.',
+  captcha_failed: 'Не пройдена проверка «я не робот». Попробуйте ещё раз.',
+  network: 'Нет связи с сервером. Проверьте интернет.',
+};
+
+/** Вход: почта + пароль через auth-gate (Turnstile, пауза 15 минут после 5 неудач, уведомление в Telegram при входе). */
 function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [captcha, setCaptcha] = useState<string | null>(null);
+  const [resetKey, setResetKey] = useState(0);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!captcha) return setError(LOGIN_ERRORS.captcha_failed);
     setBusy(true);
     setError('');
-    const { error } = await adminDb.auth.signInWithPassword({ email: email.trim(), password });
+    const r = await callGate({ action: 'signin', email: email.trim(), password, captcha });
+    setResetKey((k) => k + 1);
+    if (!r.ok || !r.session) {
+      setBusy(false);
+      return setError(r.ok ? 'Не удалось войти' : (LOGIN_ERRORS[r.code] ?? 'Не удалось войти. Попробуйте ещё раз.'));
+    }
+    const { error } = await adminDb.auth.setSession(r.session);
     setBusy(false);
-    if (error) setError('Неверная почта или пароль');
+    if (error) setError('Не удалось войти. Попробуйте ещё раз.');
   };
 
   return (
-    <form onSubmit={submit} className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-3 px-5">
+    <form onSubmit={submit} method="post" className="mx-auto flex min-h-screen w-full max-w-sm flex-col justify-center gap-3 px-5">
       <div className="mb-2 text-center font-serif text-[26px] font-bold text-accent">NiniFood · админка</div>
-      <input className={inputCls} type="email" autoComplete="username" placeholder="Электронная почта" value={email} onChange={(e) => setEmail(e.target.value)} required />
-      <input className={inputCls} type="password" autoComplete="current-password" placeholder="Пароль" value={password} onChange={(e) => setPassword(e.target.value)} required />
+      <input className={inputCls} id="email" name="email" type="email" autoComplete="username" autoCapitalize="none" placeholder="Электронная почта" value={email} onChange={(e) => setEmail(e.target.value)} required />
+      <input className={inputCls} id="password" name="password" type="password" autoComplete="current-password" placeholder="Пароль" value={password} onChange={(e) => setPassword(e.target.value)} required />
+      <TurnstileBox language="ru-ru" onToken={setCaptcha} resetKey={resetKey} failedText="Не удалось загрузить проверку. Обновите страницу." />
       <Err>{error}</Err>
-      <Btn type="submit" disabled={busy}>{busy ? 'Входим…' : 'Войти'}</Btn>
+      <Btn type="submit" disabled={busy || !captcha}>{busy ? 'Входим…' : 'Войти'}</Btn>
     </form>
   );
 }
 
-/** Автовыход: сессия админа живёт не дольше 12 часов от входа по паролю. */
-const SESSION_MAX_MS = 12 * 3600 * 1000;
-
-type Mfa = { state: 'checking' } | { state: 'ok' } | { state: 'enroll' } | { state: 'challenge'; factors: { id: string; name: string }[] };
-
 export function AdminApp() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
-  const [mfa, setMfa] = useState<Mfa>({ state: 'checking' });
-  const [mfaTick, setMfaTick] = useState(0);
   const [tab, setTab] = useState<Tab>('courier');
 
   useEffect(() => {
@@ -66,51 +78,16 @@ export function AdminApp() {
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // Вторая ступень (TOTP): без aal2 админских прав нет — is_admin() в БД проверяет claim aal2.
-  useEffect(() => {
-    setMfa({ state: 'checking' });
-    if (!session) return;
-    let dead = false;
-    (async () => {
-      const { data: aal } = await adminDb.auth.mfa.getAuthenticatorAssuranceLevel();
-      if (dead) return;
-      if (aal?.currentLevel === 'aal2') return setMfa({ state: 'ok' });
-      const { data: list } = await adminDb.auth.mfa.listFactors();
-      if (dead) return;
-      const factors = (list?.totp ?? []).map((f) => ({ id: f.id, name: f.friendly_name || 'Устройство' }));
-      setMfa(factors.length ? { state: 'challenge', factors } : { state: 'enroll' });
-    })();
-    return () => {
-      dead = true;
-    };
-  }, [session?.user.id, mfaTick]); // eslint-disable-line react-hooks/exhaustive-deps
-
   useEffect(() => {
     setIsAdmin(null);
-    if (!session || mfa.state !== 'ok') return;
+    if (!session) return;
     adminDb.rpc('is_admin').then(({ data, error }) => setIsAdmin(!error && data === true));
-  }, [session?.user.id, mfa.state]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Автовыход через 12 часов после входа по паролю (проверка при загрузке и раз в минуту).
-  useEffect(() => {
-    const at = session?.user.last_sign_in_at ? Date.parse(session.user.last_sign_in_at) : NaN;
-    if (!session || Number.isNaN(at)) return;
-    const check = () => {
-      if (Date.now() - at > SESSION_MAX_MS) void adminDb.auth.signOut();
-    };
-    check();
-    const id = setInterval(check, 60_000);
-    return () => clearInterval(id);
-  }, [session?.user.last_sign_in_at]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (session === undefined) return <div className="p-10 text-center text-ink-muted">Загрузка…</div>;
   if (!session) return <Login />;
 
   const signOut = () => adminDb.auth.signOut();
-
-  if (mfa.state === 'checking') return <div className="p-10 text-center text-ink-muted">Проверяем защиту…</div>;
-  if (mfa.state === 'enroll') return <MfaRequired onDone={() => setMfaTick((n) => n + 1)} onSignOut={signOut} />;
-  if (mfa.state === 'challenge') return <MfaChallenge factorIds={mfa.factors} onDone={() => setMfaTick((n) => n + 1)} onSignOut={signOut} />;
 
   if (isAdmin === null) return <div className="p-10 text-center text-ink-muted">Проверяем доступ…</div>;
   if (!isAdmin) {

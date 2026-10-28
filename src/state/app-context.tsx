@@ -10,10 +10,11 @@ import { DEFAULT_SETTINGS, fetchSiteSettings, type SiteSettings } from '@/lib/si
 import { compressToJpeg } from '@/lib/compress-image';
 import type { PlaceInfo } from '@/lib/places';
 import { OrderError, submitOrder } from '@/lib/submit-order';
-import { customerDb, fetchProfile, signInWithTelegram, signOutCustomer, telegramPopup, type CustomerProfile } from '@/lib/customer-auth';
+import type { GateSession } from '@/lib/auth-gate';
+import { customerDb, fetchProfile, signOutCustomer, type CustomerProfile } from '@/lib/customer-auth';
 import { phoneDigits } from '@/lib/phone';
 
-export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks' | 'orders';
+export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks' | 'orders' | 'auth';
 export type Payment = 'qr' | 'cash' | 'other';
 
 export interface Contact {
@@ -29,7 +30,7 @@ const EMPTY_CONTACT: Contact = { telegram: '', phone: '', address: '', hotel: ''
 function prefillContact(c: Contact, cust: CustomerProfile): Contact {
   return {
     ...c,
-    telegram: cust.telegramUsername ? `@${cust.telegramUsername}` : c.telegram,
+    telegram: c.telegram || cust.telegram || '',
     phone: c.phone || (cust.phone ? phoneDigits(cust.phone) : ''),
     address: c.address || cust.address || '',
   };
@@ -50,15 +51,15 @@ interface AppValue {
   screen: Screen;
   go: (s: Screen) => void;
 
-  /** Вошёл через Telegram (необязательно); null — гость. */
+  /** Вошёл по email (необязательно); null — гость. */
   customer: CustomerProfile | null;
   /** VIP (только для показа календаря; право на сегодняшний день проверяет send-order по JWT). */
   isVip: boolean;
-  authBusy: boolean;
-  /** Ключ i18n ошибки входа или null. */
-  authError: string | null;
-  /** Вызывать из обработчика клика (открывает окно Telegram). */
-  loginTelegram: () => Promise<void>;
+  /** Открыть экран входа/регистрации; после успеха или «назад» вернёмся на текущий экран. */
+  openAuth: () => void;
+  closeAuth: () => void;
+  /** Сессия, выданная auth-gate: кладём в клиент и грузим профиль. */
+  acceptSession: (s: GateSession) => Promise<void>;
   logout: () => Promise<void>;
 
   today: string | null;
@@ -144,8 +145,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [isVip, setIsVip] = useState(false);
-  const [authBusy, setAuthBusy] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
+  const [authFrom, setAuthFrom] = useState<Screen>('home');
 
   const loadProfile = useCallback(async () => {
     try {
@@ -170,7 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     return () => data.subscription.unsubscribe();
   }, [loadProfile]);
 
-  // Автозаполнение: ник Telegram (поле блокируется на экране), телефон и адрес из профиля — только в пустые поля.
+  // Автозаполнение: Telegram, телефон и адрес из профиля — только в пустые поля.
   useEffect(() => {
     if (!customer) return;
     const typed = contactRef.current.address.trim();
@@ -178,21 +178,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     // Координаты профиля подходят, только если адрес не вводили руками (или это тот же адрес).
     if (!typed || typed === customer.address) setPlace((pl) => pl ?? prefillPlace(customer));
   }, [customer]);
-
-  const loginTelegram = useCallback(async () => {
-    setAuthBusy(true);
-    setAuthError(null);
-    try {
-      const data = await telegramPopup(lang);
-      if (!data) return; // окно закрыли без входа
-      await signInWithTelegram(data);
-      await loadProfile();
-    } catch {
-      setAuthError('auth.error');
-    } finally {
-      setAuthBusy(false);
-    }
-  }, [lang, loadProfile]);
 
   const logout = useCallback(async () => {
     await signOutCustomer();
@@ -279,6 +264,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     window.scrollTo(0, 0);
   }, []);
 
+  const openAuth = useCallback(() => {
+    setScreen((cur) => {
+      if (cur !== 'auth') setAuthFrom(cur);
+      return 'auth';
+    });
+    window.scrollTo(0, 0);
+  }, []);
+  const closeAuth = useCallback(() => go(authFrom), [go, authFrom]);
+  const acceptSession = useCallback(
+    async (sess: GateSession) => {
+      const { error } = await customerDb.auth.setSession(sess);
+      if (error) throw error;
+      await loadProfile();
+      go(authFrom);
+    },
+    [loadProfile, go, authFrom],
+  );
+
   const startOnce = useCallback(
     (iso: string) => {
       setOrderType('once');
@@ -341,9 +344,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     go,
     customer,
     isVip,
-    authBusy,
-    authError,
-    loginTelegram,
+    openAuth,
+    closeAuth,
+    acceptSession,
     logout,
     today,
     menu,

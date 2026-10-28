@@ -76,16 +76,12 @@ export function Checkout() {
             <AuthControl variant="full" />
           </div>
         )}
-        {/* Ник из Telegram подставляется и не редактируется; нет ника в аккаунте — поле обычное. */}
         <Field
           name="telegram"
           label={t('checkout.telegram')}
           placeholder={t('checkout.telegramPh')}
           autoCapitalize="none"
           error={err('telegram')}
-          hint={customer?.telegramUsername ? t('auth.tgLocked') : undefined}
-          readOnly={!!customer?.telegramUsername}
-          className={customer?.telegramUsername ? 'bg-sand' : ''}
           {...bind('telegram')}
         />
         <Field
