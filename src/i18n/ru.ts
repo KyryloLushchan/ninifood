@@ -67,8 +67,6 @@ export const ru = {
   'order.daysTitle': 'Дни доставки',
   'order.selected': 'выбрано {text}',
   'order.pickDay': 'выберите день',
-  'order.todayNote': 'Сегодня ({day}) — только',
-  'order.todayLink': 'через Telegram до {time}',
   'order.nudgeTitle': 'Выбрано 5+ дней',
   'order.nudgeText': 'По подписке {n} обедов с доставкой стоят {sub} вместо {once} (за 1 порцию в день).',
   'order.nudgeCta': 'Перейти на подписку →',

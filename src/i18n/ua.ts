@@ -61,8 +61,6 @@ export const ua: Record<TKey, string> = {
   'order.daysTitle': 'Дні доставки',
   'order.selected': 'обрано {text}',
   'order.pickDay': 'оберіть день',
-  'order.todayNote': 'Сьогодні ({day}) — лише',
-  'order.todayLink': 'через Telegram до {time}',
   'order.nudgeTitle': 'Обрано 5+ днів',
   'order.nudgeText': 'За підпискою {n} обідів з доставкою коштують {sub} замість {once} (за 1 порцію на день).',
   'order.nudgeCta': 'Перейти на підписку →',

@@ -61,8 +61,6 @@ export const en: Record<TKey, string> = {
   'order.daysTitle': 'Delivery days',
   'order.selected': '{text} selected',
   'order.pickDay': 'pick a day',
-  'order.todayNote': 'Today ({day}) — only',
-  'order.todayLink': 'via Telegram before {time}',
   'order.nudgeTitle': '5+ days selected',
   'order.nudgeText': 'With a subscription, {n} lunches with delivery cost {sub} instead of {once} (1 portion per day).',
   'order.nudgeCta': 'Switch to subscription →',

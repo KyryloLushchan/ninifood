@@ -61,8 +61,6 @@ export const vi: Record<TKey, string> = {
   'order.daysTitle': 'Ngày giao hàng',
   'order.selected': 'đã chọn {text}',
   'order.pickDay': 'chọn ngày',
-  'order.todayNote': 'Hôm nay ({day}) — chỉ',
-  'order.todayLink': 'qua Telegram trước {time}',
   'order.nudgeTitle': 'Đã chọn 5+ ngày',
   'order.nudgeText': 'Với gói đăng ký, {n} bữa trưa kèm giao hàng chỉ {sub} thay vì {once} (1 phần mỗi ngày).',
   'order.nudgeCta': 'Chuyển sang gói đăng ký →',

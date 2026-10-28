@@ -15,7 +15,6 @@ export const SUB_WINDOW_DAYS = 14;
 
 export const DELIVERY_FROM = '14:00';
 export const DELIVERY_TO = '16:00';
-export const TODAY_ORDER_DEADLINE = '10:00';
 
 export const CONTACTS = {
   telegramHandle: '@ninifoodvn',

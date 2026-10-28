@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SUB_MIN_DAYS, TODAY_ORDER_DEADLINE } from '@/config/site';
+import { SUB_MIN_DAYS } from '@/config/site';
 import { useI18n } from '@/i18n';
 import { ddmm, labelFull, weekdayShort, weekStart } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
@@ -69,14 +69,6 @@ function OnceDays() {
             <DayChip key={d} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={onceDays.includes(d)} onClick={() => toggleOnceDay(d)} />
           ))}
         </div>
-        {today && !isVip && (
-          <div className="text-[13px] text-ink-muted">
-            {t('order.todayNote', { day: labelFull(today, lang) })}{' '}
-            <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
-              {t('order.todayLink', { time: TODAY_ORDER_DEADLINE })}
-            </a>
-          </div>
-        )}
       </div>
       {showNudge && (
         <div className="flex flex-col gap-1.5 rounded-md2 bg-accent-soft px-4 py-3.5">
