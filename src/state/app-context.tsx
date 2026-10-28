@@ -247,15 +247,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       return prev === next ? prev : next;
     });
     sync();
-    // Вкладка могла остаться открытой через полночь: без таймера «завтра» устаревало и вчерашний «завтрашний» день (= сегодня) выглядел доступным.
-    const timer = setInterval(sync, 30_000);
     document.addEventListener('visibilitychange', sync);
-    window.addEventListener('focus', sync);
-    return () => {
-      clearInterval(timer);
-      document.removeEventListener('visibilitychange', sync);
-      window.removeEventListener('focus', sync);
-    };
+    return () => document.removeEventListener('visibilitychange', sync);
   }, []);
 
   useEffect(() => {
