@@ -126,7 +126,7 @@ export function Home() {
           className="h-[220px] w-full rounded-xl2 p-3.5 [&:is(img)]:p-0"
           caption={<span className="rounded-md bg-card px-2 py-1 text-xs">{t('photo.hero')}</span>}
         />
-        <h2 className="font-serif text-h1 font-semibold [text-wrap:balance]">{t('home.heroTitle')}</h2>
+        <h2 className="font-serif text-[length:clamp(1.5rem,8.5334vw,2rem)] font-semibold leading-[1.15] [text-wrap:balance]">{t('home.heroTitle')}</h2>
         <p className="text-base leading-normal text-ink-2">{t('home.heroText')}</p>
         <div className="flex flex-col items-center gap-2 min-[420px]:flex-row min-[420px]:gap-3">
           <Button size="xl" shadow className="min-[420px]:flex-1" disabled={!heroDay} onClick={() => heroDay && startOnce(heroDay)}>
