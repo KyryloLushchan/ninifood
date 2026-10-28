@@ -6,7 +6,7 @@
 Аудитория — туристы и экспаты. Языки: UA / RU / EN / VI.
 
 ## Стек
-- Фронт: **Next.js 14 (App Router) + TypeScript + Tailwind**, mobile-first (макет 375 px, на десктопе контент по центру, max-width 480 px).
+- Фронт: **Next.js 15 (App Router, React 18) + TypeScript + Tailwind**, mobile-first (макет 375 px, на десктопе контент по центру, max-width 480 px).
 - **Static export** (`output: 'export'`): `npm run build` собирает сайт в `out/`, деплой на GitHub Pages через GitHub Actions (`.github/workflows/deploy.yml`) при push в `main`.
 - **Адреса (сейчас, пока DNS не готов):** сайт — https://kyrylolushchan.github.io/ninifood/ (basePath `/ninifood`), админка — https://kyrylolushchan.github.io/ninifood/admin. Целевой адрес — https://ninifoodvn.com (без www; `www` редиректит на него), админка https://ninifoodvn.com/admin. Репозиторий: https://github.com/KyryloLushchan/ninifood. DNS — в GoDaddy (4 A-записи на IP GitHub Pages 185.199.108–111.153 + CNAME `www` → `kyrylolushchan.github.io`).
 - **Переключатель адреса — одна строка:** `env: CUSTOM_DOMAIN` в `.github/workflows/deploy.yml`. Пусто → сборка с `NEXT_PUBLIC_BASE_PATH=/ninifood` (github.io/ninifood), CNAME не создаётся. `ninifoodvn.com` → сайт в корне (basePath нет), workflow кладёт `out/CNAME`. Пути к файлам из `public/` (в т.ч. `photo_url` из БД) оборачиваются в `withBasePath` (`src/lib/base-path.ts`).
@@ -14,6 +14,7 @@
 - Supabase Auth: Site URL `https://ninifoodvn.com`, redirect URL `https://ninifoodvn.com/admin`, только email-провайдер, подтверждение email выключено (`mailer_autoconfirm`), минимальная длина пароля 8, OTP письма — 6 цифр, MFA (TOTP) выключена. **`disable_signup` остаётся `true`:** клиентов регистрирует только edge-функция `auth-gate` (admin API) после Turnstile и лимитов — прямой `/auth/v1/signup` закрыт, иначе обойти Turnstile можно было бы одним запросом.
 - CORS (`_shared/cors.ts`, им же пользуется `send-order`): разрешены только Origin `https://ninifoodvn.com` и `https://www.ninifoodvn.com` (github.io убран).
 - **Безопасность сайта:** CSP через `<meta>` в `src/app/layout.tsx` (только прод-сборка; `'unsafe-inline'` для script/style нужен инлайн-скриптам Next в static export; разрешены свои домены, Supabase, Google Places, Turnstile, Google Fonts, `img.vietqr.io`); `referrer: strict-origin-when-cross-origin` (ключ Places ограничен по referrer). Добавляешь внешний домен/сервис — допиши CSP.
+- Зависимости: `package.json` → `overrides: {postcss: $postcss}` (Next тянет свой вложенный postcss 8.4 с уязвимостями — подменяем на корневой); `npm audit` должен быть чистым. Dependabot: PR по security updates мерджим после `npm run build` и проверки экранов.
 - Node: нужна версия ≥ 18.17 (локально — `/opt/homebrew/bin`, Node 26).
 - Бэкенд (БД подключена, функции и бот — позже, см. ниже): отдельный проект Supabase `nini_food`, Telegram-бот.
 
