@@ -36,10 +36,12 @@ Deno.serve(async (req) => {
   if (!allowed) return json({ ok: false, code: 'forbidden' }, 403);
 
   let date = todayISO();
+  let couriersOverride: 1 | 2 | null = null;
   try {
     const body = await req.json();
     if (typeof body?.date === 'string') date = body.date;
-  } catch { /* без тела — сегодня */ }
+    if (body?.couriers === 1 || body?.couriers === 2) couriersOverride = body.couriers;
+  } catch { /* без тела — сегодня, число курьеров из настроек */ }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ ok: false, code: 'bad_request' }, 400);
   if (isSunday(date)) return json({ ok: true, skipped: 'sunday' });
 
@@ -76,8 +78,16 @@ Deno.serve(async (req) => {
     };
   });
 
+  // Кухня и число курьеров по умолчанию — из settings (число на день можно передать в запросе из админки).
+  const { data: st } = await db.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count']);
+  const cfg = Object.fromEntries((st ?? []).map((r: any) => [r.key, r.value]));
+  const klat = Number(cfg.kitchen_lat);
+  const klng = Number(cfg.kitchen_lng);
+  const kitchen = cfg.kitchen_lat && cfg.kitchen_lng && Number.isFinite(klat) && Number.isFinite(klng) ? { lat: klat, lng: klng } : null;
+  const couriers: 1 | 2 = couriersOverride ?? (cfg.couriers_count === '2' ? 2 : 1);
+
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
-  const texts = buildCourierReport(date, deliveries, FROM, TO);
+  const texts = buildCourierReport(date, deliveries, FROM, TO, { kitchen, couriers });
   for (const text of texts) {
     const r = await tg('sendMessage', { chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true });
     if (!r.ok) {
@@ -85,5 +95,5 @@ Deno.serve(async (req) => {
       return json({ ok: false, code: 'telegram_failed' }, 502);
     }
   }
-  return json({ ok: true, date, addresses: deliveries.length, messages: texts.length });
+  return json({ ok: true, date, addresses: deliveries.length, couriers, messages: texts.length });
 });

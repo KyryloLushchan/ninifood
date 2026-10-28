@@ -7,6 +7,12 @@ import { DiscountCard } from './DiscountCard';
 import { VipCard } from './VipCard';
 import { Btn, Card, Err, Label, inputCls } from './ui';
 
+const KITCHEN = [
+  { key: 'kitchen_address', label: 'Адрес кухни (старт маршрута курьера)' },
+  { key: 'kitchen_lat', label: 'Широта кухни' },
+  { key: 'kitchen_lng', label: 'Долгота кухни' },
+] as const;
+
 const FIELDS = [
   { key: 'price_single', label: 'Цена обеда, ₫', numeric: true },
   { key: 'price_subscription', label: 'Цена подписки за 5 дней, ₫ (обед в подписке = 1/5)', numeric: true },
@@ -26,6 +32,26 @@ export function SettingsTab() {
       else setValues(Object.fromEntries((data ?? []).map((r) => [r.key, r.value])));
     });
   }, []);
+
+  const saveCouriers = async () => {
+    if (!values) return;
+    setError('');
+    setMsg('');
+    const lat = Number(values.kitchen_lat);
+    const lng = Number(values.kitchen_lng);
+    if (!(values.kitchen_address ?? '').trim() || !Number.isFinite(lat) || !Number.isFinite(lng) || lat < 15.9 || lat > 16.2 || lng < 107.9 || lng > 108.5) {
+      return setError('Проверьте адрес и координаты кухни (должны быть в Дананге).');
+    }
+    setBusy(true);
+    const rows = [
+      ...KITCHEN.map((f) => ({ key: f.key, value: values[f.key].trim(), is_public: false })),
+      { key: 'couriers_count', value: values.couriers_count === '2' ? '2' : '1', is_public: false },
+    ];
+    const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
+    setBusy(false);
+    if (error) setError(ruError(error.message));
+    else setMsg('Курьеры сохранены. Следующий ночной отчёт будет по этим настройкам.');
+  };
 
   const save = async () => {
     if (!values) return;
@@ -65,6 +91,31 @@ export function SettingsTab() {
       <Err>{error}</Err>
       {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}
       <Btn onClick={save} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить'}</Btn>
+      <Card className="flex flex-col gap-3">
+        <div className="text-[17px] font-extrabold">Курьеры</div>
+        {KITCHEN.map((f) => (
+          <div key={f.key}>
+            <Label>{f.label}</Label>
+            <input className={inputCls} inputMode={f.key === 'kitchen_address' ? 'text' : 'decimal'} value={values[f.key] ?? ''} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+          </div>
+        ))}
+        {/^-?\d+(\.\d+)?$/.test((values.kitchen_lat ?? '').trim()) && /^-?\d+(\.\d+)?$/.test((values.kitchen_lng ?? '').trim()) && (
+          <a href={`https://www.google.com/maps/search/?api=1&query=${values.kitchen_lat.trim()},${values.kitchen_lng.trim()}`} target="_blank" rel="noreferrer" className="text-sm font-bold">
+            Проверить точку на карте →
+          </a>
+        )}
+        <div>
+          <Label>Курьеров по умолчанию (для отчёта в 00:00; на конкретный день — переключатель во вкладке «Курьер»)</Label>
+          <div className="grid grid-cols-2 gap-2">
+            {(['1', '2'] as const).map((n) => (
+              <Btn key={n} kind={(values.couriers_count ?? '1') === n ? 'primary' : 'ghost'} onClick={() => setValues({ ...values, couriers_count: n })}>
+                {n}
+              </Btn>
+            ))}
+          </div>
+        </div>
+        <Btn onClick={saveCouriers} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить курьеров'}</Btn>
+      </Card>
       <VipCard />
       <DiscountCard />
     </div>
