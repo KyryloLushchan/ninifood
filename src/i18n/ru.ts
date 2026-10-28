@@ -113,7 +113,6 @@ export const ru = {
 
   'payment.title': 'Оплата',
   'payment.due': 'К оплате',
-  'payment.qrPlaceholder': 'QR-код VietQR',
   'payment.scan': 'Отсканируйте в приложении банка.',
   'payment.save': 'Сохранить QR в галерею',
   'payment.shotTitle': 'Скриншот оплаты',

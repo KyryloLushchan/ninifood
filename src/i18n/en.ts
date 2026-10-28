@@ -104,7 +104,6 @@ export const en: Record<TKey, string> = {
   'checkout.sending': 'Sending…',
   'payment.title': 'Payment',
   'payment.due': 'Amount due',
-  'payment.qrPlaceholder': 'VietQR code',
   'payment.scan': 'Scan in your banking app.',
   'payment.save': 'Save QR to gallery',
   'payment.shotTitle': 'Payment screenshot',

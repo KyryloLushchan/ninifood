@@ -1,6 +1,8 @@
 'use client';
 
 import { buildQrUrl } from '@/config/site';
+import { PHOTOS } from '@/config/photos';
+import { withBasePath } from '@/lib/base-path';
 import { useI18n, type TKey } from '@/i18n';
 import { useApp } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
@@ -13,7 +15,7 @@ import { ScreenshotUpload } from '../ui/ScreenshotUpload';
 export function PaymentQr() {
   const { t } = useI18n();
   const { go, total, sum, screenshot, captcha, placeOrder, sending, submitError } = useApp();
-  const qrUrl = buildQrUrl(total);
+  const qrUrl = buildQrUrl(total) ?? withBasePath(PHOTOS.paymentQr);
   const ok = !!screenshot;
 
   return (
@@ -25,22 +27,14 @@ export function PaymentQr() {
           <div className="w-full">
             <OrderSummary sum={sum} big />
           </div>
-          {qrUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={qrUrl} alt="VietQR" width={220} height={220} className="h-[220px] w-[220px] rounded-md2" />
-          ) : (
-            <div className="flex h-[220px] w-[220px] items-center justify-center rounded-md2 bg-stripes-qr">
-              <span className="rounded-md bg-card px-2 py-1 font-mono text-xs text-ink-muted">{t('payment.qrPlaceholder')}</span>
-            </div>
-          )}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={qrUrl} alt="VietQR" className="w-full max-w-[300px] rounded-md2" />
           <div className="text-center text-[13px] leading-snug text-ink-muted">
             {t('payment.scan')}
           </div>
-          {qrUrl && (
-            <a href={qrUrl} download="ninifood-qr.png" target="_blank" rel="noreferrer" className="text-sm">
-              {t('payment.save')}
-            </a>
-          )}
+          <a href={qrUrl} download="ninifood-qr" target="_blank" rel="noreferrer" className="text-sm">
+            {t('payment.save')}
+          </a>
         </div>
 
         <ScreenshotUpload />

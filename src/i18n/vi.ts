@@ -104,7 +104,6 @@ export const vi: Record<TKey, string> = {
   'checkout.sending': 'Đang gửi…',
   'payment.title': 'Thanh toán',
   'payment.due': 'Số tiền cần trả',
-  'payment.qrPlaceholder': 'Mã VietQR',
   'payment.scan': 'Quét bằng ứng dụng ngân hàng.',
   'payment.save': 'Lưu QR vào thư viện',
   'payment.shotTitle': 'Ảnh chụp thanh toán',

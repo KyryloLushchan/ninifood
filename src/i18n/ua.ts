@@ -104,7 +104,6 @@ export const ua: Record<TKey, string> = {
   'checkout.sending': 'Надсилаємо…',
   'payment.title': 'Оплата',
   'payment.due': 'До сплати',
-  'payment.qrPlaceholder': 'QR-код VietQR',
   'payment.scan': 'Скануйте в застосунку банку.',
   'payment.save': 'Зберегти QR у галерею',
   'payment.shotTitle': 'Скріншот оплати',
