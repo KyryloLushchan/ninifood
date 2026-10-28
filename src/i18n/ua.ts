@@ -39,6 +39,8 @@ export const ua: Record<TKey, string> = {
   'home.heroDeliveryNote': 'доставка {from}–{to}',
   'summary.food': 'Обіди',
   'summary.delivery': 'Доставка',
+  'summary.discount': 'Знижка {n}%',
+  'discount.badge': 'Ваша знижка {n}%',
   'summary.total': 'Разом',
   'sub.cardCta': 'Оформити підписку',
   'how.title': 'Як це працює',

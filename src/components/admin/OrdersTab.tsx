@@ -126,7 +126,8 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
               </div>
               <div className="text-right">
                 <div className="font-serif text-[17px] font-bold">{fmtMoney(o.total)}</div>
-                <div className="text-xs text-ink-muted">обеды {fmtMoney(o.total - o.delivery_total)} · дост. {fmtMoney(o.delivery_total)}</div>
+                <div className="text-xs text-ink-muted">обеды {fmtMoney(o.total - o.delivery_total + o.discount_amount)} · дост. {fmtMoney(o.delivery_total)}</div>
+                {o.discount_amount > 0 && <div className="text-xs font-bold text-success">скидка {o.discount_percent}%: −{fmtMoney(o.discount_amount)}</div>}
                 <div className="text-xs font-extrabold text-accent">{STATUS_LABEL[o.status]}</div>
               </div>
             </button>

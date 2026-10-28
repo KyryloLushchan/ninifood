@@ -9,6 +9,7 @@ import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
 import { Button } from '../ui/Button';
 import { AuthControl } from '../ui/AuthControl';
+import { DiscountBadge } from '../ui/DiscountBadge';
 import { LangPill } from '../ui/LangPill';
 import { Photo } from '../ui/Photo';
 import { Logo } from '../ui/ScreenHeader';
@@ -123,6 +124,7 @@ export function Home() {
       </header>
 
       <section className="flex flex-col gap-4 px-5 pb-7">
+        <DiscountBadge />
         <Photo
           src={PHOTOS.hero}
           eager

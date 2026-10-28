@@ -53,6 +53,8 @@ interface AppValue {
 
   /** Вошёл по email (необязательно); null — гость. */
   customer: CustomerProfile | null;
+  /** Персональная скидка клиента на обеды, % (0 — нет; только для показа — сервер считает сам по email из JWT). */
+  discount: number;
   /** VIP (только для показа календаря; право на сегодняшний день проверяет send-order по JWT). */
   isVip: boolean;
   /** Открыть экран входа/регистрации; после успеха или «назад» вернёмся на текущий экран. */
@@ -145,6 +147,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [placed, setPlaced] = useState<PlacedOrder | null>(null);
   const [customer, setCustomer] = useState<CustomerProfile | null>(null);
   const [isVip, setIsVip] = useState(false);
+  const [discount, setDiscount] = useState(0);
   const [authFrom, setAuthFrom] = useState<Screen>('home');
 
   const loadProfile = useCallback(async () => {
@@ -152,9 +155,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const r = await fetchProfile();
       setCustomer(r?.profile ?? null);
       setIsVip(r?.vip ?? false);
+      setDiscount(r?.discount ?? 0);
     } catch {
       setCustomer(null);
       setIsVip(false);
+      setDiscount(0);
     }
   }, []);
 
@@ -165,6 +170,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (event === 'SIGNED_OUT') {
         setCustomer(null);
         setIsVip(false);
+        setDiscount(0);
       }
     });
     return () => data.subscription.unsubscribe();
@@ -183,6 +189,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     await signOutCustomer();
     setCustomer(null);
     setIsVip(false);
+    setDiscount(0);
     setContact(EMPTY_CONTACT);
     setPlace(null);
     setScreen((s) => (s === 'orders' ? 'home' : s));
@@ -243,8 +250,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const days = orderType === 'once' ? onceDays : subDays;
   const sum: Totals =
     orderType === 'once'
-      ? onceTotals(onceDays.length, portions, siteSettings.priceSingle, siteSettings.deliverySingle)
-      : subTotals(subDays.length, portions, siteSettings.priceSub, SUB_MIN_DAYS, siteSettings.deliverySingle);
+      ? onceTotals(onceDays.length, portions, siteSettings.priceSingle, siteSettings.deliverySingle, discount)
+      : subTotals(subDays.length, portions, siteSettings.priceSub, SUB_MIN_DAYS, siteSettings.deliverySingle, discount);
   const { total } = sum;
 
   const toggleOnceDay = useCallback(
@@ -344,6 +351,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     go,
     customer,
     isVip,
+    discount,
     openAuth,
     closeAuth,
     acceptSession,

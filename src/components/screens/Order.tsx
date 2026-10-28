@@ -51,7 +51,7 @@ export function Order() {
 
 function OnceDays() {
   const { t, lang, pl } = useI18n();
-  const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings, isVip } = useApp();
+  const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings, isVip, discount } = useApp();
   const n = onceDays.length;
   const showNudge = n >= SUB_MIN_DAYS;
 
@@ -74,7 +74,7 @@ function OnceDays() {
         <div className="flex flex-col gap-1.5 rounded-md2 bg-accent-soft px-4 py-3.5">
           <div className="text-[15px] font-extrabold">{t('order.nudgeTitle')}</div>
           <div className="text-sm leading-snug text-ink-2">
-            {t('order.nudgeText', { n, sub: fmtMoney(subTotals(n, 1, settings.priceSub, SUB_MIN_DAYS, settings.deliverySingle).total), once: fmtMoney(onceTotals(n, 1, settings.priceSingle, settings.deliverySingle).total) })}
+            {t('order.nudgeText', { n, sub: fmtMoney(subTotals(n, 1, settings.priceSub, SUB_MIN_DAYS, settings.deliverySingle, discount).total), once: fmtMoney(onceTotals(n, 1, settings.priceSingle, settings.deliverySingle, discount).total) })}
           </div>
           <button onClick={() => setOrderType('sub')} className="self-start text-sm font-extrabold text-accent hover:underline">
             {t('order.nudgeCta')}

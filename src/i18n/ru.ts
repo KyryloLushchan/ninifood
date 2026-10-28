@@ -42,6 +42,8 @@ export const ru = {
   'home.heroDeliveryNote': 'доставка {from}–{to}',
   'summary.food': 'Обеды',
   'summary.delivery': 'Доставка',
+  'summary.discount': 'Скидка {n}%',
+  'discount.badge': 'Ваша скидка {n}%',
   'summary.total': 'Итого',
   'sub.cardCta': 'Оформить подписку',
 

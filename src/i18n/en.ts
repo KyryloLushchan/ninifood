@@ -39,6 +39,8 @@ export const en: Record<TKey, string> = {
   'home.heroDeliveryNote': 'delivery {from}–{to}',
   'summary.food': 'Lunches',
   'summary.delivery': 'Delivery',
+  'summary.discount': 'Discount {n}%',
+  'discount.badge': 'Your discount: {n}%',
   'summary.total': 'Total',
   'sub.cardCta': 'Subscribe',
   'how.title': 'How it works',

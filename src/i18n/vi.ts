@@ -39,6 +39,8 @@ export const vi: Record<TKey, string> = {
   'home.heroDeliveryNote': 'giao hàng {from}–{to}',
   'summary.food': 'Bữa trưa',
   'summary.delivery': 'Giao hàng',
+  'summary.discount': 'Giảm giá {n}%',
+  'discount.badge': 'Bạn được giảm {n}%',
   'summary.total': 'Tổng cộng',
   'sub.cardCta': 'Đăng ký gói',
   'how.title': 'Cách hoạt động',

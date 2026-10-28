@@ -1,3 +1,4 @@
+import { discountAmount } from '../_shared/discount.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { inDanang } from '../_shared/danang.ts';
@@ -83,6 +84,7 @@ Deno.serve(async (req) => {
   // ── вход по email: JWT пользователя (anon-ключ — гость). VIP — только по email из JWT (auth.getUser), не по полям формы. ──
   let customerId: string | null = null;
   let vip = false;
+  let discountPercent = 0;
   const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
   if (jwt && jwt !== Deno.env.get('SUPABASE_ANON_KEY')) {
     const { data } = await db.auth.getUser(jwt);
@@ -90,6 +92,9 @@ Deno.serve(async (req) => {
     if (data.user && email) {
       customerId = data.user.id;
       vip = !!(await db.from('vip_customers').select('id').eq('email', email).maybeSingle()).data;
+      // Персональная скидка: только по email из JWT, действующая (valid_until пусто или ≥ сегодня по Дананг-времени).
+      const { data: d } = await db.from('customer_discounts').select('percent').eq('email', email).or(`valid_until.is.null,valid_until.gte.${todayISO()}`).maybeSingle();
+      discountPercent = Math.min(100, Math.max(0, Number(d?.percent) || 0));
     }
   }
 
@@ -168,7 +173,9 @@ Deno.serve(async (req) => {
   const unit = type === 'single' ? price.price_single : Math.round(price.price_subscription / SUB_MIN_DAYS);
   const food = days.length * qty * unit;
   const delivery_total = days.length * price.delivery_single;
-  const total = food + delivery_total;
+  const discount_amount = discountAmount(food, discountPercent);
+  const discount_percent = discount_amount > 0 ? discountPercent : 0;
+  const total = food - discount_amount + delivery_total; // скидка только на обеды
 
   // ── сохраняем заказ (номер выдаёт БД) ──
   const { data: order, error: oErr } = await db
@@ -187,6 +194,8 @@ Deno.serve(async (req) => {
       qty,
       total,
       delivery_total,
+      discount_percent,
+      discount_amount,
       lang,
       customer_id: customerId,
       is_vip: vip,
@@ -205,7 +214,7 @@ Deno.serve(async (req) => {
   }
 
   // ── Telegram ──
-  const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, lang, is_vip: vip };
+  const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, discount_percent, discount_amount, lang, is_vip: vip };
   const text = buildOrderText(row, days);
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
   let messageId: number | null = null;

@@ -22,6 +22,8 @@ export interface OrderRow {
   qty: number;
   total: number;
   delivery_total: number;
+  discount_percent?: number;
+  discount_amount?: number;
   lang: string | null;
   is_vip?: boolean;
 }
@@ -57,7 +59,8 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
     `Тип: ${o.type === 'single' ? 'Разовый' : subLabel(days.length)}`,
     `📅 Дни: ${sorted.map(labelRu).join(' · ')}`,
     `🍽 Порций: ${o.qty} в день (всего ${o.qty * sorted.length})`,
-    `🍱 Обеды: ${money(o.total - o.delivery_total)}`,
+    `🍱 Обеды: ${money(o.total - o.delivery_total + (o.discount_amount ?? 0))}`,
+    ...(o.discount_amount ? [`🏷 Скидка ${o.discount_percent}%: −${money(o.discount_amount)}`] : []),
     `🚚 Доставка: ${money(o.delivery_total)}`,
     `💰 Итого: <b>${money(o.total)}</b>`,
     o.payment_method === 'qr'

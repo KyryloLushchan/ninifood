@@ -6,6 +6,8 @@ export interface Bucket {
   revenue: number;
   /** Доставка внутри revenue. */
   delivery: number;
+  /** Персональные скидки, уже вычтенные из revenue (информационно). */
+  discount: number;
 }
 export interface RevenueReport {
   total: Bucket;
@@ -16,10 +18,11 @@ export interface RevenueReport {
   subscription: Bucket;
 }
 
-const empty = (): Bucket => ({ orders: 0, portions: 0, revenue: 0, delivery: 0 });
+const empty = (): Bucket => ({ orders: 0, portions: 0, revenue: 0, delivery: 0, discount: 0 });
 
 /**
- * Выручка по заказам confirmed + delivered (период уже отфильтрован по дате создания).
+ * Выручка по заказам confirmed + delivered (период уже отфильтрован по дате создания). `orders.total` уже после скидки,
+ * поэтому выручка — после скидок; сумма скидок считается отдельно.
  * Чистая функция: сюда же позже добавятся расходы и себестоимость (отдельные источники данных,
  * вкладка «Деньги» просто сложит их с этим отчётом).
  */
@@ -33,6 +36,7 @@ export function computeRevenue(orders: AdminOrder[]): RevenueReport {
       b.portions += portions;
       b.revenue += o.total;
       b.delivery += o.delivery_total;
+      b.discount += o.discount_amount ?? 0;
     }
   }
   return r;

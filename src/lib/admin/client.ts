@@ -30,6 +30,9 @@ export interface AdminOrder {
   total: number;
   /** Доставка внутри total; обеды = total − delivery_total. */
   delivery_total: number;
+  /** Персональная скидка на обеды: процент и сумма (total уже после скидки). */
+  discount_percent: number;
+  discount_amount: number;
   status: OrderStatus;
   lang: string | null;
   status_changed_at: string | null;
