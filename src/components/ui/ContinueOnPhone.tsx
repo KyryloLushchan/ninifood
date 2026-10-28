@@ -5,20 +5,8 @@ import qrcode from 'qrcode-generator';
 import { useI18n, type TKey } from '@/i18n';
 import { createDraft, draftLink } from '@/lib/order-draft';
 import { useApp } from '@/state/app-context';
+import { useDesktop } from '@/lib/use-desktop';
 import { TurnstileBox, turnstileLang } from './TurnstileWidget';
-
-/** Только настоящий десктоп: мышь и широкое окно. На телефоне и планшете кнопки нет. */
-function useDesktop() {
-  const [yes, setYes] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia('(pointer: fine) and (min-width: 769px)');
-    const on = () => setYes(mq.matches);
-    on();
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return yes;
-}
 
 /** QR как inline-SVG: генерируется на клиенте, без сетевых запросов. */
 function qrSvg(text: string) {

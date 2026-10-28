@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect } from 'react';
 import { I18nProvider, useI18n } from '@/i18n';
 import { useKeyboardAwareness } from '@/lib/use-keyboard';
 import { AppProvider, useApp } from '@/state/app-context';
@@ -45,8 +46,24 @@ function Screens() {
   }
 }
 
+/** Файл, брошенный мимо зоны загрузки, не должен открываться в браузере вместо сайта. */
+function useDropGuard() {
+  useEffect(() => {
+    const stop = (e: DragEvent) => {
+      if (e.dataTransfer && [...e.dataTransfer.types].includes('Files')) e.preventDefault();
+    };
+    window.addEventListener('dragover', stop);
+    window.addEventListener('drop', stop);
+    return () => {
+      window.removeEventListener('dragover', stop);
+      window.removeEventListener('drop', stop);
+    };
+  }, []);
+}
+
 export function App() {
   useKeyboardAwareness();
+  useDropGuard();
   return (
     <I18nProvider>
       <AppProvider>
