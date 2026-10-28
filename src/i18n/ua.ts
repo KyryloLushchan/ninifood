@@ -104,6 +104,7 @@ export const ua: Record<TKey, string> = {
   'payment.due': 'До сплати',
   'payment.scan': 'Скануйте в застосунку банку.',
   'payment.save': 'Зберегти QR у галерею',
+  'payment.saveHint': 'або затисніть QR і оберіть «Зберегти в Фото»',
   'payment.shotTitle': 'Скріншот оплати',
   'payment.upload': '+ Завантажити скріншот',
   'payment.uploadHint': 'JPG або PNG з галереї',

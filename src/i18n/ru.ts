@@ -113,6 +113,7 @@ export const ru = {
   'payment.due': 'К оплате',
   'payment.scan': 'Отсканируйте в приложении банка.',
   'payment.save': 'Сохранить QR в галерею',
+  'payment.saveHint': 'или зажмите QR и выберите «Сохранить в Фото»',
   'payment.shotTitle': 'Скриншот оплаты',
   'payment.upload': '+ Загрузить скриншот',
   'payment.uploadHint': 'JPG или PNG из галереи',

@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { buildQrUrl } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
 import { withBasePath } from '@/lib/base-path';
+import { loadStaticQr, renderQrPng, saveQr, type QrImage } from '@/lib/qr-image';
 import { paymentNote } from '@/lib/payment-note';
 import { useI18n, type TKey } from '@/i18n';
 import { useApp } from '@/state/app-context';
@@ -19,40 +20,39 @@ export function PaymentQr() {
   const { go, contact, total, sum, screenshot, captcha, placeOrder, sending, submitError } = useApp();
   const staticQr = withBasePath(PHOTOS.paymentQr);
   const dynamicQr = buildQrUrl(total, paymentNote(contact.telegram, contact.phone));
-  // Не загрузился QR с суммой — показываем статичный.
-  const [failed, setFailed] = useState(false);
-  const qrUrl = dynamicQr && !failed ? dynamicQr : staticQr;
 
-  // Скачиваем именно показанную картинку (с суммой): svg → png через canvas; не вышло — открываем в новой вкладке.
-  const saveQr = async () => {
-    try {
-      const blob = await (await fetch(qrUrl)).blob();
-      let out = blob;
-      if (blob.type.includes('svg')) {
-        const url = URL.createObjectURL(blob);
-        const img = new Image();
-        await new Promise<void>((ok, bad) => {
-          img.onload = () => ok();
-          img.onerror = () => bad(new Error('svg load'));
-          img.src = url;
-        });
-        const c = document.createElement('canvas');
-        c.width = 2 * (img.naturalWidth || 540);
-        c.height = 2 * (img.naturalHeight || 640);
-        c.getContext('2d')!.drawImage(img, 0, 0, c.width, c.height);
-        URL.revokeObjectURL(url);
-        out = await new Promise<Blob>((ok, bad) => c.toBlob((b) => (b ? ok(b) : bad(new Error('png'))), 'image/png'));
+  // PNG готовим заранее: share() должен вызываться сразу по нажатию, иначе iOS его блокирует.
+  // Не получилось (сеть/сервис) — статичный QR.
+  const [qr, setQr] = useState<QrImage | null>(null);
+  useEffect(() => {
+    let dead = false;
+    let made: QrImage | null = null;
+    setQr(null);
+    const name = `ninifood-qr-${total}`;
+    (async () => {
+      try {
+        if (!dynamicQr) throw new Error('no vietqr');
+        made = await renderQrPng(dynamicQr, `${name}.png`);
+      } catch (e) {
+        console.warn('[qr] using static qr', e);
+        try {
+          made = await loadStaticQr(staticQr, 'ninifood-qr.jpg');
+        } catch {
+          made = null;
+        }
       }
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(out);
-      a.download = `ninifood-qr-${total}.${out.type.includes('png') ? 'png' : 'jpg'}`;
-      a.click();
-      setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
-    } catch (e) {
-      console.warn('[qr] save failed, opening image', e);
-      window.open(qrUrl, '_blank', 'noopener');
-    }
-  };
+      if (dead) {
+        if (made) URL.revokeObjectURL(made.url);
+        return;
+      }
+      setQr(made);
+    })();
+    return () => {
+      dead = true;
+      if (made) URL.revokeObjectURL(made.url);
+    };
+  }, [dynamicQr, staticQr, total]);
+
   const ok = !!screenshot;
 
   return (
@@ -64,14 +64,19 @@ export function PaymentQr() {
           <div className="w-full">
             <OrderSummary sum={sum} big />
           </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={qrUrl} alt="VietQR" onError={() => setFailed(true)} className="w-full max-w-[300px] rounded-md2" />
+          {qr ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={qr.url} alt="VietQR" className="w-full max-w-[300px] rounded-md2" />
+          ) : (
+            <div className="aspect-[540/640] w-full max-w-[300px] animate-pulse rounded-md2 bg-sand" />
+          )}
           <div className="text-center text-[13px] leading-snug text-ink-muted">
             {t('payment.scan')}
           </div>
-          <button type="button" onClick={() => void saveQr()} className="text-sm font-bold text-accent hover:underline">
+          <button type="button" disabled={!qr} onClick={() => qr && void saveQr(qr)} className="text-sm font-bold text-accent hover:underline disabled:opacity-50">
             {t('payment.save')}
           </button>
+          <div className="text-center text-xs leading-snug text-ink-muted">{t('payment.saveHint')}</div>
         </div>
 
         <ScreenshotUpload />

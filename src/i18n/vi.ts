@@ -104,6 +104,7 @@ export const vi: Record<TKey, string> = {
   'payment.due': 'Số tiền cần trả',
   'payment.scan': 'Quét bằng ứng dụng ngân hàng.',
   'payment.save': 'Lưu QR vào thư viện',
+  'payment.saveHint': 'hoặc nhấn giữ mã QR và chọn “Lưu vào Ảnh”',
   'payment.shotTitle': 'Ảnh chụp thanh toán',
   'payment.upload': '+ Tải ảnh chụp lên',
   'payment.uploadHint': 'JPG hoặc PNG từ thư viện',

@@ -104,6 +104,7 @@ export const en: Record<TKey, string> = {
   'payment.due': 'Amount due',
   'payment.scan': 'Scan in your banking app.',
   'payment.save': 'Save QR to gallery',
+  'payment.saveHint': 'or press and hold the QR and choose “Save to Photos”',
   'payment.shotTitle': 'Payment screenshot',
   'payment.upload': '+ Upload screenshot',
   'payment.uploadHint': 'JPG or PNG from your gallery',
