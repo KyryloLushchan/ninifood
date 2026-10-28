@@ -93,9 +93,10 @@ function PhoneModal({ onClose }: { onClose: () => void }) {
         <div className="text-center text-[17px] font-extrabold">{t('phone.title')}</div>
         {status === 'done' ? (
           <>
+            <div aria-hidden className="text-2xl leading-none">📷</div>
             {/* eslint-disable-next-line react/no-danger */}
             <div className="w-full max-w-[240px]" dangerouslySetInnerHTML={{ __html: qrSvg(link) }} />
-            <div className="text-center text-sm leading-snug text-ink-2">{t('phone.scan')}</div>
+            <div className="text-center text-[15px] font-extrabold leading-snug text-ink">{t('phone.scan')}</div>
             <button type="button" onClick={() => void copy()} className="text-sm font-bold text-accent hover:underline">
               {copied ? t('phone.copied') : t('phone.copy')}
             </button>

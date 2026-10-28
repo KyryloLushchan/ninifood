@@ -108,7 +108,7 @@ export const en: Record<TKey, string> = {
   'payment.save': 'Save QR to gallery',
   'phone.continue': "Continue on phone",
   'phone.title': "Continue on phone",
-  'phone.scan': "Scan with your phone camera — the order will open on the payment screen",
+  'phone.scan': "Scan with your phone’s regular camera (not a banking app) — the order will open on your phone",
   'phone.copy': "Copy link",
   'phone.copied': "Copied ✓",
   'phone.preparing': "Preparing the link…",

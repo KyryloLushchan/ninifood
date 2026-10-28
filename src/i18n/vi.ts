@@ -108,7 +108,7 @@ export const vi: Record<TKey, string> = {
   'payment.save': 'Lưu QR vào thư viện',
   'phone.continue': "Tiếp tục trên điện thoại",
   'phone.title': "Tiếp tục trên điện thoại",
-  'phone.scan': "Quét bằng camera điện thoại — đơn hàng sẽ mở ở màn hình thanh toán",
+  'phone.scan': "Quét bằng camera thông thường của điện thoại (không dùng ứng dụng ngân hàng) — đơn hàng sẽ mở trên điện thoại",
   'phone.copy': "Sao chép liên kết",
   'phone.copied': "Đã sao chép ✓",
   'phone.preparing': "Đang tạo liên kết…",
