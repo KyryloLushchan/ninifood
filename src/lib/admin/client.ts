@@ -23,6 +23,8 @@ export interface AdminOrder {
   telegram: string;
   phone: string | null;
   address: string;
+  lat: number | null;
+  lng: number | null;
   hotel: string | null;
   comment: string | null;
   payment_method: 'qr' | 'cash' | 'other';

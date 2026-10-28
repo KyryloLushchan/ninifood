@@ -11,6 +11,7 @@ import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
+import { PinPoint } from './PinPoint';
 
 interface Row {
   id: number;
@@ -164,7 +165,7 @@ export function CourierTab() {
     }
   };
 
-  const DeliveryCard = ({ r, label }: { r: Row; label: string }) => {
+  const DeliveryCard = ({ r, label, onSaved }: { r: Row; label: string; onSaved?: () => void }) => {
     const due = cashDue(r);
     const href = tgHref(r.orders.telegram);
     return (
@@ -201,6 +202,7 @@ export function CourierTab() {
             <div className={`text-sm font-bold ${due ? 'text-accent' : 'text-success'}`}>{due ? `к получению: ${fmtMoney(due)}` : 'оплачено'}</div>
           </div>
         </div>
+        {r.orders.lat == null && onSaved && <PinPoint orderId={r.orders.id} onSaved={onSaved} />}
         <Btn kind={r.delivered ? 'ghost' : 'primary'} className="mt-3 w-full" onClick={() => toggle(r)}>
           {r.delivered ? '✓ Доставлено (отменить)' : 'Доставлено'}
         </Btn>
@@ -279,7 +281,7 @@ export function CourierTab() {
       {plan && plan.noPoint.length > 0 && (
         <section className="flex flex-col gap-3">
           <div className="rounded-md2 border border-danger bg-danger-bg px-4 py-3 text-sm font-extrabold text-danger">⚠️ Без точки на карте — распределить/проверить вручную ({plan.noPoint.length})</div>
-          {plan.noPoint.map((r, i) => <DeliveryCard key={r.id} r={r} label={`—${i + 1}`} />)}
+          {plan.noPoint.map((r, i) => <DeliveryCard key={r.id} r={r} label={String(i + 1)} onSaved={load} />)}
         </section>
       )}
       {!kitchen && confirmed.map((r, i) => <DeliveryCard key={r.id} r={r} label={String(i + 1)} />)}

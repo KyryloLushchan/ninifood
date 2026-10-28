@@ -429,3 +429,6 @@ verify_jwt = false
 
 [functions.order-draft]
 verify_jwt = false
+
+[functions.resolve-point]
+verify_jwt = true

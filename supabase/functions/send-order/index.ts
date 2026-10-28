@@ -2,6 +2,7 @@ import { discountAmount } from '../_shared/discount.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { inDanang } from '../_shared/danang.ts';
+import { geocodeAddress } from '../_shared/geocode.ts';
 import { buildOrderText, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
 import { corsFor } from '../_shared/cors.ts';
 import { clientIp, detectImage, sha256hex, verifyTurnstile } from '../_shared/security.ts';
@@ -109,8 +110,8 @@ Deno.serve(async (req) => {
   // Координаты из подсказок; вне Дананга или битые — всё сбрасываем (адрес остаётся текстом).
   const geoOk = inDanang(Number(p.lat), Number(p.lng));
   const place_id = geoOk ? str(p.place_id, 300) || null : null;
-  const lat = geoOk ? Number(p.lat) : null;
-  const lng = geoOk ? Number(p.lng) : null;
+  let lat: number | null = geoOk ? Number(p.lat) : null;
+  let lng: number | null = geoOk ? Number(p.lng) : null;
   const lang = ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? p.lang : null;
   const qty = Number(p.portions);
   who.phone = /^\+84\d{9}$/.test(phone) ? phone : null;
@@ -153,6 +154,12 @@ Deno.serve(async (req) => {
 
   // ── Turnstile: проверяем после валидации, чтобы токен не сгорал на ошибках формы ──
   if (!(await verifyTurnstile(str(p.captcha, 4096), ip))) return fail('captcha_failed', 403);
+
+  // ── адрес без точки (текстом, без выбора подсказки): геокодируем на сервере, чтобы заказ попал в маршрут курьера ──
+  if (lat === null || lng === null) {
+    const g = await geocodeAddress(address);
+    if (g) ({ lat, lng } = g);
+  }
 
   // ── цена: только из settings ──
   const { data: settings, error: sErr } = await db.from('settings').select('key, value').in('key', ['price_single', 'price_subscription', 'delivery_single']);

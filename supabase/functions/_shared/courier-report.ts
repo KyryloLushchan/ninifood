@@ -105,7 +105,7 @@ export function buildCourierReport(date: string, deliveries: ReportDelivery[], f
   if (couriers === 2 && plan.routes.length === 1) pieces.splice(1, 0, '🛵 <b>Курьер 1</b>' + `\n${totals(plan.routes[0].stops.flatMap((s) => s.items), plan.routes[0].stops.length)}`);
   if (plan.noPoint.length) {
     pieces.push(`⚠️ <b>Без точки на карте — распределить/проверить вручную</b> (${plan.noPoint.length})`);
-    plan.noPoint.forEach((d, i) => pieces.push(entry(d, `—${i + 1}`)));
+    plan.noPoint.forEach((d, i) => pieces.push(entry(d, String(i + 1))));
   }
   return pack(pieces);
 }

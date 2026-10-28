@@ -11,6 +11,7 @@ import { subLabel } from '@/lib/admin/sub-label';
 import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { Btn, Card, Err, inputCls } from './ui';
+import { PinPoint } from './PinPoint';
 
 export const fmtCreated = (iso: string) =>
   new Intl.DateTimeFormat('ru', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
@@ -128,6 +129,7 @@ export function OrderCard({
             </div>
           )}
           <div><b>Адрес:</b> {o.address}</div>
+          {o.lat == null && <PinPoint orderId={o.id} onSaved={onChanged} />}
           {o.hotel && <div><b>Отель:</b> {o.hotel}</div>}
           {o.comment && <div><b>Комментарий:</b> {o.comment}</div>}
           <div><b>Язык:</b> {(o.lang ?? '—').toUpperCase()}</div>
