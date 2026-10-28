@@ -138,7 +138,7 @@ export function Home() {
           <Button size="xl" shadow className="min-[420px]:flex-1" disabled={!heroDay} onClick={() => heroDay && startOnce(heroDay)}>
             {heroDay ? t('home.heroCta', { day: labelFull(heroDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
           </Button>
-          <div className="text-sm text-ink-2 min-[420px]:flex-none">{t('home.heroDeliveryNote', hours)}</div>
+          <div className="text-base font-extrabold text-ink min-[420px]:flex-none">{t('home.heroDeliveryNote', hours)}</div>
         </div>
       </section>
 
