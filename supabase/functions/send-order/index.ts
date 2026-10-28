@@ -80,10 +80,26 @@ Deno.serve(async (req) => {
     return fail('bad_request');
   }
 
+  // ── вход через Telegram: JWT пользователя (anon-ключ — гость). Ник берём из профиля, привилегия VIP — только по telegram_id. ──
+  let customer: { user_id: string; telegram_id: number; telegram_username: string | null } | null = null;
+  let vip = false;
+  const jwt = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '').trim();
+  if (jwt && jwt !== Deno.env.get('SUPABASE_ANON_KEY')) {
+    const { data } = await db.auth.getUser(jwt);
+    const tgId = Number(data.user?.app_metadata?.telegram_id);
+    if (data.user && Number.isSafeInteger(tgId)) {
+      const { data: c } = await db.from('customers').select('user_id, telegram_id, telegram_username').eq('user_id', data.user.id).maybeSingle();
+      if (c && Number(c.telegram_id) === tgId) {
+        customer = c;
+        vip = !!(await db.from('vip_customers').select('id').eq('telegram_id', tgId).maybeSingle()).data;
+      }
+    }
+  }
+
   // ── валидация ──
   const type = p.type === 'once' || p.type === 'single' ? 'single' : p.type === 'sub' || p.type === 'subscription' ? 'subscription' : null;
   const payment = p.payment === 'qr' || p.payment === 'cash' || p.payment === 'other' ? p.payment : null;
-  const telegram = str(p.telegram, 64);
+  const telegram = customer?.telegram_username ? `@${customer.telegram_username}` : str(p.telegram, 64);
   const phone = str(p.phone, 32).replace(/[\s-]/g, '');
   const address = str(p.address, 300);
   const hotel = str(p.hotel, 150);
@@ -105,7 +121,8 @@ Deno.serve(async (req) => {
   if (!Number.isInteger(qty) || qty < 1 || qty > MAX_QTY) return fail('bad_portions');
 
   const today = todayISO();
-  const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i + 1)).filter((d) => !isSunday(d));
+  // VIP (вошёл через Telegram): окно начинается с сегодняшнего дня, без ограничения по времени; воскресенье — нельзя.
+  const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i + (vip ? 0 : 1))).filter((d) => !isSunday(d));
   const days: string[] = Array.isArray(p.days) ? [...new Set<string>(p.days.map(String))].sort() : [];
   const allowed = new Set(type === 'single' ? window.slice(0, BOOKABLE_DAYS) : window);
   if (days.length < 1 || !days.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && allowed.has(d))) return fail('bad_days');
@@ -174,6 +191,8 @@ Deno.serve(async (req) => {
       total,
       delivery_total,
       lang,
+      customer_id: customer?.user_id ?? null,
+      is_vip: vip,
     })
     .select('id, order_number')
     .single();
@@ -189,7 +208,7 @@ Deno.serve(async (req) => {
   }
 
   // ── Telegram ──
-  const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, lang };
+  const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, lang, is_vip: vip };
   const text = buildOrderText(row, days);
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
   let messageId: number | null = null;
@@ -231,6 +250,12 @@ Deno.serve(async (req) => {
     if (error) console.error(`update tg ids failed for ${order.order_number}:`, error.message);
   } else {
     console.error(`order ${order.order_number} saved but NOT delivered to Telegram (tg_message_id = null)`);
+  }
+
+  // Запоминаем контакты клиента для автозаполнения (только у вошедшего через Telegram).
+  if (customer) {
+    const { error } = await db.from('customers').update({ phone, address, place_id, lat, lng }).eq('user_id', customer.user_id);
+    if (error) console.error(`save customer profile failed for ${order.order_number}:`, error.message);
   }
 
   await record('ok', order.order_number);

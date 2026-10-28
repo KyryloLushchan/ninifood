@@ -9,6 +9,7 @@ import { useApp, type Contact, type Payment } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
 import { AddressField } from '../ui/AddressField';
+import { AuthControl } from '../ui/AuthControl';
 import { Field } from '../ui/Field';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
@@ -18,7 +19,7 @@ const REQUIRED: (keyof Contact)[] = ['telegram', 'phone', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
-  const { go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError } = useApp();
+  const { customer, go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError } = useApp();
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
   const text = `${days.length} ${pl('unit.day', days.length)} × ${portions} ${pl('unit.portion', portions)}`;
@@ -69,7 +70,24 @@ export function Checkout() {
           </button>
         </div>
 
-        <Field name="telegram" label={t('checkout.telegram')} placeholder={t('checkout.telegramPh')} autoCapitalize="none" error={err('telegram')} {...bind('telegram')} />
+        {customer ? null : (
+          <div className="flex flex-col gap-2.5 rounded-md2 bg-card px-4 py-3.5">
+            <div className="text-[13px] leading-snug text-ink-2">{t('auth.checkoutHint')}</div>
+            <AuthControl variant="full" />
+          </div>
+        )}
+        {/* Ник из Telegram подставляется и не редактируется; нет ника в аккаунте — поле обычное. */}
+        <Field
+          name="telegram"
+          label={t('checkout.telegram')}
+          placeholder={t('checkout.telegramPh')}
+          autoCapitalize="none"
+          error={err('telegram')}
+          hint={customer?.telegramUsername ? t('auth.tgLocked') : undefined}
+          readOnly={!!customer?.telegramUsername}
+          className={customer?.telegramUsername ? 'bg-sand' : ''}
+          {...bind('telegram')}
+        />
         <Field
           name="phone"
           label={t('checkout.phone')}

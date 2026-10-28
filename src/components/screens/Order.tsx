@@ -51,7 +51,7 @@ export function Order() {
 
 function OnceDays() {
   const { t, lang, pl } = useI18n();
-  const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings } = useApp();
+  const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings, isVip } = useApp();
   const n = onceDays.length;
   const showNudge = n >= SUB_MIN_DAYS;
 
@@ -69,7 +69,7 @@ function OnceDays() {
             <DayChip key={d} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={onceDays.includes(d)} onClick={() => toggleOnceDay(d)} />
           ))}
         </div>
-        {today && (
+        {today && !isVip && (
           <div className="text-[13px] text-ink-muted">
             {t('order.todayNote', { day: labelFull(today, lang) })}{' '}
             <a href={settings.telegramUrl} target="_blank" rel="noreferrer">

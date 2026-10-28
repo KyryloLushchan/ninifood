@@ -423,3 +423,6 @@ verify_jwt = true
 
 [functions.daily-report]
 verify_jwt = false
+
+[functions.tg-auth]
+verify_jwt = false

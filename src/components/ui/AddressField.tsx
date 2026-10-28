@@ -26,6 +26,7 @@ export function AddressField({ label, placeholder, error, value, place, onText, 
   const abort = useRef<AbortController | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>();
   const box = useRef<HTMLDivElement>(null);
+  const typed = useRef(false); // подсказки — только на ввод пользователя, не на подставленный из профиля адрес
 
   const close = () => {
     clearTimeout(timer.current);
@@ -39,7 +40,7 @@ export function AddressField({ label, placeholder, error, value, place, onText, 
     abort.current?.abort();
     const q = value.trim();
     // Текст выбранного места не ищем заново; короткий ввод — без запросов.
-    if (q.length < PLACES_MIN_CHARS || (place && place.text === value)) {
+    if (!typed.current || q.length < PLACES_MIN_CHARS || (place && place.text === value)) {
       setItems([]);
       return;
     }
@@ -108,7 +109,10 @@ export function AddressField({ label, placeholder, error, value, place, onText, 
         autoComplete="off"
         error={error}
         value={value}
-        onChange={(e) => onText(e.target.value)}
+        onChange={(e) => {
+          typed.current = true;
+          onText(e.target.value);
+        }}
         onFocus={() => items.length > 0 && setOpen(true)}
         onKeyDown={(e) => e.key === 'Escape' && close()}
         after={list}

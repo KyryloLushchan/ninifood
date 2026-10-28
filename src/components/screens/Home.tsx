@@ -8,6 +8,7 @@ import { ddmm, isSunday, labelFull, weekdayShort } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
 import { Button } from '../ui/Button';
+import { AuthControl } from '../ui/AuthControl';
 import { LangPill } from '../ui/LangPill';
 import { Photo } from '../ui/Photo';
 import { Logo } from '../ui/ScreenHeader';
@@ -34,16 +35,16 @@ function NutritionLine({ n, className, split }: { n: { kcal: number; protein: nu
 
 export function Home() {
   const { t, lang } = useI18n();
-  const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub } = useApp();
+  const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub, isVip } = useApp();
   const [tab, setTab] = useState<string | null>(null);
 
   // Сегодня (если есть меню, неактивно) + ближайшие доступные дни.
-  const menuDays = today ? [...(!isSunday(today) ? [today] : []), ...bookableDays] : [];
+  const menuDays = today ? [...(!isSunday(today) && !isVip ? [today] : []), ...bookableDays] : [];
   const active = tab && menuDays.includes(tab) ? tab : nearestDay;
   // Кнопка в hero следует за выбранной вкладкой дня; по умолчанию — ближайший доступный.
   const heroDay = active;
   // Карусель: по слайду на каждый день, кроме сегодняшнего (он есть только во вкладках, неактивный).
-  const slides = menuDays.filter((d) => d !== today);
+  const slides = menuDays.filter((d) => d !== today || isVip);
   const activeIdx = active ? slides.indexOf(active) : -1;
   const carouselRef = useRef<HTMLDivElement>(null);
   const tabsRef = useRef<HTMLDivElement>(null);
@@ -79,7 +80,7 @@ export function Home() {
   // Стартовая позиция, когда активный день не первый слайд.
   const slidesKey = slides.join();
   useEffect(() => {
-    if (activeIdx > 0) goTo(activeIdx, false);
+    if (activeIdx >= 0) goTo(activeIdx, false); // и при 0: список слайдов мог сдвинуться (у VIP добавляется сегодня)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slidesKey]);
 
@@ -115,7 +116,10 @@ export function Home() {
     <>
       <header className="flex items-center justify-between px-5 py-4">
         <Logo />
-        <LangPill />
+        <div className="flex items-center gap-2">
+          <AuthControl />
+          <LangPill />
+        </div>
       </header>
 
       <section className="flex flex-col gap-4 px-5 pb-7">
@@ -140,7 +144,7 @@ export function Home() {
         <h2 className="px-5 font-serif text-h2 font-semibold">{t('home.menuTitle')}</h2>
         <div ref={tabsRef} className="flex gap-2 overflow-x-auto px-5 pb-1">
           {menuDays.map((d) => {
-            const isToday = d === today;
+            const isToday = d === today && !isVip;
             const on = d === active;
             return (
               <button

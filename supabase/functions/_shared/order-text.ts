@@ -22,6 +22,7 @@ export interface OrderRow {
   total: number;
   delivery_total: number;
   lang: string | null;
+  is_vip?: boolean;
 }
 
 /** Ссылка на Google Maps по координатам (и place_id, если есть); null — координат нет. */
@@ -50,7 +51,7 @@ function telegramLink(raw: string): string {
 export function buildOrderText(o: OrderRow, days: string[], statusLine?: string): string {
   const sorted = [...days].sort();
   const lines = [
-    `🆕 <b>Заказ ${o.order_number}</b>`,
+    `🆕 <b>Заказ ${o.order_number}</b>${o.is_vip ? ' ⭐ VIP' : ''}`,
     '',
     `Тип: ${o.type === 'single' ? 'Разовый' : subLabel(days.length)}`,
     `📅 Дни: ${sorted.map(labelRu).join(' · ')}`,

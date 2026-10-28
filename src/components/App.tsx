@@ -6,6 +6,7 @@ import { AppProvider, useApp } from '@/state/app-context';
 import { Checkout } from './screens/Checkout';
 import { Home } from './screens/Home';
 import { LanguageSheet } from './screens/LanguageSheet';
+import { MyOrders } from './screens/MyOrders';
 import { Order } from './screens/Order';
 import { PaymentOther } from './screens/PaymentOther';
 import { PaymentQr } from './screens/PaymentQr';
@@ -24,6 +25,8 @@ function Screens() {
       return payment === 'other' ? <PaymentOther /> : <PaymentQr />;
     case 'thanks':
       return <Thanks />;
+    case 'orders':
+      return <MyOrders />;
   }
 }
 

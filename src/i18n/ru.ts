@@ -155,6 +155,21 @@ export const ru = {
   'error.screenshot_size': 'Скриншот слишком большой (максимум 5 МБ).',
   'error.network': 'Нет соединения. Проверьте интернет и попробуйте ещё раз.',
   'error.generic': 'Не удалось отправить заказ. Попробуйте ещё раз или напишите нам в Telegram.',
+  'auth.login': 'Войти через Telegram',
+  'auth.loginShort': 'Войти',
+  'auth.signingIn': 'Входим…',
+  'auth.error': 'Не удалось войти через Telegram. Попробуйте ещё раз.',
+  'auth.account': 'Аккаунт',
+  'auth.myOrders': 'Мои заказы',
+  'auth.logout': 'Выйти',
+  'auth.checkoutHint': 'Необязательно: войдите через Telegram, и мы подставим ваши контакты и сохраним историю заказов.',
+  'auth.tgLocked': 'Подставлено из вашего Telegram',
+  'orders.empty': 'Заказов пока нет.',
+  'orders.error': 'Не удалось загрузить заказы. Попробуйте позже.',
+  'orders.status.new': 'Новый',
+  'orders.status.confirmed': 'Подтверждён',
+  'orders.status.delivered': 'Доставлен',
+  'orders.status.cancelled': 'Отменён',
 } as const;
 
 export type TKey = keyof typeof ru;

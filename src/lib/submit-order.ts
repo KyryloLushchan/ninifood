@@ -23,6 +23,8 @@ export interface OrderPayload {
   /** Уже сжатый JPEG; обязателен при оплате QR. */
   screenshot: File | null;
   lang: string;
+  /** JWT вошедшего через Telegram (сервер берёт из него ник и VIP); null — гость. */
+  accessToken?: string | null;
 }
 
 /** Код ошибки от сервера (или 'network' / 'generic') — фронт превращает в текст на языке клиента. */
@@ -58,7 +60,7 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
   try {
     res = await fetch(`${SUPABASE_URL}/functions/v1/send-order`, {
       method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${payload.accessToken ?? SUPABASE_ANON_KEY}` },
       body: form,
     });
   } catch {
