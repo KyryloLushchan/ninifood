@@ -24,7 +24,7 @@ export function Order() {
   return (
     <>
       <ScreenHeader title={t('order.title')} onBack={() => go('home')} />
-      <div className="flex flex-1 flex-col gap-[22px] px-5">
+      <div className="flex flex-1 flex-col gap-[18px] px-5">
         <div className="grid grid-cols-2 rounded-chip bg-sand p-1" role="tablist">
           <button role="tab" aria-selected={orderType === 'once'} className={seg(orderType === 'once')} onClick={() => setOrderType('once')}>
             {t('order.tabOnce')}
@@ -34,15 +34,16 @@ export function Order() {
           </button>
         </div>
 
-        {orderType === 'once' ? <OnceDays /> : <SubDays />}
-
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5">
-            <div className="text-[17px] font-extrabold">{t(orderType === 'once' ? 'order.portionsTitle' : 'sub.portionsTitle')}</div>
-            <div className="text-[13px] text-ink-muted">{t(orderType === 'once' ? 'order.portionsHint' : 'sub.portionsHint')}</div>
+            <div className="text-[17px] font-extrabold">{t('sub.portionsTitle')}</div>
+            {orderType === 'sub' && <div className="text-xs text-ink-muted">{t('sub.portionsHint')}</div>}
           </div>
           <Stepper value={portions} onChange={setPortions} />
         </div>
+
+        {orderType === 'once' ? <OnceDays /> : <SubDays />}
+
       </div>
       <OrderBar />
     </>
@@ -50,9 +51,9 @@ export function Order() {
 }
 
 /** Недели Пн–Вс, 7 колонок; воскресенье — неактивная ячейка «вихідний». Дней вне списка `days` — пустые ячейки. */
-function WeekGrid({ days, isSelected, onToggle, markNoMenu }: { days: string[]; isSelected: (d: string) => boolean; onToggle: (d: string) => void; markNoMenu?: boolean }) {
+function WeekGrid({ days, isSelected, onToggle }: { days: string[]; isSelected: (d: string) => boolean; onToggle: (d: string) => void }) {
   const { t, lang } = useI18n();
-  const { menu } = useApp();
+  const { today, isVip } = useApp();
   const weeks = new Map<string, string[]>();
   for (const d of days) {
     const k = weekStart(d);
@@ -70,11 +71,10 @@ function WeekGrid({ days, isSelected, onToggle, markNoMenu }: { days: string[]; 
             <div className="grid grid-cols-7 gap-0.5 min-[360px]:gap-1">
               {[0, 1, 2, 3, 4, 5].map((i) => {
                 const d = list.find((x) => new Date(`${x}T00:00:00Z`).getUTCDay() === i + 1);
-                return d ? (
-                  <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={isSelected(d)} noMenu={markNoMenu && !menu[d]} onClick={() => onToggle(d)} />
-                ) : (
-                  <div key={i} />
-                );
+                if (d) return <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={isSelected(d)} onClick={() => onToggle(d)} />;
+                const iso = addDays(monday, i);
+                // Сегодня обычным клиентам недоступно — серая ячейка (VIP выбирает сегодня как обычный день).
+                return iso === today && !isVip ? <DayChip key={i} weekday={weekdayShort(iso, lang)} date={ddmm(iso)} selected={false} dayOff={t('calendar.today')} onClick={() => {}} /> : <div key={i} />;
               })}
               <DayChip weekday={weekdayShort(sunday, lang)} date={ddmm(sunday)} selected={false} dayOff={t('calendar.dayOff')} onClick={() => {}} />
             </div>
@@ -119,7 +119,7 @@ function OnceDays() {
 
 function SubDays() {
   const { t, lang } = useI18n();
-  const { subscriptionDays, menu, subDays, toggleSubDay } = useApp();
+  const { subscriptionDays, subDays, toggleSubDay } = useApp();
   const count = subDays.length;
 
 
@@ -132,13 +132,7 @@ function SubDays() {
         </div>
       </div>
       <div className="-mt-1 text-[13px] text-ink-muted">{t('sub.autoHint')}</div>
-      <WeekGrid days={subscriptionDays} isSelected={(d) => subDays.includes(d)} onToggle={toggleSubDay} markNoMenu />
-      {subscriptionDays.some((d) => !menu[d]) && (
-        <div className="flex items-center gap-2 text-[13px] text-ink-muted">
-          <span className="h-3.5 w-5 rounded-[5px] border border-dashed border-ink-muted" />
-          {t('home.noDays')}
-        </div>
-      )}
+      <WeekGrid days={subscriptionDays} isSelected={(d) => subDays.includes(d)} onToggle={toggleSubDay} />
     </div>
   );
 }
@@ -150,8 +144,8 @@ function OrderBar() {
   if (orderType === 'once') {
     const n = onceDays.length;
     return (
-      <BottomBar>
-        <OrderSummary sum={sum} title={`${t('summary.food')} · ${n} ${pl('unit.day', n)} × ${portions} ${pl('unit.portion', portions)}`} />
+      <BottomBar compact>
+        <OrderSummary compact sum={sum} title={`${t('summary.food')} · ${n} ${pl('unit.day', n)} × ${portions} ${pl('unit.portion', portions)}`} />
         <Button disabled={n === 0} onClick={() => go('checkout')}>
           {t('order.next')}
         </Button>
@@ -160,8 +154,8 @@ function OrderBar() {
   }
   const left = SUB_MIN_DAYS - subDays.length;
   return (
-    <BottomBar>
-      <OrderSummary sum={sum} title={`${t('summary.food')} · ${subDays.length} ${pl('unit.day', subDays.length)} × ${portions} ${pl('unit.portion', portions)}`} />
+    <BottomBar compact>
+      <OrderSummary compact sum={sum} title={`${t('summary.food')} · ${subDays.length} ${pl('unit.day', subDays.length)} × ${portions} ${pl('unit.portion', portions)}`} />
       <Button disabled={left > 0} onClick={() => go('checkout')}>
         {left > 0 ? t('sub.more', { n: left }) : t('order.next')}
       </Button>

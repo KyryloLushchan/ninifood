@@ -2,14 +2,12 @@ interface Props {
   weekday: string;
   date: string;
   selected: boolean;
-  /** Меню на этот день ещё не опубликовано. */
-  noMenu?: boolean;
-  /** Выходной (воскресенье): серая неактивная ячейка с подписью. */
+  /** Недоступный день (воскресенье, сегодня): серая неактивная ячейка с подписью. */
   dayOff?: string;
   onClick: () => void;
 }
 
-export function DayChip({ weekday, date, selected, noMenu, dayOff, onClick }: Props) {
+export function DayChip({ weekday, date, selected, dayOff, onClick }: Props) {
   if (dayOff) {
     return (
       <div aria-disabled="true" className="flex h-[60px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-chip border border-line bg-sand/50 text-ink-muted/70">
@@ -24,8 +22,8 @@ export function DayChip({ weekday, date, selected, noMenu, dayOff, onClick }: Pr
       onClick={onClick}
       aria-pressed={selected}
       className={`flex h-[60px] min-w-0 flex-col items-center justify-center gap-0.5 rounded-chip border ${
-        selected ? 'border-accent bg-accent text-white' : 'border-line bg-card text-ink hover:bg-sand'
-      } ${noMenu ? 'border-dashed' : ''}`}
+        selected ? 'border-accent bg-accent text-white' : 'border-line bg-card text-ink [@media(hover:hover)]:hover:bg-sand'
+      }`}
     >
       <span className="text-[15px] font-extrabold">{weekday}</span>
       <span className="text-xs">{date}</span>
