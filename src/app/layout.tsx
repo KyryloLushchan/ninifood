@@ -23,7 +23,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://img.vietqr.io",
-  "connect-src 'self' https://jeeaairmlcpueghttnky.supabase.co https://places.googleapis.com https://challenges.cloudflare.com",
+  "connect-src 'self' https://img.vietqr.io https://jeeaairmlcpueghttnky.supabase.co https://places.googleapis.com https://challenges.cloudflare.com",
   'frame-src https://challenges.cloudflare.com',
   "worker-src 'self' blob:",
   "object-src 'none'",

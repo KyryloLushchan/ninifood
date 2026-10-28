@@ -1,3 +1,4 @@
+import { paymentNote } from './payment-note.ts';
 import { esc } from './telegram.ts';
 import { labelRu } from './dates.ts';
 
@@ -60,7 +61,7 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
     `🚚 Доставка: ${money(o.delivery_total)}`,
     `💰 Итого: <b>${money(o.total)}</b>`,
     o.payment_method === 'qr'
-      ? '💳 Оплата: QR (скриншот приложен)'
+      ? `💳 Оплата: QR (скриншот приложен)\n🧾 Назначение: ${esc(paymentNote(o.telegram, o.phone ?? ''))}`
       : o.payment_method === 'other'
         ? '💳 Оплата: другой способ (скриншот приложен)'
         : `💳 Оплата: наличными — к получению: <b>${money(o.total)}</b>`,

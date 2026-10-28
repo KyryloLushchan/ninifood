@@ -22,20 +22,18 @@ export const CONTACTS = {
   telegramUrl: 'https://t.me/ninifoodvn',
 };
 
-/** Реквизиты для VietQR (https://img.vietqr.io). Пока пусто — показывается плашка-заглушка. */
+/** Реквизиты для VietQR (https://img.vietqr.io; bankId — код банка по справочнику VietQR). Совпадают с public/photos/payment-qr.jpg. */
 export const VIETQR = {
-  bankId: '',
-  accountNo: '',
-  accountName: 'NINIFOOD',
+  bankId: 'BIDV',
+  accountNo: '8827465948',
+  accountName: 'LE NU NGOC HA',
 };
 
-export function buildQrUrl(amount: number): string | null {
+/** QR с суммой и назначением платежа (шаблон compact2). Формат svg: png сервис теперь редиректит на svg. */
+export function buildQrUrl(amount: number, note: string): string | null {
   if (!VIETQR.bankId || !VIETQR.accountNo) return null;
-  const q = new URLSearchParams({
-    amount: String(amount),
-    accountName: VIETQR.accountName,
-  });
-  return `https://img.vietqr.io/image/${VIETQR.bankId}-${VIETQR.accountNo}-compact2.png?${q}`;
+  const q = `amount=${amount}&addInfo=${encodeURIComponent(note)}&accountName=${encodeURIComponent(VIETQR.accountName)}`;
+  return `https://img.vietqr.io/image/${VIETQR.bankId}-${VIETQR.accountNo}-compact2.svg?${q}`;
 }
 
 /** Группа Orders (id не секретный): нужен для ссылок на сообщения заказов в админке. */
