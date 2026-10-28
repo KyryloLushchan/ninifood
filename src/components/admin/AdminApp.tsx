@@ -11,11 +11,13 @@ import { MenuTab } from './MenuTab';
 import { MoneyTab } from './MoneyTab';
 import { OrdersTab } from './OrdersTab';
 import { SettingsTab } from './SettingsTab';
+import { SubscriptionsTab } from './SubscriptionsTab';
 import { Btn, Err, inputCls } from './ui';
 
 const TABS = [
   ['courier', 'Курьер', '🚚'],
   ['orders', 'Заказы', '📋'],
+  ['subs', 'Подписки', '🔁'],
   ['menu', 'Меню', '🍲'],
   ['cash', 'Касса', '🧾'],
   ['money', 'Деньги', '💰'],
@@ -109,16 +111,17 @@ export function AdminApp() {
       <main className="flex-1 px-4 pb-28 pt-1">
         {tab === 'courier' && <CourierTab />}
         {tab === 'orders' && <OrdersTab adminEmail={session.user.email ?? session.user.id} />}
+        {tab === 'subs' && <SubscriptionsTab adminEmail={session.user.email ?? session.user.id} />}
         {tab === 'menu' && <MenuTab />}
         {tab === 'cash' && <CashTab />}
         {tab === 'money' && <MoneyTab />}
         {tab === 'settings' && <SettingsTab />}
       </main>
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-card">
-        <div className="mx-auto grid max-w-[640px] grid-cols-6 pb-[env(safe-area-inset-bottom)]">
+        <div className="mx-auto grid max-w-[640px] grid-cols-7 pb-[env(safe-area-inset-bottom)]">
           {TABS.map(([id, label, icon]) => (
-            <button key={id} onClick={() => setTab(id)} aria-current={tab === id} className={`flex flex-col items-center gap-0.5 py-2 text-[10px] font-extrabold ${tab === id ? 'text-accent' : 'text-ink-muted'}`}>
-              <span className="text-[20px] leading-none">{icon}</span>
+            <button key={id} onClick={() => setTab(id)} aria-current={tab === id} className={`flex flex-col items-center gap-0.5 py-2 text-[9px] font-extrabold min-[420px]:text-[10px] ${tab === id ? 'text-accent' : 'text-ink-muted'}`}>
+              <span className="text-[18px] leading-none">{icon}</span>
               {label}
             </button>
           ))}
