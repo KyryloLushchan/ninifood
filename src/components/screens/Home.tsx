@@ -126,12 +126,14 @@ export function Home() {
           className="h-[220px] w-full rounded-xl2 p-3.5 [&:is(img)]:p-0"
           caption={<span className="rounded-md bg-card px-2 py-1 text-xs">{t('photo.hero')}</span>}
         />
-        <h2 className="font-serif text-h1 font-semibold [text-wrap:pretty]">{t('home.heroTitle')}</h2>
-        <p className="text-base leading-normal text-ink-2">{t('home.heroText', hours)}</p>
-        <div className="-mt-1 text-[15px] font-extrabold">{t('home.heroDelivery', hours)}</div>
-        <Button size="xl" shadow disabled={!heroDay} onClick={() => heroDay && startOnce(heroDay)}>
-          {heroDay ? t('home.heroCta', { day: labelFull(heroDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
-        </Button>
+        <h2 className="font-serif text-h1 font-semibold [text-wrap:balance]">{t('home.heroTitle')}</h2>
+        <p className="text-base leading-normal text-ink-2">{t('home.heroText')}</p>
+        <div className="flex flex-col items-center gap-2 min-[420px]:flex-row min-[420px]:gap-3">
+          <Button size="xl" shadow className="min-[420px]:flex-1" disabled={!heroDay} onClick={() => heroDay && startOnce(heroDay)}>
+            {heroDay ? t('home.heroCta', { day: labelFull(heroDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
+          </Button>
+          <div className="text-sm text-ink-2 min-[420px]:flex-none">{t('home.heroDeliveryNote', hours)}</div>
+        </div>
         <div className="text-center text-sm text-ink-2">
           {t('home.todayQ')}{' '}
           <a href={settings.telegramUrl} target="_blank" rel="noreferrer">
