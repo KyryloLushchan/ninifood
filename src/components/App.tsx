@@ -1,6 +1,6 @@
 'use client';
 
-import { I18nProvider } from '@/i18n';
+import { I18nProvider, useI18n } from '@/i18n';
 import { useKeyboardAwareness } from '@/lib/use-keyboard';
 import { AppProvider, useApp } from '@/state/app-context';
 import { Auth } from './screens/Auth';
@@ -12,6 +12,18 @@ import { Order } from './screens/Order';
 import { PaymentOther } from './screens/PaymentOther';
 import { PaymentQr } from './screens/PaymentQr';
 import { Thanks } from './screens/Thanks';
+
+function DraftNotice() {
+  const { t } = useI18n();
+  const { draftStale, dismissDraftStale } = useApp();
+  if (!draftStale) return null;
+  return (
+    <div role="alert" className="fixed inset-x-0 top-0 z-50 mx-auto flex w-full max-w-app items-start gap-3 bg-accent px-5 py-3 text-sm font-bold text-white">
+      <span className="flex-1">{t('phone.stale')}</span>
+      <button type="button" aria-label="×" onClick={dismissDraftStale} className="text-lg leading-none">×</button>
+    </div>
+  );
+}
 
 function Screens() {
   const { screen, payment } = useApp();
@@ -39,6 +51,7 @@ export function App() {
     <I18nProvider>
       <AppProvider>
         <div className="mx-auto flex min-h-screen w-full max-w-app flex-col bg-bg sm:border-x sm:border-line">
+          <DraftNotice />
           <Screens />
         </div>
         <LanguageSheet />

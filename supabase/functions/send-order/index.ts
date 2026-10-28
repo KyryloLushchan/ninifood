@@ -264,6 +264,13 @@ Deno.serve(async (req) => {
     if (error) console.error(`save customer profile failed for ${order.order_number}:`, error.message);
   }
 
+  // Заказ ушёл с телефона по ссылке «Продолжить на телефоне» — черновик больше не нужен.
+  const draftId = str(p.draft_id, 22);
+  if (/^[0-9A-Za-z]{22}$/.test(draftId)) {
+    const { error } = await db.from('order_drafts').delete().eq('id', draftId);
+    if (error) console.error(`delete draft failed for ${order.order_number}:`, error.message);
+  }
+
   await record('ok', order.order_number);
   return json({ ok: true, orderNumber: order.order_number });
 });

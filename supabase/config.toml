@@ -426,3 +426,6 @@ verify_jwt = false
 
 [functions.auth-gate]
 verify_jwt = false
+
+[functions.order-draft]
+verify_jwt = false

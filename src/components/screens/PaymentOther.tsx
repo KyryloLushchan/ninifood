@@ -7,6 +7,7 @@ import { Button } from '../ui/Button';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
 import { TurnstileWidget } from '../ui/TurnstileWidget';
+import { ContinueOnPhone } from '../ui/ContinueOnPhone';
 import { ScreenshotUpload } from '../ui/ScreenshotUpload';
 
 /** Оплата «Другой способ»: как экран QR, но без QR-кода — способ уточняется в Telegram, скриншот обязателен. */
@@ -37,6 +38,7 @@ export function PaymentOther() {
 
         <ScreenshotUpload />
         <TurnstileWidget />
+        <ContinueOnPhone />
       </div>
       <BottomBar>
         <Button disabled={!ok || sending || !captcha} onClick={() => void placeOrder()}>

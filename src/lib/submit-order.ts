@@ -25,6 +25,8 @@ export interface OrderPayload {
   lang: string;
   /** JWT вошедшего через Telegram (сервер берёт из него ник и VIP); null — гость. */
   accessToken?: string | null;
+  /** Черновик «Продолжить на телефоне»: после успешного заказа сервер его удалит. */
+  draftId?: string | null;
 }
 
 /** Код ошибки от сервера (или 'network' / 'generic') — фронт превращает в текст на языке клиента. */
@@ -49,6 +51,7 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
       payment: payload.payment,
       lang: payload.lang,
       captcha: payload.captcha,
+      ...(payload.draftId ? { draft_id: payload.draftId } : {}),
       ...payload.contact,
       phone: `${PHONE_PREFIX}${payload.contact.phone}`,
       ...(payload.place ? { place_id: payload.place.placeId, lat: payload.place.lat, lng: payload.place.lng } : {}),

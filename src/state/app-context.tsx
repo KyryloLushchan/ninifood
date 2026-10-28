@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BOOKABLE_DAYS, SUB_MIN_DAYS, SUB_WINDOW_DAYS } from '@/config/site';
 import { fetchMenu, type Menu } from '@/data/menu';
-import { useI18n } from '@/i18n';
+import { useI18n, type Lang } from '@/i18n';
 import { addDays, isSunday, todayISO } from '@/lib/dates';
 import { onceTotals, subTotals, type OrderType, type Totals } from '@/lib/pricing';
 import { DEFAULT_SETTINGS, fetchSiteSettings, type SiteSettings } from '@/lib/site-settings';
@@ -13,6 +13,7 @@ import { OrderError, submitOrder } from '@/lib/submit-order';
 import type { GateSession } from '@/lib/auth-gate';
 import { customerDb, fetchProfile, signOutCustomer, type CustomerProfile } from '@/lib/customer-auth';
 import { phoneDigits } from '@/lib/phone';
+import { DRAFT_ID_RE, fetchDraft } from '@/lib/order-draft';
 
 export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks' | 'orders' | 'auth';
 export type Payment = 'qr' | 'cash' | 'other';
@@ -113,13 +114,20 @@ interface AppValue {
   clearSubmitError: () => void;
   placeOrder: () => Promise<void>;
   placed: PlacedOrder | null;
+  /** Ссылка «Продолжить на телефоне» (?d=) устарела или не найдена — показать уведомление. */
+  draftStale: boolean;
+  dismissDraftStale: () => void;
   reset: () => void;
 }
 
 const AppContext = createContext<AppValue | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const { lang } = useI18n();
+  const { lang, confirmLang } = useI18n();
+  const langRef = useRef({ lang, confirmLang });
+  langRef.current = { lang, confirmLang };
+  const draftIdRef = useRef<string | null>(null);
+  const [draftStale, setDraftStale] = useState(false);
   const [screen, setScreen] = useState<Screen>('home');
   const [today, setToday] = useState<string | null>(null);
   const [menu, setMenu] = useState<Menu>({});
@@ -193,6 +201,43 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setContact(EMPTY_CONTACT);
     setPlace(null);
     setScreen((s) => (s === 'orders' ? 'home' : s));
+  }, []);
+
+  // Ссылка «Продолжить на телефоне»: ?d=ID → черновик → заполняем заказ и открываем экран оплаты.
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('d');
+    if (id === null) return;
+    const clean = () => {
+      const u = new URL(window.location.href);
+      u.searchParams.delete('d');
+      window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+    };
+    const stale = () => {
+      setDraftStale(true);
+      clean();
+    };
+    if (!DRAFT_ID_RE.test(id)) return stale();
+    void fetchDraft(id).then((d) => {
+      const tomorrow = addDays(todayISO(), 1);
+      const days = d ? d.days.filter((x) => x >= tomorrow && !isSunday(x)) : [];
+      if (!d || days.length < (d.type === 'subscription' ? SUB_MIN_DAYS : 1)) return stale();
+      draftIdRef.current = id;
+      if (d.type === 'subscription') {
+        setOrderType('sub');
+        setSubDays(days);
+      } else {
+        setOrderType('once');
+        setOnceDays(days);
+      }
+      setPortionsState(d.portions);
+      setContact({ telegram: d.telegram, phone: phoneDigits(d.phone), address: d.address, hotel: d.hotel, comment: d.comment });
+      setPlace(d.place_id && d.lat != null && d.lng != null ? { placeId: d.place_id, text: d.address, lat: d.lat, lng: d.lng } : null);
+      setPayment(d.payment);
+      // Язык клиента с компьютера — только если на телефоне язык ещё не выбирали.
+      if (d.lang && ['ua', 'ru', 'en', 'vi'].includes(d.lang) && !localStorage.getItem('ninifood.lang')) langRef.current.confirmLang(d.lang as Lang);
+      setScreen(d.payment === 'cash' ? 'checkout' : 'payment');
+      clean();
+    });
   }, []);
 
   // Сегодняшняя дата по Дананг-времени; пересчитывается, если вкладку оставили открытой на ночь.
@@ -314,6 +359,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setScreenshot(null);
     setSubmitError(null);
     setPlaced(null);
+    draftIdRef.current = null;
     go('home');
   }, [go, customer]);
 
@@ -334,7 +380,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         screenshot: shot,
         lang,
         accessToken,
+        draftId: draftIdRef.current,
       });
+      draftIdRef.current = null;
       setPlaced({ orderId: orderNumber, type: orderType, days, portions, total, payment });
       go('thanks');
       if (customer) void loadProfile(); // сервер сохранил телефон и адрес
@@ -399,6 +447,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     clearSubmitError: () => setSubmitError(null),
     placeOrder,
     placed,
+    draftStale,
+    dismissDraftStale: () => setDraftStale(false),
     reset,
   };
 
