@@ -34,7 +34,7 @@ const CSP = [
 export const metadata: Metadata = {
   referrer: 'strict-origin-when-cross-origin',
   title: 'NiniFood — домашние обеды в Дананге',
-  description: 'Домашний обед из 4 блюд каждый день. Доставка 14:00–16:00 по Дананге.',
+  description: 'Домашний обед из 4 блюд каждый день. Доставка 13:00–16:00 по Дананге.',
 };
 
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, interactiveWidget: 'overlays-content', themeColor: '#F6EFE4' };

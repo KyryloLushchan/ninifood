@@ -144,9 +144,9 @@ export const ru = {
 
   'thanks.title': 'Спасибо, заказ принят',
   'thanks.s1': 'Ваш заказ принят',
-  'thanks.s2time': '10:00–14:00',
+  'thanks.s2time': '10:00–13:00',
   'thanks.s2': 'Готовим',
-  'thanks.s3time': '14:00–16:00',
+  'thanks.s3time': '13:00–16:00',
   'thanks.s3': 'В пути',
   'thanks.orderNo': 'Номер заказа',
   'thanks.days': 'Дни',

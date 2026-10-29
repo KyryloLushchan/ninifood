@@ -5,7 +5,7 @@ import { isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
-const FROM = '14:00';
+const FROM = '13:00';
 const TO = '16:00';
 
 /**

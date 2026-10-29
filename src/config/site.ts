@@ -13,7 +13,7 @@ export const BOOKABLE_DAYS = 6;
 /** Подписку можно оформить на дни Пн–Сб из ближайших N дней (кроме сегодня), даже если меню ещё не опубликовано. */
 export const SUB_WINDOW_DAYS = 14;
 
-export const DELIVERY_FROM = '14:00';
+export const DELIVERY_FROM = '13:00';
 export const DELIVERY_TO = '16:00';
 
 export const CONTACTS = {

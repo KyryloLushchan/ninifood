@@ -11,7 +11,7 @@ export const ROAD_FACTOR = 1.3;
 /** Точек (остановок) в одной ссылке Google Maps: origin + до 8 промежуточных + destination. */
 export const LINK_STOPS = 9;
 /** Длиннее — предупреждение «подумай о 2 курьерах». */
-export const LONG_ROUTE_KM = 35;
+export const LONG_ROUTE_KM = 50;
 
 const R = 6371;
 const rad = (d: number) => (d * Math.PI) / 180;
