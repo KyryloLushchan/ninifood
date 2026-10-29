@@ -77,7 +77,7 @@ function PhoneModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-5" onClick={onClose}>
-      <div role="dialog" aria-modal="true" className="flex w-full max-w-[400px] flex-col items-center gap-4 rounded-xl2 bg-card p-6" onClick={(e) => e.stopPropagation()}>
+      <div role="dialog" aria-modal="true" className="flex w-full max-w-[400px] md:max-w-[440px] flex-col items-center gap-4 rounded-xl2 bg-card p-6" onClick={(e) => e.stopPropagation()}>
         <div className="text-center text-[17px] font-extrabold">{t('phone.title')}</div>
         {status === 'done' ? (
           <>

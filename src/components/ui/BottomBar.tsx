@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useI18n } from '@/i18n';
+import { useWide } from '@/lib/use-wide';
 
 /**
  * Нижняя панель закреплена у низа окна; в потоке остаётся распорка высотой с панель + 16px,
@@ -8,23 +10,34 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
  * Отступ под жестовую полосу iPhone — env(safe-area-inset-bottom) внутри панели.
  */
 export function BottomBar({ children, compact }: { children: ReactNode; compact?: boolean }) {
+  const { t } = useI18n();
+  const wide = useWide();
   const bar = useRef<HTMLDivElement>(null);
   const [h, setH] = useState(0);
   useEffect(() => {
-    const el = bar.current;
+    const el = bar.current; // на десктопе панели нет — наблюдать нечего
     if (!el) return;
     const ro = new ResizeObserver(() => setH(el.offsetHeight));
     ro.observe(el);
     setH(el.offsetHeight);
     return () => ro.disconnect();
-  }, []);
+  }, [wide]);
+
+  // ≥ 1024 px: вместо нижней панели — липкая карточка справа (одна копия содержимого: ни дублей кнопок, ни двойной отправки).
+  if (wide)
+    return (
+      <aside className="sticky top-6 flex flex-col gap-4 self-start rounded-xl2 border border-line bg-card p-6 lg:col-start-2 lg:row-start-1">
+        <div className="font-serif text-h2 font-semibold">{t('order.title')}</div>
+        {children}
+      </aside>
+    );
 
   return (
     <>
       <div aria-hidden style={{ height: h + 16 }} />
       <div
         ref={bar}
-        className={`fixed inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-app flex-col border-t border-line bg-card px-5 transition-[transform,opacity] duration-200 [html[data-kb=open]_&]:pointer-events-none [html[data-kb=open]_&]:translate-y-full [html[data-kb=open]_&]:opacity-0 ${
+        className={`fixed inset-x-0 bottom-0 z-10 mx-auto flex w-full max-w-app flex-col border-t border-line bg-card px-5 md:max-w-[720px] transition-[transform,opacity] duration-200 [html[data-kb=open]_&]:pointer-events-none [html[data-kb=open]_&]:translate-y-full [html[data-kb=open]_&]:opacity-0 ${
           compact ? 'gap-2 pb-[calc(14px+env(safe-area-inset-bottom))] pt-3' : 'gap-3 pb-[calc(24px+env(safe-area-inset-bottom))] pt-4'
         }`}
       >

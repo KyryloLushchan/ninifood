@@ -12,6 +12,7 @@ import { AddressField } from '../ui/AddressField';
 import { AuthControl } from '../ui/AuthControl';
 import { DiscountBadge } from '../ui/DiscountBadge';
 import { Field } from '../ui/Field';
+import { TwoCol } from '../ui/Layout';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
 import { TurnstileWidget } from '../ui/TurnstileWidget';
@@ -69,7 +70,8 @@ export function Checkout() {
   return (
     <>
       <ScreenHeader title={t('checkout.title')} onBack={() => go('order')} />
-      <form autoComplete="on" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-[18px] px-5 pb-6">
+      <TwoCol>
+      <form autoComplete="on" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-[18px] px-5 pb-6 lg:px-0 lg:pb-0">
         <div className="flex items-center justify-between gap-3 rounded-md2 bg-card px-4 py-3.5">
           <div className="flex flex-col gap-0.5">
             <div className="text-[15px] font-extrabold">
@@ -159,7 +161,7 @@ export function Checkout() {
         </div>
         {payment === 'cash' && <TurnstileWidget />}
       </form>
-      <div className="flex-1" />
+      <div className="flex-1 lg:hidden" />
       <BottomBar>
         <OrderSummary sum={sum} />
         {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}
@@ -167,6 +169,7 @@ export function Checkout() {
           {sending ? t('checkout.sending') : payment !== 'cash' ? t('checkout.toPayment') : t('checkout.send')}
         </Button>
       </BottomBar>
+      </TwoCol>
     </>
   );
 }

@@ -8,6 +8,7 @@ import { Button } from '../ui/Button';
 import { Field } from '../ui/Field';
 import { ScreenHeader } from '../ui/ScreenHeader';
 import { TurnstileBox, turnstileLang } from '../ui/TurnstileWidget';
+import { Narrow } from '../ui/Layout';
 
 type Mode = 'login' | 'register' | 'forgot';
 const PASSWORD_MIN = 8;
@@ -89,7 +90,7 @@ export function Auth() {
           : t('auth.sendCode');
 
   return (
-    <>
+    <Narrow max={440}>
       <ScreenHeader title={title} onBack={closeAuth} />
       <form onSubmit={submit} className="flex flex-1 flex-col gap-4 px-5 pb-8" noValidate>
         {mode === 'forgot' && <p className="text-sm leading-snug text-ink-2">{codeSent ? t('auth.codeSent', { email: email.trim() }) : t('auth.forgotHint')}</p>}
@@ -157,6 +158,6 @@ export function Auth() {
           )}
         </div>
       </form>
-    </>
+    </Narrow>
   );
 }
