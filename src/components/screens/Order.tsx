@@ -13,6 +13,7 @@ import { DayChip } from '../ui/DayChip';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
 import { Stepper } from '../ui/Stepper';
+import { TwoCol } from '../ui/Layout';
 
 export function Order() {
   const { t } = useI18n();
@@ -24,7 +25,8 @@ export function Order() {
   return (
     <>
       <ScreenHeader title={t('order.title')} onBack={() => go('home')} />
-      <div className="flex flex-1 flex-col gap-[18px] px-5">
+      <TwoCol>
+      <div className="flex flex-1 flex-col gap-[18px] px-5 lg:px-0">
         <div className="grid grid-cols-2 rounded-chip bg-sand p-1" role="tablist">
           <button role="tab" aria-selected={orderType === 'once'} className={seg(orderType === 'once')} onClick={() => setOrderType('once')}>
             {t('order.tabOnce')}
@@ -46,6 +48,7 @@ export function Order() {
 
       </div>
       <OrderBar />
+      </TwoCol>
     </>
   );
 }
@@ -68,7 +71,7 @@ function WeekGrid({ days, isSelected, onToggle }: { days: string[]; isSelected: 
             <div className="text-xs font-extrabold tracking-[.06em] text-ink-muted">
               {ddmm(list[0])} – {ddmm(list[list.length - 1])}
             </div>
-            <div className="grid grid-cols-7 gap-0.5 min-[360px]:gap-1">
+            <div className="grid grid-cols-7 gap-0.5 min-[360px]:gap-1 lg:gap-2">
               {[0, 1, 2, 3, 4, 5].map((i) => {
                 const d = list.find((x) => new Date(`${x}T00:00:00Z`).getUTCDay() === i + 1);
                 if (d) return <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={isSelected(d)} onClick={() => onToggle(d)} />;

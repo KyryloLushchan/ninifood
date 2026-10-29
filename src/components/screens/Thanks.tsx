@@ -7,6 +7,7 @@ import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
 import { Button } from '../ui/Button';
 import { Logo } from '../ui/ScreenHeader';
+import { Narrow } from '../ui/Layout';
 
 export function Thanks() {
   const { t, lang } = useI18n();
@@ -25,7 +26,7 @@ export function Thanks() {
   const line = <div className="min-h-7 w-0.5 flex-1 bg-disabled" />;
 
   return (
-    <>
+    <Narrow>
       <div className="px-5 py-4">
         <Logo />
       </div>
@@ -80,6 +81,6 @@ export function Thanks() {
           </a>
         </div>
       </div>
-    </>
+    </Narrow>
   );
 }

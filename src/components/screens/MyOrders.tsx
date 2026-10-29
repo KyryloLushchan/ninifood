@@ -7,6 +7,7 @@ import { labelList } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { useApp } from '@/state/app-context';
 import { ScreenHeader } from '../ui/ScreenHeader';
+import { Narrow } from '../ui/Layout';
 
 interface Row {
   order_number: string;
@@ -43,7 +44,7 @@ export function MyOrders() {
   }, []);
 
   return (
-    <>
+    <Narrow>
       <ScreenHeader title={t('auth.myOrders')} onBack={() => go('home')} />
       <div className="flex flex-1 flex-col gap-3 px-5 pb-8">
         {failed ? (
@@ -70,6 +71,6 @@ export function MyOrders() {
           ))
         )}
       </div>
-    </>
+    </Narrow>
   );
 }

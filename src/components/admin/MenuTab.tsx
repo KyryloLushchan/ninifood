@@ -139,6 +139,7 @@ export function MenuTab() {
       <Err>{error}</Err>
       {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}
 
+      <div className="contents lg:grid lg:grid-cols-2 lg:items-start lg:gap-3">
       {form.map((d, i) => (
         <Card key={i} className="flex flex-col gap-2.5">
           <div className="text-[13px] font-extrabold uppercase tracking-[.04em] text-accent">{POSITIONS[i]}</div>
@@ -167,6 +168,7 @@ export function MenuTab() {
           </div>
         </Card>
       ))}
+      </div>
       <div className="text-xs text-ink-muted">
         Пустое название = блюда нет. Если язык не заполнен, на нём покажется русское название. КБЖУ — на порцию, примерные.
       </div>

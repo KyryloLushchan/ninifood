@@ -17,14 +17,14 @@ export function LanguageSheet() {
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(59,43,34,.55)]"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[rgba(59,43,34,.55)] md:items-center md:p-5"
       onClick={hasChosen ? closeSheet : undefined}
     >
       <div
         role="dialog"
         aria-modal="true"
         onClick={(e) => e.stopPropagation()}
-        className="flex w-full max-w-app flex-col gap-5 rounded-t-sheet bg-card px-5 pb-8 pt-7"
+        className="flex w-full max-w-app flex-col gap-5 rounded-t-sheet bg-card px-5 pb-8 pt-7 md:max-w-[440px] md:rounded-xl2 md:px-8"
       >
         <div className="flex justify-center">
           <Logo size={26} />

@@ -28,6 +28,8 @@ export const vi: Record<TKey, string> = {
   'home.heroText': 'Bữa trưa nhà làm 4 món: súp, món chính, salad và tráng miệng',
   'home.heroCta': 'Đặt cho {day}',
   'home.menuTitle': 'Thực đơn trong tuần',
+  'nav.menu': "Thực đơn",
+  'nav.sub': "Gói đăng ký",
   'home.todayTag': 'hôm nay',
   'home.menuCta': 'Đặt cho {day} · {price}',
   'home.noDays': 'Thực đơn sắp có',

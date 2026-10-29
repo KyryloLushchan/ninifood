@@ -67,7 +67,7 @@ export function App() {
   return (
     <I18nProvider>
       <AppProvider>
-        <div className="mx-auto flex min-h-screen w-full max-w-app flex-col bg-bg sm:border-x sm:border-line">
+        <div className="mx-auto flex min-h-screen w-full max-w-app flex-col bg-bg sm:border-x sm:border-line md:max-w-[720px] lg:max-w-[1200px]">
           <DraftNotice />
           <Screens />
         </div>

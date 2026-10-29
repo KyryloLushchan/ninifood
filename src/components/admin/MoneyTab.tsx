@@ -91,7 +91,7 @@ export function MoneyTab() {
       <Err>{error}</Err>
       {!report && !error && <Note>Загрузка…</Note>}
       {report && profit && (
-        <>
+        <div className="contents lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 min-[1536px]:grid-cols-3">
           <Card>
             <div className="text-sm text-ink-muted">Прибыль</div>
             <div className={`font-serif text-[32px] font-bold ${profit.profit < 0 ? 'text-danger' : ''}`}>{fmtMoney(profit.profit)}</div>
@@ -130,7 +130,7 @@ export function MoneyTab() {
             <Row title="Разовые" b={report.single} />
             <Row title="Подписки" b={report.subscription} />
           </Card>
-        </>
+        </div>
       )}
     </div>
   );

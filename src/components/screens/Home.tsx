@@ -11,6 +11,7 @@ import { Button } from '../ui/Button';
 import { AuthControl } from '../ui/AuthControl';
 import { DiscountBadge } from '../ui/DiscountBadge';
 import { LangPill } from '../ui/LangPill';
+import { useWide } from '@/lib/use-wide';
 import { Photo } from '../ui/Photo';
 import { Logo } from '../ui/ScreenHeader';
 
@@ -34,10 +35,23 @@ function NutritionLine({ n, className, split }: { n: { kcal: number; protein: nu
   );
 }
 
+/** Коллаж из 4 блюд для hero на десктопе. Рендерится только при ≥ 1024 px (на мобильной вёрстке фото не грузятся). */
+function HeroCollage({ dishes }: { dishes?: { photo: string | null }[] }) {
+  const list = (dishes ?? []).slice(0, 4);
+  return (
+    <div className="grid grid-cols-2 gap-4 lg:col-start-2 lg:row-start-1 lg:row-span-5">
+      {(list.length ? list : [null, null, null, null]).map((d, i) => (
+        <Photo key={i} src={d ? d.photo : null} sizes="300px" className={`h-[200px] w-full rounded-xl2 xl:h-[240px] ${i % 2 ? 'mt-8' : ''}`} />
+      ))}
+    </div>
+  );
+}
+
 export function Home() {
   const { t, lang } = useI18n();
   const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub, isVip } = useApp();
   const [tab, setTab] = useState<string | null>(null);
+  const wide = useWide();
 
   // Сегодня (если есть меню, неактивно) + ближайшие доступные дни.
   const menuDays = today ? [...(!isSunday(today) && !isVip ? [today] : []), ...bookableDays] : [];
@@ -115,26 +129,33 @@ export function Home() {
   };
   return (
     <>
-      <header className="flex items-center justify-between px-5 py-4">
+      <header className="flex items-center justify-between px-5 py-4 lg:px-10 lg:py-5">
         <Logo />
+        <nav className="hidden items-center gap-8 text-[15px] font-bold text-ink-2 lg:flex">
+          <a href="#menu" className="hover:text-accent hover:no-underline">{t('nav.menu')}</a>
+          <a href="#subscription" className="hover:text-accent hover:no-underline">{t('nav.sub')}</a>
+          <a href="#how" className="hover:text-accent hover:no-underline">{t('how.title')}</a>
+          <a href="#contacts" className="hover:text-accent hover:no-underline">{t('contacts.title')}</a>
+        </nav>
         <div className="flex items-center gap-2">
           <AuthControl />
           <LangPill />
         </div>
       </header>
 
-      <section className="flex flex-col gap-4 px-5 pb-7">
+      <section className="flex flex-col gap-4 px-5 pb-7 md:gap-5 lg:grid lg:grid-cols-2 lg:grid-rows-[1fr_auto_auto_auto_1fr] lg:items-center lg:gap-x-14 lg:gap-y-5 lg:px-10 lg:pb-14 lg:pt-4">
         <DiscountBadge />
         <Photo
           src={PHOTOS.hero}
           eager
           sizes="(min-width: 480px) 480px, 100vw"
-          className="h-[220px] w-full rounded-xl2 p-3.5 [&:is(img)]:p-0"
+          className="h-[220px] w-full rounded-xl2 p-3.5 md:h-[340px] lg:hidden [&:is(img)]:p-0"
           caption={<span className="rounded-md bg-card px-2 py-1 text-xs">{t('photo.hero')}</span>}
         />
-        <h2 className="font-serif text-[length:clamp(1.5rem,8.5334vw,2rem)] font-semibold leading-[1.15] [text-wrap:balance]">{t('home.heroTitle')}</h2>
-        <p className="text-base leading-normal text-ink-2">{t('home.heroText')}</p>
-        <div className="flex flex-col items-center gap-2 min-[420px]:flex-row min-[420px]:gap-3">
+        {wide && <HeroCollage dishes={heroDay ? menu[heroDay] : undefined} />}
+        <h2 className="font-serif text-[length:clamp(1.5rem,8.5334vw,2rem)] font-semibold leading-[1.15] [text-wrap:balance] md:text-[40px] lg:col-start-1 lg:row-start-2 lg:text-[44px] xl:text-[52px]">{t('home.heroTitle')}</h2>
+        <p className="text-base leading-normal text-ink-2 md:text-lg lg:col-start-1 lg:row-start-3">{t('home.heroText')}</p>
+        <div className="flex flex-col items-center gap-2 min-[420px]:flex-row min-[420px]:gap-3 lg:col-start-1 lg:row-start-4 lg:max-w-[520px]">
           <Button size="xl" shadow className="min-[420px]:flex-1" disabled={!heroDay} onClick={() => heroDay && startOnce(heroDay)}>
             {heroDay ? t('home.heroCta', { day: labelFull(heroDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
           </Button>
@@ -142,9 +163,9 @@ export function Home() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-4 bg-card py-7">
-        <h2 className="px-5 font-serif text-h2 font-semibold">{t('home.menuTitle')}</h2>
-        <div ref={tabsRef} className="flex gap-2 overflow-x-auto px-5 pb-1">
+      <section id="menu" className="flex scroll-mt-4 flex-col gap-4 bg-card py-7 lg:gap-6 lg:py-12">
+        <h2 className="px-5 font-serif text-h2 font-semibold lg:px-10 lg:text-[32px]">{t('home.menuTitle')}</h2>
+        <div ref={tabsRef} className="flex gap-2 overflow-x-auto px-5 pb-1 lg:justify-center lg:px-10">
           {menuDays.map((d) => {
             const isToday = d === today && !isVip;
             const on = d === active;
@@ -190,13 +211,13 @@ export function Home() {
                 {menuLoaded && list.length === 0 && (
                   <div className="px-5 py-6 text-center text-[15px] text-ink-muted">{t('home.noDays')}</div>
                 )}
-                <div className="grid grid-cols-2 gap-3 px-5">
+                <div className="grid grid-cols-2 gap-3 px-5 md:gap-4 lg:grid-cols-4 lg:gap-6 lg:px-10">
                   {list.map((dish) => (
                     <div key={dish.type} className="flex flex-col gap-2">
                       <Photo
                         src={dish.photo}
                         alt={dish.name[lang]}
-                        className="h-[120px] w-full rounded-lg2 p-2 [-webkit-user-drag:none]"
+                        className="h-[120px] w-full rounded-lg2 p-2 md:h-[200px] lg:h-[230px] [-webkit-user-drag:none]"
                         caption={t('photo.dish')}
                         captionClassName="text-[11px]"
                       />
@@ -207,7 +228,7 @@ export function Home() {
                   ))}
                 </div>
                 {nut.length > 0 && (
-                  <div className="mx-5 rounded-md2 bg-bg px-4 py-3 text-[13px] leading-snug">
+                  <div className="mx-5 rounded-md2 bg-bg px-4 py-3 text-[13px] leading-snug lg:mx-10 lg:flex lg:flex-wrap lg:items-baseline lg:gap-x-6">
                     <div className="font-extrabold">{t('dish.total')}</div>
                     <NutritionLine n={sum} className="mt-0.5 text-[15px] font-bold" />
                     <div className="mt-0.5 text-[11px] text-ink-muted">{t('dish.approx')}</div>
@@ -248,7 +269,7 @@ export function Home() {
           </div>
         )}
         {active && (
-          <div className="px-5 pt-1">
+          <div className="px-5 pt-1 lg:mx-auto lg:w-full lg:max-w-[520px] lg:px-10">
             <Button size="xl" shadow onClick={() => startOnce(active)}>
               {t('home.menuCta', { day: labelFull(active, lang), price: fmtMoney(settings.priceSingle) })}
             </Button>
@@ -256,10 +277,11 @@ export function Home() {
         )}
       </section>
 
-      <section className="px-5 py-7">
-        <div className="flex flex-col gap-3 rounded-xl2 bg-ink p-6 text-card">
+      <div className="contents lg:grid lg:grid-cols-2 lg:items-start lg:gap-x-14 lg:px-10 lg:py-12">
+      <section id="subscription" className="scroll-mt-4 px-5 py-7 lg:px-0 lg:py-0">
+        <div className="flex flex-col gap-3 rounded-xl2 bg-ink p-6 text-card lg:gap-4 lg:p-10">
           <div className="text-[13px] font-extrabold uppercase tracking-[.08em] text-accent-onDark">{t('sub.badge')}</div>
-          <div className="font-serif text-h2 font-semibold">{t('sub.cardTitle')}</div>
+          <div className="font-serif text-h2 font-semibold lg:text-[32px]">{t('sub.cardTitle')}</div>
           <div className="text-[15px] leading-normal text-ink-onDark">
             {t('sub.cardText')}
           </div>
@@ -269,8 +291,8 @@ export function Home() {
         </div>
       </section>
 
-      <section className="flex flex-col gap-4 px-5 pb-7">
-        <h2 className="font-serif text-h2 font-semibold">{t('how.title')}</h2>
+      <section id="how" className="flex scroll-mt-4 flex-col gap-4 px-5 pb-7 lg:px-0 lg:pb-0">
+        <h2 className="font-serif text-h2 font-semibold lg:text-[32px]">{t('how.title')}</h2>
         {[1, 2, 3, 4].map((n) => (
           <div key={n} className="flex items-start gap-3.5">
             <div className="flex h-9 w-9 flex-none items-center justify-center rounded-full bg-accent-soft font-extrabold text-accent">{n}</div>
@@ -281,8 +303,9 @@ export function Home() {
           </div>
         ))}
       </section>
+      </div>
 
-      <footer className="flex flex-1 flex-col gap-2.5 bg-card px-5 pb-8 pt-6">
+      <footer id="contacts" className="flex flex-1 flex-col gap-2.5 bg-card px-5 pb-8 pt-6 lg:px-10 lg:pb-12 lg:pt-10">
         <h2 className="mb-1 font-serif text-h2 font-semibold">{t('contacts.title')}</h2>
         <div className="flex justify-between text-[15px]">
           <span className="text-ink-muted">{t('contacts.telegram')}</span>

@@ -211,7 +211,8 @@ export function CourierTab() {
   };
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-8">
+      <div className="contents lg:col-start-2 lg:row-start-1 lg:flex lg:flex-col lg:gap-3">
       <div className="flex items-center gap-2">
         <Btn kind="ghost" onClick={() => setDate(addDays(date, -1))} aria-label="Раньше">←</Btn>
         <input type="date" value={date} onChange={(e) => e.target.value && setDate(e.target.value)} className={inputCls} />
@@ -248,6 +249,9 @@ export function CourierTab() {
       {rows && confirmed.length === 0 && <Note>На эту дату подтверждённых доставок нет</Note>}
       {rows && confirmed.length > 0 && !kitchen && <Err>Не задан адрес кухни (Настройки → Курьеры) — маршрут не построен.</Err>}
 
+      </div>
+
+      <div className={`contents lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:grid lg:items-start lg:gap-6 ${couriers === 2 ? 'lg:grid-cols-2' : ''}`}>
       {plan?.routes.map((route, ri) => {
         const items = route.stops.flatMap((st) => st.items);
         const key = `r${ri}`;
@@ -285,8 +289,9 @@ export function CourierTab() {
         </section>
       )}
       {!kitchen && confirmed.map((r, i) => <DeliveryCard key={r.id} r={r} label={String(i + 1)} />)}
+      </div>
 
-      <Btn kind="outline" onClick={sendReport} disabled={sending}>
+      <Btn kind="outline" className="lg:col-start-2 lg:row-start-2 lg:!px-3 lg:!text-sm" onClick={sendReport} disabled={sending}>
         {sending ? 'Отправляем…' : `Отправить отчёт в Telegram (курьеров: ${couriers})`}
       </Btn>
     </div>

@@ -4,7 +4,7 @@ export function Logo({ size = 22 }: { size?: 22 | 26 }) {
 
 export function ScreenHeader({ title, onBack }: { title: string; onBack: () => void }) {
   return (
-    <div className="flex items-center gap-3 px-5 py-4">
+    <div className="flex items-center gap-3 px-5 py-4 lg:px-10 lg:py-6">
       <button
         onClick={onBack}
         aria-label="←"

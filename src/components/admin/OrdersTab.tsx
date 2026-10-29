@@ -53,9 +53,11 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
       {orders === null && <Note>Загрузка…</Note>}
       {orders?.length === 0 && <Note>Заказов нет</Note>}
 
+      <div className="contents lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 min-[1536px]:grid-cols-3">
       {orders?.map((o) => (
         <OrderCard key={o.id} o={o} adminEmail={adminEmail} onChanged={load} onNotice={setNotice} />
       ))}
+      </div>
     </div>
   );
 }

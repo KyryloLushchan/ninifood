@@ -119,6 +119,7 @@ export function SubscriptionsTab({ adminEmail }: { adminEmail: string }) {
       {orders === null && !error && <Note>Загрузка…</Note>}
       {orders && list.length === 0 && <Note>Подписок нет</Note>}
 
+      <div className="contents lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 min-[1536px]:grid-cols-3">
       {list.map((o) => {
         const i = subInfo(o, today);
         const ending = isEnding(o, i, today);
@@ -192,6 +193,7 @@ export function SubscriptionsTab({ adminEmail }: { adminEmail: string }) {
           />
         );
       })}
+      </div>
     </div>
   );
 }
