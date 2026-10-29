@@ -28,6 +28,8 @@ export const ua: Record<TKey, string> = {
   'home.heroText': 'Домашній обід із 4 страв: суп, основне, салат і десерт',
   'home.heroCta': 'Замовити на {day}',
   'home.menuTitle': 'Меню на тиждень',
+  'nav.menu': "Меню",
+  'nav.sub': "Підписка",
   'home.todayTag': 'сьогодні',
   'home.menuCta': 'Замовити на {day} · {price}',
   'home.noDays': 'Меню скоро з’явиться',

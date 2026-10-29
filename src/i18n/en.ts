@@ -28,6 +28,8 @@ export const en: Record<TKey, string> = {
   'home.heroText': 'Home-style lunch of 4 dishes: soup, main, salad and dessert',
   'home.heroCta': 'Order for {day}',
   'home.menuTitle': 'Menu for the week',
+  'nav.menu': "Menu",
+  'nav.sub': "Subscription",
   'home.todayTag': 'today',
   'home.menuCta': 'Order for {day} · {price}',
   'home.noDays': 'Menu coming soon',

@@ -30,6 +30,8 @@ export const ru = {
   'home.heroText': 'Домашний обед из 4 блюд: суп, основное, салат и десерт',
   'home.heroCta': 'Заказать на {day}',
   'home.menuTitle': 'Меню на неделю',
+  'nav.menu': "Меню",
+  'nav.sub': "Подписка",
   'home.todayTag': 'сегодня',
   'home.menuCta': 'Заказать на {day} · {price}',
   'home.noDays': 'Меню скоро появится',
