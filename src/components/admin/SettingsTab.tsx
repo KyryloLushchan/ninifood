@@ -74,7 +74,8 @@ export function SettingsTab() {
   if (!values) return <div className="py-6 text-center text-sm text-ink-muted">{error || 'Загрузка…'}</div>;
 
   return (
-    <div className="flex flex-col gap-3">
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
+      <div className="contents lg:flex lg:flex-col lg:gap-3">
       <Card className="flex flex-col gap-3">
         {FIELDS.map((f) => (
           <div key={f.key}>
@@ -91,6 +92,7 @@ export function SettingsTab() {
       <Err>{error}</Err>
       {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}
       <Btn onClick={save} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить'}</Btn>
+      </div>
       <Card className="flex flex-col gap-3">
         <div className="text-[17px] font-extrabold">Курьеры</div>
         {KITCHEN.map((f) => (

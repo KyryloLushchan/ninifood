@@ -185,6 +185,7 @@ export function CashTab() {
 
       {rows === null && <Note>Загрузка…</Note>}
       {rows?.length === 0 && <Note>Записей за период нет</Note>}
+      <div className="contents lg:grid lg:grid-cols-2 lg:items-start lg:gap-3 min-[1536px]:grid-cols-3">
       {rows?.map((r) => (
         <Card key={r.id} className="flex flex-col gap-2">
           <div className="flex items-start justify-between gap-3">
@@ -205,6 +206,7 @@ export function CashTab() {
           </div>
         </Card>
       ))}
+      </div>
     </div>
   );
 }
