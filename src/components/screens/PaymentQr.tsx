@@ -5,7 +5,6 @@ import { buildQrUrl } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
 import { withBasePath } from '@/lib/base-path';
 import { loadStaticQr, renderQrPng, saveQr, type QrImage } from '@/lib/qr-image';
-import { paymentNote } from '@/lib/payment-note';
 import { useI18n, type TKey } from '@/i18n';
 import { useApp } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
@@ -19,9 +18,9 @@ import { TwoCol } from '../ui/Layout';
 
 export function PaymentQr() {
   const { t } = useI18n();
-  const { go, contact, total, sum, screenshot, captcha, placeOrder, sending, submitError } = useApp();
+  const { go, total, sum, screenshot, captcha, placeOrder, sending, submitError } = useApp();
   const staticQr = withBasePath(PHOTOS.paymentQr);
-  const dynamicQr = buildQrUrl(total, paymentNote(contact.telegram, contact.phone));
+  const dynamicQr = buildQrUrl(total);
 
   // PNG готовим заранее: share() должен вызываться сразу по нажатию, иначе iOS его блокирует.
   // Не получилось (сеть/сервис) — статичный QR.
