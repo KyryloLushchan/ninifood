@@ -149,7 +149,7 @@ export function CourierTab() {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${data.session?.access_token ?? ''}` },
-        body: JSON.stringify({ date, couriers }),
+        body: JSON.stringify({ date, couriers, parts: 'courier' }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.ok) {
@@ -165,6 +165,35 @@ export function CourierTab() {
       setError(ruError((e as Error).message));
     } finally {
       setSending(false);
+    }
+  };
+
+  // Порции для повара (группа NiniFood Ops): заказанные порции на выбранную дату + запас; шлёт та же функция daily-report.
+  const [sendingKitchen, setSendingKitchen] = useState(false);
+  const sendKitchen = async () => {
+    setSendingKitchen(true);
+    setError('');
+    setNotice('');
+    try {
+      const { data } = await adminDb.auth.getSession();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${data.session?.access_token ?? ''}` },
+        body: JSON.stringify({ date, parts: 'kitchen' }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok || !body.ok) {
+        setError(body.code === 'forbidden' ? 'Нет прав на отправку.' : 'Не удалось отправить порции повару (подробности — в группе Orders). Попробуйте ещё раз.');
+      } else if (body.skipped) {
+        setNotice('Воскресенье — выходной, порции не отправляются.');
+      } else {
+        const k = body.kitchen;
+        setNotice(k ? `Отправлено повару: ${k.portions} + ${k.extra} = ${k.total}${k.cutlery ? `, приборов: ${k.cutlery}` : ''}` : 'Отправлено повару.');
+      }
+    } catch (e) {
+      setError(ruError((e as Error).message));
+    } finally {
+      setSendingKitchen(false);
     }
   };
 
@@ -215,7 +244,7 @@ export function CourierTab() {
   };
 
   return (
-    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_1fr] lg:items-start lg:gap-x-8">
+    <div className="flex flex-col gap-3 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:grid-rows-[auto_auto_1fr] lg:items-start lg:gap-x-8">
       <div className="contents lg:col-start-2 lg:row-start-1 lg:flex lg:flex-col lg:gap-3">
       <div className="flex items-center gap-2">
         <Btn kind="ghost" onClick={() => setDate(addDays(date, -1))} aria-label="Раньше">←</Btn>
@@ -297,6 +326,9 @@ export function CourierTab() {
 
       <Btn kind="outline" className="lg:col-start-2 lg:row-start-2 lg:!px-3 lg:!text-sm" onClick={sendReport} disabled={sending}>
         {sending ? 'Отправляем…' : `Отправить отчёт в Telegram (курьеров: ${couriers})`}
+      </Btn>
+      <Btn kind="outline" className="lg:col-start-2 lg:row-start-3 lg:!px-3 lg:!text-sm" onClick={sendKitchen} disabled={sendingKitchen}>
+        {sendingKitchen ? 'Отправляем…' : 'Отправить порции повару'}
       </Btn>
     </div>
   );
