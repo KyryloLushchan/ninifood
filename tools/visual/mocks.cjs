@@ -17,7 +17,7 @@ const ord = (n, o, d) => ({
   id: 'o' + n, order_number: 'NF-10' + n, created_at: `2026-10-28T0${n % 9}:15:00Z`, type: 'single', telegram: '@guest' + n, phone: '+8490123456' + (n % 10),
   address: `${n} Bạch Đằng, Hải Châu, Đà Nẵng`, lat: 16.05 + n / 500, lng: 108.22 + n / 700, place_id: null, hotel: n % 2 ? 'Hotel Sun' : null, comment: n % 3 ? 'Позвонить за 10 минут' : null,
   payment_method: ['qr', 'cash', 'other'][n % 3], qty: 2, total: 360000, delivery_total: 40000, discount_percent: 0, discount_amount: 0, status: 'confirmed', lang: 'ru',
-  status_changed_at: null, status_changed_by: null, tg_message_id: 100 + n, receipt_file_id: null, is_vip: false, order_days: [], ...o, order_days: d,
+  status_changed_at: null, status_changed_by: null, tg_message_id: 100 + n, receipt_file_id: null, is_vip: false, cutlery: n % 2 === 0, order_days: [], ...o, order_days: d,
 });
 const ORDERS = [
   ord(20, { type: 'single' }, days(1, ['2026-10-29'])),
@@ -41,8 +41,8 @@ const MY_ORDERS = [
   { order_number: 'NF-1012', created_at: '2026-10-20T08:00:00Z', type: 'single', total: 190000, status: 'delivered', order_days: [{ delivery_date: '2026-10-21' }] },
   { order_number: 'NF-1009', created_at: '2026-10-18T08:00:00Z', type: 'single', total: 190000, status: 'cancelled', order_days: [{ delivery_date: '2026-10-19' }] },
 ];
-const CUSTOMER = { user_id: 'c1', email: 'anna.test@example.com', telegram: '@anna_test', phone: '+84901234567', address: '12 Bạch Đằng, Hải Châu, Đà Nẵng', place_id: null, lat: null, lng: null };
-const DRAFT = (payment) => ({ type: 'single', days: ['2026-10-30'], portions: 2, payment, lang: null, telegram: '@ninitest', phone: '+84901234567', address: '12 Bạch Đằng, Hải Châu, Đà Nẵng', hotel: 'Hotel Sun', comment: 'Позвонить за 10 минут', place_id: null, lat: null, lng: null });
+const CUSTOMER = { user_id: 'c1', email: 'anna.test@example.com', telegram: '@anna_test', phone: '+84901234567', address: '12 Bạch Đằng, Hải Châu, Đà Nẵng', place_id: null, lat: null, lng: null, cutlery: false };
+const DRAFT = (payment) => ({ type: 'single', days: ['2026-10-30'], portions: 2, payment, lang: null, telegram: '@ninitest', phone: '+84901234567', address: '12 Bạch Đằng, Hải Châu, Đà Nẵng', hotel: 'Hotel Sun', comment: 'Позвонить за 10 минут', cutlery: false, place_id: null, lat: null, lng: null });
 
 const QR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="540" height="640" viewBox="0 0 540 640"><rect width="540" height="640" fill="#fff"/><g fill="#000">' +
   Array.from({ length: 21 }, (_, y) => Array.from({ length: 21 }, (_, x) => ((x * 7 + y * 13 + x * y) % 3 === 0 ? `<rect x="${60 + x * 20}" y="${40 + y * 20}" width="20" height="20"/>` : '')).join('')).join('') +

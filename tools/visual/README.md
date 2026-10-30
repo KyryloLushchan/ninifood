@@ -3,7 +3,7 @@
 Скрипты делают скриншоты всех экранов сайта и админки на фиксированных данных (Supabase-ответы, время и Turnstile подменены)
 и сравнивают их с эталоном попиксельно (допуск 0).
 
-Нужны: Chrome в `/Applications`, `puppeteer-core` (через `NODE_PATH`), `sharp` (есть в проекте).
+Нужны: Chrome в `/Applications`, `puppeteer-core` (ставится вне проекта и вне /tmp: `mkdir -p ~/.ninifood/visual-tools && cd ~/.ninifood/visual-tools && npm i puppeteer-core@23.11.1`, затем `NODE_PATH=$HOME/.ninifood/visual-tools/node_modules`), `sharp` (есть в проекте).
 
 ```bash
 # 1) собрать сайт и раздать out/ (python3 -m http.server 8124 в out/)

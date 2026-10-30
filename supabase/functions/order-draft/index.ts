@@ -93,6 +93,7 @@ Deno.serve(async (req) => {
     address,
     hotel: str(p.hotel, 150),
     comment: str(p.comment, 500),
+    cutlery: p.cutlery === true,
     place_id: geoOk ? str(p.place_id, 300) || null : null,
     lat: geoOk ? Number(p.lat) : null,
     lng: geoOk ? Number(p.lng) : null,

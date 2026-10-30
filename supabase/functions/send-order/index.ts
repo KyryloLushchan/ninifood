@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
   let lat: number | null = geoOk ? Number(p.lat) : null;
   let lng: number | null = geoOk ? Number(p.lng) : null;
   const lang = ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? p.lang : null;
+  const cutlery = p.cutlery === true; // одноразовые приборы (бесплатно), одно значение на все дни
   const qty = Number(p.portions);
   who.phone = /^\+84\d{9}$/.test(phone) ? phone : null;
   who.telegram = telegram.toLowerCase().replace(/^https?:\/\/(www\.)?t\.me\//, '').replace(/^t\.me\//, '').replace(/^@/, '').slice(0, 64) || null;
@@ -204,6 +205,7 @@ Deno.serve(async (req) => {
       discount_percent,
       discount_amount,
       lang,
+      cutlery,
       customer_id: customerId,
       is_vip: vip,
     })
@@ -221,7 +223,7 @@ Deno.serve(async (req) => {
   }
 
   // ── Telegram ──
-  const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, discount_percent, discount_amount, lang, is_vip: vip };
+  const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, discount_percent, discount_amount, lang, cutlery, is_vip: vip };
   const text = buildOrderText(row, days);
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
   let messageId: number | null = null;
@@ -267,7 +269,7 @@ Deno.serve(async (req) => {
 
   // Запоминаем контакты клиента для автозаполнения (только у вошедшего).
   if (customerId) {
-    const { error } = await db.from('customers').update({ telegram, phone, address, place_id, lat, lng }).eq('user_id', customerId);
+    const { error } = await db.from('customers').update({ telegram, phone, address, place_id, lat, lng, cutlery }).eq('user_id', customerId);
     if (error) console.error(`save customer profile failed for ${order.order_number}:`, error.message);
   }
 

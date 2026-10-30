@@ -103,6 +103,7 @@ export const ru = {
   'checkout.poweredBy': 'Powered by Google',
   'checkout.hotel': 'Отель',
   'checkout.comment': 'Комментарий',
+  'checkout.cutlery': "Положить одноразовые приборы",
   'checkout.required': 'Заполните поле',
   'checkout.payTitle': 'Оплата',
   'checkout.payQr': 'QR-перевод',

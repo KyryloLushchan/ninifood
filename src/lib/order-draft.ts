@@ -14,6 +14,7 @@ export interface DraftPayload {
   address: string;
   hotel: string;
   comment: string;
+  cutlery: boolean;
   place_id: string | null;
   lat: number | null;
   lng: number | null;

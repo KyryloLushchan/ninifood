@@ -18,6 +18,8 @@ export interface OrderPayload {
   };
   /** Место, выбранное в подсказках Google; null — адрес свободным текстом. */
   place: PlaceInfo | null;
+  /** Одноразовые приборы (бесплатно, одно значение на все дни). */
+  cutlery?: boolean;
   /** Токен Cloudflare Turnstile. */
   captcha: string | null;
   /** Уже сжатый JPEG; обязателен при оплате QR. */
@@ -51,6 +53,7 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
       payment: payload.payment,
       lang: payload.lang,
       captcha: payload.captcha,
+      cutlery: payload.cutlery === true,
       ...(payload.draftId ? { draft_id: payload.draftId } : {}),
       ...payload.contact,
       phone: `${PHONE_PREFIX}${payload.contact.phone}`,

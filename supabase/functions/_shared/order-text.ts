@@ -24,6 +24,8 @@ export interface OrderRow {
   discount_percent?: number;
   discount_amount?: number;
   lang: string | null;
+  /** Одноразовые приборы (бесплатно). */
+  cutlery?: boolean;
   is_vip?: boolean;
 }
 
@@ -66,7 +68,8 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string)
     '',
     `Тип: ${o.type === 'single' ? 'Разовый' : subLabel(days.length)}`,
     `📅 Дни: ${sorted.map(labelRu).join(' · ')}`,
-    `🍽 Порций: ${o.qty} в день (всего ${o.qty * sorted.length})`,
+    `🍽 Порций: <b>${o.qty} в день</b> (всего ${o.qty * sorted.length})`,
+    ...(o.cutlery ? ['🍴 Приборы: да'] : []),
     `🍱 Обеды: ${money(o.total - o.delivery_total + (o.discount_amount ?? 0))}`,
     ...(o.discount_amount ? [`🏷 Скидка ${o.discount_percent}%: −${money(o.discount_amount)}`] : []),
     `🚚 Доставка: ${money(o.delivery_total)}`,

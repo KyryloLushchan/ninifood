@@ -32,6 +32,7 @@ interface Row {
     comment: string | null;
     payment_method: 'qr' | 'cash' | 'other';
     total: number;
+    cutlery: boolean;
     order_days: { delivery_date: string }[];
   };
 }
@@ -71,7 +72,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, order_days(delivery_date))',
+        'id, delivery_date, qty, delivered, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed'])
@@ -95,6 +96,7 @@ export function CourierTab() {
   const confirmed = (rows ?? []).filter((r) => r.orders.status === 'confirmed');
   const pending = (rows ?? []).filter((r) => r.orders.status === 'new');
   const sum = (l: Row[]) => l.reduce((s, r) => s + r.qty, 0);
+  const cutleryCount = (l: Row[]) => l.filter((r) => r.orders.cutlery).length;
 
   // Маршрут: те же функции, что у ночного отчёта (haversine × 1.3, nearest neighbor + 2-opt; при 2 курьерах — секторы вокруг кухни).
   const plan = useMemo(
@@ -110,7 +112,8 @@ export function CourierTab() {
       `   Telegram: ${tgLabel(r.orders.telegram)}`,
       ...(r.orders.phone ? [`   Тел.: ${formatPhone(r.orders.phone)}`] : []),
       ...(r.orders.type === 'subscription' ? [`   ${subLabel(r.orders.order_days.length)}, день ${dayNo(r)} из ${r.orders.order_days.length}`] : []),
-      `   Порций: ${r.qty}`,
+      `   ПОРЦИЙ: ${r.qty}`,
+      ...(r.orders.cutlery ? ['   ПРИБОРЫ: ДА'] : []),
       `   ${due ? `Взять наличными: ${fmtMoney(due)}` : 'Оплачено'}`,
       ...(r.orders.comment ? [`   Комментарий: ${r.orders.comment}`] : []),
       '',
@@ -120,7 +123,7 @@ export function CourierTab() {
   /** Текст маршрута для отправки курьеру: остановки по порядку + ссылки Google Maps. */
   const routeText = (r: Route<Row>, title: string) => {
     const items = r.stops.flatMap((st) => st.items);
-    const lines = [`${title} на ${labelFull(date, 'ru')} — ${r.stops.length} адр., ${sum(items)} порц., ${km(r.km)}`, ''];
+    const lines = [`${title} на ${labelFull(date, 'ru')} — ${r.stops.length} адр., ${sum(items)} порц., приборов: ${cutleryCount(items)}, ${km(r.km)}`, ''];
     r.stops.forEach((st, si) => st.items.forEach((row, k) => lines.push(...rowText(row, st.items.length > 1 ? `${si + 1}.${k + 1}` : String(si + 1)))));
     r.links.forEach((u, i) => lines.push(`Маршрут${r.links.length > 1 ? ` ${i + 1}/${r.links.length}` : ''}: ${u}`));
     return lines.join('\n').trim();
@@ -198,7 +201,8 @@ export function CourierTab() {
             </div>
           </div>
           <div className="flex-none text-right">
-            <div className="text-[17px] font-extrabold">{r.qty} порц.</div>
+            <div className="text-[24px] font-extrabold leading-none">{r.qty} <span className="text-[15px]">{plural(r.qty)}</span></div>
+            {r.orders.cutlery && <div className="mt-1.5 inline-block rounded-full bg-accent px-2.5 py-1 text-[13px] font-extrabold text-white">🍴 Приборы</div>}
             <div className={`text-sm font-bold ${due ? 'text-accent' : 'text-success'}`}>{due ? `к получению: ${fmtMoney(due)}` : 'оплачено'}</div>
           </div>
         </div>
@@ -235,7 +239,7 @@ export function CourierTab() {
       {rows && (
         <Card className="flex flex-col gap-1">
           <div className="text-[17px] font-extrabold">
-            {sum(confirmed)} порций <span className="text-sm font-bold text-ink-muted">· подтверждено, {confirmed.length} адр.</span>
+            {sum(confirmed)} порций <span className="text-sm font-bold text-ink-muted">· подтверждено, {confirmed.length} адр. · приборов: {cutleryCount(confirmed)}</span>
           </div>
           {pending.length > 0 && (
             <div className="text-sm font-bold text-accent">
@@ -261,7 +265,7 @@ export function CourierTab() {
             <div className="rounded-md2 border border-line bg-sand/50 px-4 py-3">
               <div className="text-[17px] font-extrabold">{couriers === 2 ? `🛵 Курьер ${ri + 1}` : '🛵 Маршрут'}</div>
               <div className="text-sm text-ink-2">
-                {route.stops.length} адр. · {sum(items)} порц. · {km(route.km)}
+                {route.stops.length} адр. · {sum(items)} порц. · приборов: {cutleryCount(items)} · {km(route.km)}
               </div>
               {long && <div className="mt-1 text-sm font-extrabold text-danger">⚠️ длинный маршрут, подумай о 2 курьерах</div>}
             </div>
@@ -298,4 +302,5 @@ export function CourierTab() {
   );
 }
 
+const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'ПОРЦИЯ' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'ПОРЦИИ' : 'ПОРЦИЙ');
 const km = (n: number) => `≈ ${(Math.round(n * 10) / 10).toString().replace('.', ',')} км`;

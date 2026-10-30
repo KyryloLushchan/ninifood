@@ -157,7 +157,7 @@ async function main() {
         }
         fs.writeFileSync(file, prev);
       } catch (e) { failed.push(`${path.basename(file)}: ${e.message}`); }
-      finally { if (page) { const c = page._ctx; await page.close(); if (c) await c.close(); } }
+      finally { try { if (page) { const c = page._ctx; await page.close(); if (c) await c.close(); } } catch {} }
       if (Date.now() - t0 > 12000) console.log('  slow', Date.now() - t0, 'ms', path.basename(file));
       if (++done % 10 === 0) console.log(`${done} / ${jobs.length}`);
     }

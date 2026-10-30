@@ -21,7 +21,7 @@ const REQUIRED: (keyof Contact)[] = ['telegram', 'phone', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
-  const { customer, go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError } = useApp();
+  const { customer, cutlery, setCutlery, go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError } = useApp();
   const [phoneForeign, setPhoneForeign] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
@@ -134,6 +134,10 @@ export function Checkout() {
         />
         <Field name="hotel" label={t('checkout.hotel')} {...bind('hotel')} />
         <Field name="comment" label={t('checkout.comment')} {...bind('comment')} />
+        <label className="flex cursor-pointer items-center gap-3 rounded-md2 bg-card px-4 py-3.5">
+          <input type="checkbox" name="cutlery" checked={cutlery} onChange={(e) => setCutlery(e.target.checked)} className="h-5 w-5 flex-none accent-accent" />
+          <span className="text-[15px] font-bold">{t('checkout.cutlery')}</span>
+        </label>
 
         <div className="flex flex-col gap-2.5">
           <div className="text-[17px] font-extrabold">{t('checkout.payTitle')}</div>

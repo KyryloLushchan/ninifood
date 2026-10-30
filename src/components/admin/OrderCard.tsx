@@ -132,6 +132,7 @@ export function OrderCard({
           {o.lat == null && <PinPoint orderId={o.id} onSaved={onChanged} />}
           {o.hotel && <div><b>Отель:</b> {o.hotel}</div>}
           {o.comment && <div><b>Комментарий:</b> {o.comment}</div>}
+          {o.cutlery && <div><b>🍴 Приборы:</b> да</div>}
           <div><b>Язык:</b> {(o.lang ?? '—').toUpperCase()}</div>
           <div>
             <b>Дни</b> <span className="text-ink-muted">(нажмите, чтобы отметить доставку)</span>

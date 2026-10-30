@@ -16,6 +16,7 @@ export interface ReportDelivery {
   payment_method: 'qr' | 'cash' | 'other';
   total: number;
   qty: number; // порции за этот день (order_days.qty)
+  cutlery?: boolean; // нужны одноразовые приборы
   /** Для подписки: сколько всего дней в заказе и номер этого дня; для разового — null. */
   sub: { total: number; dayNo: number } | null;
   firstDay: boolean; // первый день доставки заказа — наличные берём только в него
@@ -46,7 +47,8 @@ function entry(d: ReportDelivery, label: string): string {
   if (d.hotel) lines.push(`🏨 ${esc(d.hotel)}`);
   if (d.phone) lines.push(`📞 ${esc(phoneText(d.phone))}`);
   if (d.sub) lines.push(`🔁 ${subLabel(d.sub.total)} · день ${d.sub.dayNo} из ${d.sub.total}`);
-  lines.push(`🍽 ${portions(d.qty)}`);
+  lines.push(`🍽 <b>${portions(d.qty).toUpperCase()}</b>`);
+  if (d.cutlery) lines.push('🍴 <b>ПРИБОРЫ: ДА</b>');
   lines.push(due ? `💵 Взять наличными: <b>${money(due)}</b>` : '✅ Оплачено');
   if (d.comment) lines.push(`💬 ${esc(d.comment)}`);
   return lines.join('\n');
@@ -54,7 +56,7 @@ function entry(d: ReportDelivery, label: string): string {
 
 const kmText = (km: number) => `≈ ${(Math.round(km * 10) / 10).toString().replace('.', ',')} км (оценка по дорогам)`;
 const totals = (list: ReportDelivery[], addresses: number) =>
-  `Адресов: ${addresses} · Порций: ${list.reduce((s, d) => s + d.qty, 0)} · Наличными: ${money(list.reduce((s, d) => s + cashDue(d), 0))}`;
+  `Адресов: ${addresses} · Порций: ${list.reduce((s, d) => s + d.qty, 0)} · Приборов: ${list.filter((d) => d.cutlery).length} · Наличными: ${money(list.reduce((s, d) => s + cashDue(d), 0))}`;
 
 /** Режет куски (заголовки, остановки, ссылки) на сообщения до лимита Telegram, не разрывая кусок. */
 function pack(pieces: string[]): string[] {

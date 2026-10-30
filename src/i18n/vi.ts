@@ -95,6 +95,7 @@ export const vi: Record<TKey, string> = {
   'checkout.poweredBy': 'Powered by Google',
   'checkout.hotel': 'Khách sạn',
   'checkout.comment': 'Ghi chú',
+  'checkout.cutlery': "Thêm dụng cụ ăn dùng một lần",
   'checkout.required': 'Vui lòng điền thông tin',
   'checkout.payTitle': 'Thanh toán',
   'checkout.payQr': 'Chuyển khoản QR',

@@ -37,6 +37,7 @@ export interface AdminOrder {
   discount_amount: number;
   status: OrderStatus;
   lang: string | null;
+  cutlery: boolean;
   status_changed_at: string | null;
   status_changed_by: string | null;
   tg_message_id: number | null;

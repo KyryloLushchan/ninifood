@@ -101,6 +101,9 @@ interface AppValue {
   /** Токен Cloudflare Turnstile для текущей отправки (null — проверка не пройдена). */
   captcha: string | null;
   setCaptcha: (t: string | null) => void;
+  /** Одноразовые приборы (по умолчанию выключено; у вошедшего — последнее значение из профиля). */
+  cutlery: boolean;
+  setCutlery: (v: boolean) => void;
   place: PlaceInfo | null;
   /** Подставляет выбранное место в поле адреса и запоминает координаты. */
   selectPlace: (p: PlaceInfo) => void;
@@ -148,6 +151,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const contactRef = useRef(contact);
   contactRef.current = contact;
   const [captcha, setCaptcha] = useState<string | null>(null);
+  const [cutlery, setCutlery] = useState(false);
   const [payment, setPayment] = useState<Payment>('qr');
   const [screenshot, setScreenshot] = useState<File | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -189,6 +193,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     if (!customer) return;
     const typed = contactRef.current.address.trim();
     setContact((c) => prefillContact(c, customer));
+    setCutlery(customer.cutlery);
     // Координаты профиля подходят, только если адрес не вводили руками (или это тот же адрес).
     if (!typed || typed === customer.address) setPlace((pl) => pl ?? prefillPlace(customer));
   }, [customer]);
@@ -233,6 +238,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setContact({ telegram: d.telegram, phone: phoneDigits(d.phone), address: d.address, hotel: d.hotel, comment: d.comment });
       setPlace(d.place_id && d.lat != null && d.lng != null ? { placeId: d.place_id, text: d.address, lat: d.lat, lng: d.lng } : null);
       setPayment(d.payment);
+      setCutlery(d.cutlery === true);
       // Язык клиента с компьютера — только если на телефоне язык ещё не выбирали.
       if (d.lang && ['ua', 'ru', 'en', 'vi'].includes(d.lang) && !localStorage.getItem('ninifood.lang')) langRef.current.confirmLang(d.lang as Lang);
       setScreen(d.payment === 'cash' ? 'checkout' : 'payment');
@@ -355,6 +361,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPortionsState(1);
     setContact(customer ? prefillContact(EMPTY_CONTACT, customer) : EMPTY_CONTACT);
     setPlace(customer ? prefillPlace(customer) : null);
+    setCutlery(customer ? customer.cutlery : false);
     setPayment('qr');
     setScreenshot(null);
     setSubmitError(null);
@@ -377,6 +384,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         contact,
         place,
         captcha,
+        cutlery,
         screenshot: shot,
         lang,
         accessToken,
@@ -392,7 +400,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setSending(false);
     }
-  }, [orderType, days, portions, total, payment, contact, place, captcha, screenshot, lang, go, customer, loadProfile]);
+  }, [orderType, days, portions, total, payment, contact, place, captcha, cutlery, screenshot, lang, go, customer, loadProfile]);
 
   const value: AppValue = {
     screen,
@@ -432,6 +440,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (k === 'address') setPlace((pl) => (pl && pl.text !== v ? null : pl));
     },
     place,
+    cutlery,
+    setCutlery,
     captcha,
     setCaptcha,
     selectPlace: (pl) => {

@@ -95,6 +95,7 @@ export const ua: Record<TKey, string> = {
   'checkout.poweredBy': 'Powered by Google',
   'checkout.hotel': 'Готель',
   'checkout.comment': 'Коментар',
+  'checkout.cutlery': "Покласти одноразові прибори",
   'checkout.required': 'Заповніть поле',
   'checkout.payTitle': 'Оплата',
   'checkout.payQr': 'QR-переказ',

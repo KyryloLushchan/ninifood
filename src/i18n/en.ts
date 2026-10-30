@@ -95,6 +95,7 @@ export const en: Record<TKey, string> = {
   'checkout.poweredBy': 'Powered by Google',
   'checkout.hotel': 'Hotel',
   'checkout.comment': 'Comment',
+  'checkout.cutlery': "Add disposable cutlery",
   'checkout.required': 'Please fill in this field',
   'checkout.payTitle': 'Payment',
   'checkout.payQr': 'QR transfer',

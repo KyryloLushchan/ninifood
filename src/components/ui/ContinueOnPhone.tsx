@@ -20,7 +20,7 @@ type Status = 'idle' | 'creating' | 'done' | 'error';
 
 function PhoneModal({ onClose }: { onClose: () => void }) {
   const { t, lang } = useI18n();
-  const { orderType, days, portions, payment, contact, place } = useApp();
+  const { orderType, days, portions, payment, contact, place, cutlery } = useApp();
   const [token, setToken] = useState<string | null>(null);
   const [resetKey, setResetKey] = useState(0);
   const [status, setStatus] = useState<Status>('idle');
@@ -43,6 +43,7 @@ function PhoneModal({ onClose }: { onClose: () => void }) {
         address: contact.address,
         hotel: contact.hotel,
         comment: contact.comment,
+        cutlery,
         place_id: place?.placeId ?? null,
         lat: place?.lat ?? null,
         lng: place?.lng ?? null,
