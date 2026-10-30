@@ -5,7 +5,7 @@ import { dayRangeUTC, todayISO } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb, type AdminOrder } from '@/lib/admin/client';
-import { computeProfit, computeRevenue, type Bucket, type CashCategory, type CashMovement } from '@/lib/admin/money';
+import { cashReceivable, computeProfit, computeRevenue, type Bucket, type CashCategory, type CashMovement } from '@/lib/admin/money';
 import { PRESETS, periodRange, type Preset } from '@/lib/admin/period';
 import { Btn, Card, Err, Note, inputCls } from './ui';
 
@@ -26,6 +26,8 @@ export function MoneyTab() {
   const [from, setFrom] = useState(todayISO());
   const [to, setTo] = useState(todayISO());
   const [orders, setOrders] = useState<AdminOrder[] | null>(null);
+  const [cashOrders, setCashOrders] = useState<AdminOrder[] | null>(null);
+  const [receivable, setReceivable] = useState<{ count: number; amount: number } | null>(null);
   const [moves, setMoves] = useState<CashMovement[] | null>(null);
   const [cats, setCats] = useState<CashCategory[]>([]);
   const [error, setError] = useState('');
@@ -39,6 +41,7 @@ export function MoneyTab() {
       .from('orders')
       .select('*, order_days(id, delivery_date, qty, delivered)')
       .in('status', ['confirmed', 'delivered'])
+      .neq('payment_method', 'cash') // наличные считаются по доставке (ниже)
       .gte('created_at', f)
       .lt('created_at', t)
       .then(({ data, error }) => {
@@ -50,10 +53,35 @@ export function MoneyTab() {
       });
   }, [a, b]);
 
+  // Наличные: заказы автозаписей кассы с датой в периоде (дата = день доставки первого дня, отмечен доставленным).
+  useEffect(() => {
+    setCashOrders(null);
+    adminDb
+      .from('cash_movements')
+      .select('order_id, orders(*, order_days(id, delivery_date, qty, delivered))')
+      .not('order_id', 'is', null)
+      .gte('date', a)
+      .lte('date', b)
+      .then(({ data, error }) => {
+        if (error) setError(ruError(error.message));
+        else setCashOrders(((data ?? []) as unknown as { orders: AdminOrder | null }[]).map((r) => r.orders).filter((o): o is AdminOrder => !!o));
+      });
+  }, [a, b]);
+
+  // «К получению»: все подтверждённые наличные, первый день не доставлен (не зависит от периода).
+  useEffect(() => {
+    adminDb
+      .from('orders')
+      .select('id, status, payment_method, total, order_days(id, delivery_date, qty, delivered)')
+      .eq('payment_method', 'cash')
+      .eq('status', 'confirmed')
+      .then(({ data }) => setReceivable(cashReceivable((data ?? []) as unknown as AdminOrder[])));
+  }, []);
+
   useEffect(() => {
     setMoves(null);
     Promise.all([
-      adminDb.from('cash_movements').select('id, date, type, category_id, amount, comment').gte('date', a).lte('date', b),
+      adminDb.from('cash_movements').select('id, date, type, category_id, amount, comment, order_id').gte('date', a).lte('date', b),
       adminDb.from('cash_categories').select('*'),
     ]).then(([m, c]) => {
       const err = m.error ?? c.error;
@@ -65,7 +93,7 @@ export function MoneyTab() {
     });
   }, [a, b]);
 
-  const report = useMemo(() => (orders ? computeRevenue(orders) : null), [orders]);
+  const report = useMemo(() => (orders && cashOrders ? computeRevenue([...orders, ...cashOrders]) : null), [orders, cashOrders]);
 
   const profit = useMemo(() => (report && moves ? computeProfit(report.total.revenue, moves, cats) : null), [report, moves, cats]);
 
@@ -86,7 +114,7 @@ export function MoneyTab() {
         </div>
       )}
       <div className="text-center text-xs text-ink-muted">
-        Заказы — по дате создания, касса — по дате операции · {a === b ? a : `${a} — ${b}`} · подтверждённые и доставленные
+        Заказы QR и «другой способ» — по дате создания, наличные — по дате доставки первого дня (если доставлен), касса — по дате операции · {a === b ? a : `${a} — ${b}`} · подтверждённые и доставленные
       </div>
       <Err>{error}</Err>
       {!report && !error && <Note>Загрузка…</Note>}
@@ -121,8 +149,15 @@ export function MoneyTab() {
             {report.total.discount > 0 && <div className="text-sm text-ink-2">Скидки (уже вычтены из выручки): {fmtMoney(report.total.discount)}</div>}
             <div className="text-sm text-ink-2">{report.total.orders} заказов · {report.total.portions} порций</div>
           </Card>
+          {receivable && (
+            <Card>
+              <div className="text-sm text-ink-muted">Наличные к получению</div>
+              <div className="font-serif text-[32px] font-bold">{fmtMoney(receivable.amount)}</div>
+              <div className="text-sm text-ink-2">{receivable.count} подтв. заказов, первый день ещё не доставлен (в выручку и кассу не входят)</div>
+            </Card>
+          )}
           <Card className="divide-y divide-line">
-            <Row title="Наличные" b={report.cash} />
+            <Row title="Наличные (доставлено)" b={report.cash} />
             <Row title="QR" b={report.qr} />
             <Row title="Другой способ" b={report.other} />
           </Card>

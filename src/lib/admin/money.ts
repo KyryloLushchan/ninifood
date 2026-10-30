@@ -21,8 +21,9 @@ export interface RevenueReport {
 const empty = (): Bucket => ({ orders: 0, portions: 0, revenue: 0, delivery: 0, discount: 0 });
 
 /**
- * Выручка по заказам confirmed + delivered (период уже отфильтрован по дате создания). `orders.total` уже после скидки,
- * поэтому выручка — после скидок; сумма скидок считается отдельно.
+ * Выручка по заказам confirmed + delivered. Набор заказов собирает вызывающий (вкладка «Деньги»):
+ * QR и «другой способ» — по дате создания в периоде; наличные — по дате доставки ПЕРВОГО дня и только если он отмечен
+ * доставленным (это заказы автозаписей кассы). `orders.total` уже после скидки, поэтому выручка — после скидок; сумма скидок считается отдельно.
  * Чистая функция: сюда же позже добавятся расходы и себестоимость (отдельные источники данных,
  * вкладка «Деньги» просто сложит их с этим отчётом).
  */
@@ -57,6 +58,8 @@ export interface CashMovement {
   category_id: number;
   amount: number;
   comment: string | null;
+  /** Не пусто — автозапись «Наличные с заказов» (создаёт и удаляет триггер БД по отметке доставки). */
+  order_id?: string | null;
 }
 
 export interface ProfitReport {
@@ -69,7 +72,8 @@ export interface ProfitReport {
 }
 
 /**
- * Прибыль = выручка с заказов + ручной приход − расход.
+ * Прибыль = выручка с заказов + ручной приход − расход. Автозаписи кассы по наличным заказам (order_id) в приход НЕ входят:
+ * эти деньги уже в выручке (наличные считаются по доставке), иначе был бы двойной учёт.
  * Сюда же позже добавится себестоимость (ещё одно вычитаемое), источники данных — отдельные.
  */
 export function computeProfit(revenue: number, movements: CashMovement[], categories: CashCategory[]): ProfitReport {
@@ -78,6 +82,7 @@ export function computeProfit(revenue: number, movements: CashMovement[], catego
   let cashOut = 0;
   const byCat = new Map<number, number>();
   for (const m of movements) {
+    if (m.order_id) continue;
     if (m.type === 'in') cashIn += m.amount;
     else {
       cashOut += m.amount;
@@ -86,4 +91,18 @@ export function computeProfit(revenue: number, movements: CashMovement[], catego
   }
   const expenses = [...byCat].map(([categoryId, amount]) => ({ categoryId, name: names.get(categoryId) ?? 'Без категории', amount })).sort((a, b) => b.amount - a.amount);
   return { revenue, cashIn, cashOut, profit: revenue + cashIn - cashOut, expenses };
+}
+
+/** Наличные, которые ещё предстоит получить: подтверждённые наличные заказы, у которых первый день ещё не доставлен. */
+export function cashReceivable(orders: AdminOrder[]): { count: number; amount: number } {
+  let count = 0;
+  let amount = 0;
+  for (const o of orders) {
+    if (o.payment_method !== 'cash' || o.status !== 'confirmed') continue;
+    const first = [...o.order_days].sort((a, b) => a.delivery_date.localeCompare(b.delivery_date) || a.id - b.id)[0];
+    if (!first || first.delivered) continue;
+    count += 1;
+    amount += o.total;
+  }
+  return { count, amount };
 }

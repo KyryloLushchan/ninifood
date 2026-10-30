@@ -52,7 +52,7 @@ export function CashTab() {
   }, []);
 
   const load = useCallback(async () => {
-    let q = adminDb.from('cash_movements').select('id, date, type, category_id, amount, comment').gte('date', a).lte('date', b).order('date', { ascending: false }).order('id', { ascending: false });
+    let q = adminDb.from('cash_movements').select('id, date, type, category_id, amount, comment, order_id').gte('date', a).lte('date', b).order('date', { ascending: false }).order('id', { ascending: false });
     if (typeFilter) q = q.eq('type', typeFilter);
     const { data, error } = await q;
     if (error) setError(ruError(error.message));
@@ -190,13 +190,19 @@ export function CashTab() {
         <Card key={r.id} className="flex flex-col gap-2">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <div className="text-[15px] font-extrabold">{catName.get(r.category_id) ?? 'Без категории'}</div>
+              <div className="text-[15px] font-extrabold">
+                {catName.get(r.category_id) ?? 'Без категории'}
+                {r.order_id && <span className="ml-2 rounded-full bg-sand px-2 py-0.5 align-middle text-[11px] font-extrabold text-ink-muted">авто</span>}
+              </div>
               <div className="text-xs text-ink-muted">{r.date.slice(8, 10)}.{r.date.slice(5, 7)}.{r.date.slice(0, 4)}{r.comment ? ` · ${r.comment}` : ''}</div>
             </div>
             <div className={`whitespace-nowrap font-serif text-[17px] font-bold ${r.type === 'in' ? 'text-success' : 'text-danger'}`}>
               {r.type === 'in' ? '+' : '−'}{fmtMoney(r.amount)}
             </div>
           </div>
+          {r.order_id ? (
+            <div className="text-xs text-ink-muted">Создаётся автоматически при отметке «Доставлено» (вкладка «Курьер»); вручную не меняется.</div>
+          ) : (
           <div className="flex gap-2">
             <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={() => startEdit(r)}>Изменить</Btn>
             <Btn kind="danger" className="!min-h-9 !px-3 !text-sm" onClick={() => remove(r.id)}>
@@ -204,6 +210,7 @@ export function CashTab() {
             </Btn>
             {confirmDel === r.id && <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={() => setConfirmDel(null)}>Отмена</Btn>}
           </div>
+          )}
         </Card>
       ))}
       </div>
