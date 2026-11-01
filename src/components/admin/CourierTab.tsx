@@ -105,6 +105,9 @@ export function CourierTab() {
     [rows, kitchen, couriers],
   );
 
+  // Точки доставки — как «Адресов» в ночном отчёте: заказы на одной точке (один адрес/координаты) считаются одной остановкой.
+  const stopCount = plan ? plan.routes.reduce((n, r) => n + r.stops.length, 0) + plan.noPoint.length : confirmed.length;
+
   const rowText = (r: Row, label: string) => {
     const due = cashDue(r);
     return [
@@ -268,7 +271,7 @@ export function CourierTab() {
       {rows && (
         <Card className="flex flex-col gap-1">
           <div className="text-[17px] font-extrabold">
-            {sum(confirmed)} порций <span className="text-sm font-bold text-ink-muted">· подтверждено, {confirmed.length} адр. · приборов: {cutleryCount(confirmed)}</span>
+            {sum(confirmed)} порций <span className="text-sm font-bold text-ink-muted">· подтверждено, {stopCount} адресов · {confirmed.length} заказов · приборов: {cutleryCount(confirmed)}</span>
           </div>
           {pending.length > 0 && (
             <div className="text-sm font-bold text-accent">
