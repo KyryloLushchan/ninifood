@@ -15,6 +15,7 @@
 - CORS (`_shared/cors.ts`, им же пользуется `send-order`): разрешены только Origin `https://ninifoodvn.com` и `https://www.ninifoodvn.com` (github.io убран).
 - **Безопасность сайта:** CSP через `<meta>` в `src/app/layout.tsx` (только прод-сборка; `'unsafe-inline'` для script/style нужен инлайн-скриптам Next в static export; разрешены свои домены, Supabase, Google Places, Turnstile, Google Fonts, `img.vietqr.io`); `referrer: strict-origin-when-cross-origin` (ключ Places ограничен по referrer). Добавляешь внешний домен/сервис — допиши CSP.
 - Зависимости: `package.json` → `overrides: {postcss: $postcss}` (Next тянет свой вложенный postcss 8.4 с уязвимостями — подменяем на корневой); `npm audit` должен быть чистым. Dependabot: PR по security updates мерджим после `npm run build` и проверки экранов.
+- **Шрифты при сборке** (`next/font/google`: Lora, Nunito): `npm run build` задаёт `NEXT_FONT_GOOGLE_MOCKED_RESPONSES=tools/fonts/mock.cjs` — CSS Google и woff2 лежат в репозитории (`tools/fonts/`, см. README там), сборка не ходит в Google. Причина: 02.11 сборка в CI упала на `next/font` (`Cannot read properties of null (reading '1')` в `loader.js`; повтор запуска не помог). Меняете шрифты/веса в `layout.tsx` — перегенерируйте `tools/fonts/`. Проверка «как в CI»: чистый клон, Node 20, `npm ci`, `npm run build`.
 - Node: нужна версия ≥ 18.17 (локально — `/opt/homebrew/bin`, Node 26).
 - Бэкенд (БД подключена, функции и бот — позже, см. ниже): отдельный проект Supabase `nini_food`, Telegram-бот.
 
