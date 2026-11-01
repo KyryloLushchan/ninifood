@@ -43,6 +43,8 @@ export interface AdminOrder {
   tg_message_id: number | null;
   receipt_file_id: string | null;
   order_days: OrderDay[];
+  /** Доплаты/возвраты после изменения порций (подгружается в списках Заказы/Подписки). */
+  order_surcharges?: { id: number; amount: number; status: 'pending' | 'paid' | 'cash' }[];
 }
 
 export const PAYMENT_LABEL: Record<AdminOrder['payment_method'], string> = {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { orderMessageUrl } from '@/config/site';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { labelShort } from '@/lib/dates';
@@ -12,6 +12,11 @@ import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { Btn, Card, Err, inputCls } from './ui';
 import { PinPoint } from './PinPoint';
+import { PortionsEditor } from './PortionsEditor';
+
+interface Surcharge { id: number; amount: number; status: 'pending' | 'paid' | 'cash'; created_at: string; paid_at: string | null }
+interface Edit { id: number; created_at: string; created_by_email: string | null; old_portions: number; new_portions: number; old_total: number; new_total: number }
+
 
 export const fmtCreated = (iso: string) =>
   new Intl.DateTimeFormat('ru', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
@@ -44,6 +49,31 @@ export function OrderCard({
   const lost = o.tg_message_id === null;
   const days = [...o.order_days].sort((a, b) => a.delivery_date.localeCompare(b.delivery_date));
   const href = tgHref(o.telegram);
+  const [sur, setSur] = useState<Surcharge[]>([]);
+  const [edits, setEdits] = useState<Edit[]>([]);
+  const pendingCount = (o.order_surcharges ?? []).filter((x) => x.status === 'pending').length;
+
+  // Доплаты и журнал изменений порций — подгружаем при раскрытии карточки.
+  const loadExtra = useCallback(async () => {
+    const [a, b] = await Promise.all([
+      adminDb.from('order_surcharges').select('id, amount, status, created_at, paid_at').eq('order_id', o.id).order('id'),
+      adminDb.from('order_edits').select('id, created_at, created_by_email, old_portions, new_portions, old_total, new_total').eq('order_id', o.id).order('id'),
+    ]);
+    setSur((a.data ?? []) as Surcharge[]);
+    setEdits((b.data ?? []) as Edit[]);
+  }, [o.id]);
+  useEffect(() => {
+    if (isOpen) void loadExtra();
+  }, [isOpen, loadExtra, o.total]);
+
+  const settle = async (id: number) => {
+    const { error } = await adminDb.rpc('admin_settle_surcharge', { p_id: id });
+    if (error) setError(ruError(error.message));
+    else {
+      await loadExtra();
+      onChanged();
+    }
+  };
 
   const setOrderStatus = async (next: OrderStatus) => {
     const { error } = await adminDb.from('orders').update({ status: next, status_changed_at: new Date().toISOString(), status_changed_by: adminEmail }).eq('id', o.id);
@@ -101,6 +131,7 @@ export function OrderCard({
               <div className="text-xs text-ink-muted">обеды {fmtMoney(o.total - o.delivery_total + o.discount_amount)} · дост. {fmtMoney(o.delivery_total)}</div>
               {o.discount_amount > 0 && <div className="text-xs font-bold text-success">скидка {o.discount_percent}%: −{fmtMoney(o.discount_amount)}</div>}
               <div className="text-xs font-extrabold text-accent">{STATUS_LABEL[o.status]}</div>
+              {pendingCount > 0 && <div className="text-xs font-extrabold text-danger">💳 есть неподтверждённая доплата</div>}
             </div>
           </div>
         )}
@@ -147,6 +178,31 @@ export function OrderCard({
               ))}
             </ul>
           </div>
+          {(sur.length > 0 || edits.length > 0) && (
+            <div>
+              <b>Изменения порций</b>
+              <ul className="mt-1 flex flex-col gap-1">
+                {sur.map((x) => (
+                  <li key={`s${x.id}`} className="flex items-center justify-between gap-2 rounded-chip border border-line px-3 py-1.5">
+                    <span>
+                      {x.amount > 0 ? 'Доплата' : 'Возврат'} {fmtMoney(Math.abs(x.amount))} ·{' '}
+                      <span className={x.status === 'pending' ? 'font-extrabold text-danger' : 'text-ink-muted'}>
+                        {x.status === 'pending' ? 'ожидает оплаты' : x.status === 'cash' ? 'наличными курьеру' : `оплачено ${x.paid_at ? fmtCreated(x.paid_at) : ''}`}
+                      </span>
+                    </span>
+                    {x.status === 'pending' && (
+                      <Btn className="!min-h-9 !px-3 !text-sm" onClick={() => settle(x.id)}>{x.amount > 0 ? 'Оплачено' : 'Возвращено'}</Btn>
+                    )}
+                  </li>
+                ))}
+                {edits.map((x) => (
+                  <li key={`e${x.id}`} className="text-xs text-ink-muted">
+                    {fmtCreated(x.created_at)} · {x.created_by_email || 'админ'}: {x.old_portions} → {x.new_portions} порц., {fmtMoney(x.old_total)} → {fmtMoney(x.new_total)}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {o.status_changed_by && (
             <div className="text-ink-muted">
               Статус изменил: {o.status_changed_by}
@@ -158,6 +214,9 @@ export function OrderCard({
               Открыть сообщение в группе Orders →
             </a>
           )}
+          <div className="mt-2">
+            <PortionsEditor o={o} onChanged={onChanged} onNotice={onNotice} />
+          </div>
           <div className="mt-2">
             <div className="mb-1 text-[13px] font-bold text-ink-muted">Сменить статус вручную</div>
             <div className="flex flex-wrap gap-2">

@@ -54,7 +54,7 @@ export function SubscriptionsTab({ adminEmail }: { adminEmail: string }) {
   const load = useCallback(async () => {
     const { data, error } = await adminDb
       .from('orders')
-      .select('*, order_days(id, delivery_date, qty, delivered)')
+      .select('*, order_days(id, delivery_date, qty, delivered), order_surcharges(id, amount, status)')
       .eq('type', 'subscription')
       .in('status', ['new', 'confirmed', 'delivered'])
       .order('created_at', { ascending: false })

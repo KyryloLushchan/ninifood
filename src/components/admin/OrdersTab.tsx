@@ -21,7 +21,7 @@ export function OrdersTab({ adminEmail }: { adminEmail: string }) {
       if (error) return setError(ruError(error.message));
       ids = [...new Set((data ?? []).map((d) => d.order_id as string))];
     }
-    let q = adminDb.from('orders').select('*, order_days(id, delivery_date, qty, delivered)').order('created_at', { ascending: false }).limit(100);
+    let q = adminDb.from('orders').select('*, order_days(id, delivery_date, qty, delivered), order_surcharges(id, amount, status)').order('created_at', { ascending: false }).limit(100);
     if (status) q = q.eq('status', status);
     if (ids) q = q.in('id', ids);
     const { data, error } = await q;
