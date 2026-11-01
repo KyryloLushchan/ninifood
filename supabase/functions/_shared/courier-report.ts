@@ -20,6 +20,9 @@ export interface ReportDelivery {
   /** Для подписки: сколько всего дней в заказе и номер этого дня; для разового — null. */
   sub: { total: number; dayNo: number } | null;
   firstDay: boolean; // первый день доставки заказа — наличные берём только в него
+  /** Объединённая запись (несколько заказов одного клиента на один адрес): сумма наличных и пометки по подпискам. */
+  cashOverride?: number;
+  subNotes?: string[];
 }
 
 const TG_LIMIT = 4096;
@@ -37,7 +40,35 @@ const portions = (n: number) => {
   return `${n} ${w}`;
 };
 
-const cashDue = (d: ReportDelivery) => (d.payment_method === 'cash' && d.firstDay ? d.total : 0);
+const cashDue = (d: ReportDelivery) => d.cashOverride ?? (d.payment_method === 'cash' && d.firstDay ? d.total : 0);
+
+const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.map((x) => (x ?? '').trim()).filter(Boolean))];
+
+/** Заказы одного клиента на одной точке за день — одна запись: порции суммируются, номера заказов через « + ». Разные клиенты на одном адресе остаются отдельными. */
+export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
+  const groups = new Map<string, ReportDelivery[]>();
+  for (const d of items) {
+    const k = handle(d.telegram).toLowerCase();
+    groups.set(k, [...(groups.get(k) ?? []), d]);
+  }
+  return [...groups.values()].map((g) => {
+    if (g.length === 1) return g[0];
+    const hotels = uniq(g.map((d) => d.hotel));
+    const comments = uniq(g.map((d) => d.comment));
+    return {
+      ...g[0],
+      order_number: g.map((d) => d.order_number).join(' + '),
+      qty: g.reduce((n, d) => n + d.qty, 0),
+      cutlery: g.some((d) => d.cutlery),
+      hotel: hotels.length ? hotels.join(' / ') : null,
+      comment: comments.length ? comments.join(' / ') : null,
+      phone: g.find((d) => d.phone)?.phone ?? null,
+      cashOverride: g.reduce((n, d) => n + cashDue(d), 0),
+      subNotes: g.filter((d) => d.sub).map((d) => `${d.order_number}: день ${d.sub!.dayNo} из ${d.sub!.total}`),
+      sub: null,
+    };
+  });
+}
 
 function entry(d: ReportDelivery, label: string): string {
   const due = cashDue(d);
@@ -47,6 +78,7 @@ function entry(d: ReportDelivery, label: string): string {
   if (d.hotel) lines.push(`🏨 ${esc(d.hotel)}`);
   if (d.phone) lines.push(`📞 ${esc(phoneText(d.phone))}`);
   if (d.sub) lines.push(`🔁 ${subLabel(d.sub.total)} · день ${d.sub.dayNo} из ${d.sub.total}`);
+  if (d.subNotes?.length) lines.push(`🔁 ${d.subNotes.map(esc).join(' · ')}`);
   lines.push(`🍽 <b>${portions(d.qty).toUpperCase()}</b>`);
   if (d.cutlery) lines.push('🍴 <b>ПРИБОРЫ: ДА</b>');
   lines.push(due ? `💵 Взять наличными: <b>${money(due)}</b>` : '✅ Оплачено');
@@ -97,14 +129,15 @@ export function buildCourierReport(date: string, deliveries: ReportDelivery[], f
 
   const plan = planRoutes([...deliveries].sort(byNumber), { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty }, kitchen, couriers);
   const stopsTotal = plan.routes.reduce((s, r) => s + r.stops.length, 0) + plan.noPoint.length;
-  const pieces: string[] = [[`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, totals(deliveries, stopsTotal)].join('\n')];
+  const pieces: string[] = [[`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, totals(plan.routes.flatMap((r) => r.stops.flatMap((s) => mergeSameClient(s.items))).concat(plan.noPoint), stopsTotal)].join('\n')];
   plan.routes.forEach((r, ri) => {
-    const items = r.stops.flatMap((s) => s.items);
+    const merged = r.stops.map((s) => mergeSameClient(s.items));
+    const items = merged.flat();
     if (couriers === 2) pieces.push(`🛵 <b>Курьер ${ri + 1}</b>\n${totals(items, r.stops.length)} · ${kmText(r.km)}`);
-    r.stops.forEach((s, si) => s.items.forEach((d, k) => pieces.push(entry(d, s.items.length > 1 ? `${si + 1}.${k + 1}` : String(si + 1)))));
+    merged.forEach((list, si) => list.forEach((d, k) => pieces.push(entry(d, list.length > 1 ? `${si + 1}.${k + 1}` : String(si + 1)))));
     pieces.push(routeFooter(r, couriers === 1));
   });
-  if (couriers === 2 && plan.routes.length === 1) pieces.splice(1, 0, '🛵 <b>Курьер 1</b>' + `\n${totals(plan.routes[0].stops.flatMap((s) => s.items), plan.routes[0].stops.length)}`);
+  if (couriers === 2 && plan.routes.length === 1) pieces.splice(1, 0, '🛵 <b>Курьер 1</b>' + `\n${totals(plan.routes[0].stops.flatMap((s) => mergeSameClient(s.items)), plan.routes[0].stops.length)}`);
   if (plan.noPoint.length) {
     pieces.push(`⚠️ <b>Без точки на карте — распределить/проверить вручную</b> (${plan.noPoint.length})`);
     plan.noPoint.forEach((d, i) => pieces.push(entry(d, String(i + 1))));
