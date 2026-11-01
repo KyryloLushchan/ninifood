@@ -129,18 +129,22 @@ export function buildCourierReport(date: string, deliveries: ReportDelivery[], f
 
   const plan = planRoutes([...deliveries].sort(byNumber), { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty }, kitchen, couriers);
   const stopsTotal = plan.routes.reduce((s, r) => s + r.stops.length, 0) + plan.noPoint.length;
-  const pieces: string[] = [[`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, totals(plan.routes.flatMap((r) => r.stops.flatMap((s) => mergeSameClient(s.items))).concat(plan.noPoint), stopsTotal)].join('\n')];
+  const header = [`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, totals(plan.routes.flatMap((r) => r.stops.flatMap((s) => mergeSameClient(s.items))).concat(plan.noPoint), stopsTotal)].join('\n');
+  // Блоки: у каждого курьера свой (заголовок, остановки, ссылки маршрута в конце) — при 2 курьерах каждый блок начинается с нового сообщения, чтобы его можно было переслать целиком.
+  const blocks: string[][] = [];
   plan.routes.forEach((r, ri) => {
     const merged = r.stops.map((s) => mergeSameClient(s.items));
     const items = merged.flat();
-    if (couriers === 2) pieces.push(`🛵 <b>Курьер ${ri + 1}</b>\n${totals(items, r.stops.length)} · ${kmText(r.km)}`);
-    merged.forEach((list, si) => list.forEach((d, k) => pieces.push(entry(d, list.length > 1 ? `${si + 1}.${k + 1}` : String(si + 1)))));
-    pieces.push(routeFooter(r, couriers === 1));
+    const block: string[] = [];
+    if (couriers === 2) block.push(`🛵 <b>Курьер ${ri + 1}</b>\n${totals(items, r.stops.length)} · ${kmText(r.km)}`);
+    merged.forEach((list, si) => list.forEach((d, k) => block.push(entry(d, list.length > 1 ? `${si + 1}.${k + 1}` : String(si + 1)))));
+    block.push(routeFooter(r, couriers === 1));
+    blocks.push(block);
   });
-  if (couriers === 2 && plan.routes.length === 1) pieces.splice(1, 0, '🛵 <b>Курьер 1</b>' + `\n${totals(plan.routes[0].stops.flatMap((s) => mergeSameClient(s.items)), plan.routes[0].stops.length)}`);
+  if (couriers === 2 && plan.routes.length === 1) blocks[0].unshift('🛵 <b>Курьер 1</b>' + `\n${totals(plan.routes[0].stops.flatMap((s) => mergeSameClient(s.items)), plan.routes[0].stops.length)}`);
   if (plan.noPoint.length) {
-    pieces.push(`⚠️ <b>Без точки на карте — распределить/проверить вручную</b> (${plan.noPoint.length})`);
-    plan.noPoint.forEach((d, i) => pieces.push(entry(d, String(i + 1))));
+    blocks.push([`⚠️ <b>Без точки на карте — распределить/проверить вручную</b> (${plan.noPoint.length})`, ...plan.noPoint.map((d, i) => entry(d, String(i + 1)))]);
   }
-  return pack(pieces);
+  if (couriers === 2) return [header, ...blocks.flatMap((b) => pack(b))];
+  return pack([header, ...blocks.flat()]);
 }
