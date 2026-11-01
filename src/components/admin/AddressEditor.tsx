@@ -97,6 +97,7 @@ export function AddressEditor({ o, onChanged, onNotice }: { o: AdminOrder; onCha
   const [address, setAddress] = useState('');
   const [place, setPlace] = useState<PlaceInfo | null>(null);
   const [comment, setComment] = useState('');
+  const [hotel, setHotel] = useState('');
   const [others, setOthers] = useState<Other[]>([]);
   const [useOthers, setUseOthers] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -111,6 +112,7 @@ export function AddressEditor({ o, onChanged, onNotice }: { o: AdminOrder; onCha
     setAddress(o.address);
     setPlace(null);
     setComment(o.comment ?? '');
+    setHotel(o.hotel ?? '');
     setUseOthers(true);
     setError('');
     setConfirm(false);
@@ -139,7 +141,8 @@ export function AddressEditor({ o, onChanged, onNotice }: { o: AdminOrder; onCha
   const targets: Other[] = [{ id: o.id, order_number: o.order_number, address: o.address, days: mine }, ...chosen];
   const addressChanged = address.trim() !== o.address.trim();
   const commentChanged = comment.trim() !== (o.comment ?? '').trim();
-  const valid = address.trim().length >= 5 && (addressChanged || commentChanged);
+  const hotelChanged = hotel.trim() !== (o.hotel ?? '').trim();
+  const valid = address.trim().length >= 5 && (addressChanged || commentChanged || hotelChanged);
 
   const save = async () => {
     setBusy(true);
@@ -154,6 +157,7 @@ export function AddressEditor({ o, onChanged, onNotice }: { o: AdminOrder; onCha
           address: address.trim(),
           ...(place && place.text === address ? { place_id: place.placeId, lat: place.lat, lng: place.lng } : {}),
           comment: comment.trim(),
+          hotel: hotel.trim(),
           also: chosen.map((x) => x.id),
         }),
       });
@@ -195,6 +199,10 @@ export function AddressEditor({ o, onChanged, onNotice }: { o: AdminOrder; onCha
               <div className="mt-1 text-xs text-ink-muted">{place && place.text === address ? 'Точка на карте выбрана из подсказки.' : 'Без выбора подсказки точку найдёт сервер по тексту.'}</div>
             </div>
             <div>
+              <Label>Отель (очистите, если относился к старому адресу)</Label>
+              <input className={inputCls} value={hotel} maxLength={200} onChange={(e) => setHotel(e.target.value)} placeholder="название отеля, номер комнаты" />
+            </div>
+            <div>
               <Label>Комментарий к адресу</Label>
               <input className={inputCls} value={comment} maxLength={500} onChange={(e) => setComment(e.target.value)} placeholder="этаж, домофон, как пройти" />
             </div>
@@ -231,6 +239,7 @@ export function AddressEditor({ o, onChanged, onNotice }: { o: AdminOrder; onCha
               Клиент <b>{tgLabel(o.telegram)}</b>
               <div className="mt-1">Было: <span className="text-ink-muted">{o.address}</span></div>
               <div>Станет: <b>{address.trim()}</b></div>
+              {hotelChanged && <div className="mt-1">Отель: <span className="text-ink-muted">{o.hotel || '—'}</span> → <b>{hotel.trim() || '—'}</b></div>}
               {commentChanged && <div className="mt-1">Комментарий: <span className="text-ink-muted">{o.comment || '—'}</span> → <b>{comment.trim() || '—'}</b></div>}
               <ul className="mt-2 list-disc pl-5">
                 {targets.map((t) => (

@@ -35,6 +35,7 @@ Deno.serve(async (req) => {
   let lat: number | null = null;
   let lng: number | null = null;
   let comment: string | null = null;
+  let hotel: string | null = null;
   let also: string[] = [];
   try {
     const b = await req.json();
@@ -44,6 +45,7 @@ Deno.serve(async (req) => {
     lat = typeof b?.lat === 'number' ? b.lat : null;
     lng = typeof b?.lng === 'number' ? b.lng : null;
     comment = typeof b?.comment === 'string' ? b.comment : null;
+    hotel = typeof b?.hotel === 'string' ? b.hotel : null;
     also = Array.isArray(b?.also) ? b.also.filter((x: unknown) => typeof x === 'string' && uuid.test(x)).slice(0, 20) : [];
   } catch { /* пусто */ }
   if (!uuid.test(id) || address.length < 5 || address.length > 300) return json({ ok: false, code: 'bad_request' }, 400);
@@ -58,7 +60,7 @@ Deno.serve(async (req) => {
     if (g) ({ lat, lng } = g);
   }
 
-  const { data, error } = await db.rpc('admin_change_address', { p_order: id, p_address: address, p_place_id: placeId, p_lat: lat, p_lng: lng, p_comment: comment, p_also: also });
+  const { data, error } = await db.rpc('admin_change_address', { p_order: id, p_address: address, p_place_id: placeId, p_lat: lat, p_lng: lng, p_comment: comment, p_hotel: hotel, p_also: also });
   if (error) {
     const code = Object.keys(ERRORS).find((c) => error.message.includes(c)) ?? 'server_error';
     if (code === 'server_error') console.error('change-address rpc failed:', error.message);
