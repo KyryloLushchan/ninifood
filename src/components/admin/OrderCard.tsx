@@ -12,10 +12,11 @@ import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { Btn, Card, Err, inputCls } from './ui';
 import { PinPoint } from './PinPoint';
+import { AddressEditor } from './AddressEditor';
 import { PortionsEditor } from './PortionsEditor';
 
 interface Surcharge { id: number; amount: number; status: 'pending' | 'paid' | 'cash'; created_at: string; paid_at: string | null }
-interface Edit { id: number; created_at: string; created_by_email: string | null; old_portions: number; new_portions: number; old_total: number; new_total: number }
+interface Edit { id: number; created_at: string; created_by_email: string | null; kind: 'portions' | 'address'; changes: { address_from?: string; address_to?: string }; old_portions: number; new_portions: number; old_total: number; new_total: number }
 
 
 export const fmtCreated = (iso: string) =>
@@ -57,7 +58,7 @@ export function OrderCard({
   const loadExtra = useCallback(async () => {
     const [a, b] = await Promise.all([
       adminDb.from('order_surcharges').select('id, amount, status, created_at, paid_at').eq('order_id', o.id).order('id'),
-      adminDb.from('order_edits').select('id, created_at, created_by_email, old_portions, new_portions, old_total, new_total').eq('order_id', o.id).order('id'),
+      adminDb.from('order_edits').select('id, created_at, created_by_email, kind, changes, old_portions, new_portions, old_total, new_total').eq('order_id', o.id).order('id'),
     ]);
     setSur((a.data ?? []) as Surcharge[]);
     setEdits((b.data ?? []) as Edit[]);
@@ -180,7 +181,7 @@ export function OrderCard({
           </div>
           {(sur.length > 0 || edits.length > 0) && (
             <div>
-              <b>Изменения порций</b>
+              <b>Изменения заказа</b>
               <ul className="mt-1 flex flex-col gap-1">
                 {sur.map((x) => (
                   <li key={`s${x.id}`} className="flex items-center justify-between gap-2 rounded-chip border border-line px-3 py-1.5">
@@ -197,7 +198,8 @@ export function OrderCard({
                 ))}
                 {edits.map((x) => (
                   <li key={`e${x.id}`} className="text-xs text-ink-muted">
-                    {fmtCreated(x.created_at)} · {x.created_by_email || 'админ'}: {x.old_portions} → {x.new_portions} порц., {fmtMoney(x.old_total)} → {fmtMoney(x.new_total)}
+                    {fmtCreated(x.created_at)} · {x.created_by_email || 'админ'}:{' '}
+                    {x.kind === 'address' ? `адрес: ${x.changes.address_from ?? '—'} → ${x.changes.address_to ?? '—'}` : `${x.old_portions} → ${x.new_portions} порц., ${fmtMoney(x.old_total)} → ${fmtMoney(x.new_total)}`}
                   </li>
                 ))}
               </ul>
@@ -214,8 +216,9 @@ export function OrderCard({
               Открыть сообщение в группе Orders →
             </a>
           )}
-          <div className="mt-2">
+          <div className="mt-2 flex flex-wrap gap-2">
             <PortionsEditor o={o} onChanged={onChanged} onNotice={onNotice} />
+            <AddressEditor o={o} onChanged={onChanged} onNotice={onNotice} />
           </div>
           <div className="mt-2">
             <div className="mb-1 text-[13px] font-bold text-ink-muted">Сменить статус вручную</div>

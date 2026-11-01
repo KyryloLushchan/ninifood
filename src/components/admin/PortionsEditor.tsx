@@ -20,7 +20,7 @@ const ERR: Record<string, string> = {
 
 const diffText = (d: number) => (d > 0 ? `доплата ${fmtMoney(d)}` : d < 0 ? `возврат ${fmtMoney(-d)}` : 'без доплаты');
 
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
+export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-3 sm:items-center" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div role="dialog" aria-modal="true" aria-label={title} className="max-h-[90vh] w-full max-w-[460px] overflow-y-auto rounded-md2 bg-card p-4 shadow-lg">
