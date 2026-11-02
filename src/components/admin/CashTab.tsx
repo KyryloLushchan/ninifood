@@ -8,6 +8,7 @@ import { ruError } from '@/lib/admin/errors';
 import type { CashCategory, CashMovement } from '@/lib/admin/money';
 import { PRESETS, periodRange, type Preset } from '@/lib/admin/period';
 import { Btn, Card, Err, Label, Note, inputCls } from './ui';
+import { useReadOnly } from './role';
 
 const TYPE_LABEL = { in: 'Приход', out: 'Расход' } as const;
 type Type = keyof typeof TYPE_LABEL;
@@ -22,6 +23,7 @@ interface Form {
 const emptyForm = (type: Type = 'out'): Form => ({ type, date: todayISO(), categoryId: '', amount: '', comment: '' });
 
 export function CashTab() {
+  const readOnly = useReadOnly();
   const [preset, setPreset] = useState<Preset>('week');
   const [from, setFrom] = useState(todayISO());
   const [to, setTo] = useState(todayISO());
@@ -115,47 +117,50 @@ export function CashTab() {
 
   return (
     <div className="flex flex-col gap-3">
+      {!readOnly && (
       <Card className="flex flex-col gap-3">
-        <div className="text-[15px] font-extrabold">{editId ? 'Изменить запись' : 'Новая запись'}</div>
-        <div className="grid grid-cols-2 gap-1.5">
-          {(Object.keys(TYPE_LABEL) as Type[]).map((t) => (
-            <Btn key={t} kind={form.type === t ? 'primary' : 'ghost'} onClick={() => setType(t)} disabled={!!editId && form.type !== t}>
-              {TYPE_LABEL[t]}
-            </Btn>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <div>
-            <Label>Дата</Label>
-            <input type="date" lang="ru" className={inputCls} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
-          </div>
-          <div>
-            <Label>Сумма, ₫</Label>
-            <input className={inputCls} inputMode="numeric" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/\D/g, '') })} />
-          </div>
-        </div>
-        <div>
-          <Label>Категория</Label>
-          <select className={inputCls} value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-            <option value="">Выберите…</option>
-            {formCats.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
+          <div className="text-[15px] font-extrabold">{editId ? 'Изменить запись' : 'Новая запись'}</div>
+          <div className="grid grid-cols-2 gap-1.5">
+            {(Object.keys(TYPE_LABEL) as Type[]).map((t) => (
+              <Btn key={t} kind={form.type === t ? 'primary' : 'ghost'} onClick={() => setType(t)} disabled={!!editId && form.type !== t}>
+                {TYPE_LABEL[t]}
+              </Btn>
             ))}
-          </select>
-        </div>
-        <div>
-          <Label>Комментарий</Label>
-          <input className={inputCls} value={form.comment} onChange={(e) => setForm({ ...form, comment: e.target.value })} />
-        </div>
-        <Err>{error}</Err>
-        {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}
-        <div className="flex gap-2">
-          <Btn onClick={save} disabled={busy} className="flex-1">{busy ? 'Сохраняем…' : editId ? 'Сохранить' : 'Добавить'}</Btn>
-          {editId && (
-            <Btn kind="ghost" onClick={() => { setEditId(null); setForm(emptyForm()); }}>Отмена</Btn>
-          )}
-        </div>
-      </Card>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <Label>Дата</Label>
+              <input type="date" lang="ru" className={inputCls} value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} />
+            </div>
+            <div>
+              <Label>Сумма, ₫</Label>
+              <input className={inputCls} inputMode="numeric" value={form.amount} onChange={(e) => setForm({ ...form, amount: e.target.value.replace(/\D/g, '') })} />
+            </div>
+          </div>
+          <div>
+            <Label>Категория</Label>
+            <select className={inputCls} value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+              <option value="">Выберите…</option>
+              {formCats.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <Label>Комментарий</Label>
+            <input className={inputCls} value={form.comment} onChange={(e) => setForm({ ...form, comment: e.target.value })} />
+          </div>
+          <Err>{error}</Err>
+          {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}
+          <div className="flex gap-2">
+            <Btn onClick={save} disabled={busy} className="flex-1">{busy ? 'Сохраняем…' : editId ? 'Сохранить' : 'Добавить'}</Btn>
+            {editId && (
+              <Btn kind="ghost" onClick={() => { setEditId(null); setForm(emptyForm()); }}>Отмена</Btn>
+            )}
+          </div>
+        </Card>
+  
+      )}
 
       <div className="grid grid-cols-4 gap-1.5">
         {PRESETS.map(([id, label]) => (
@@ -202,7 +207,7 @@ export function CashTab() {
           </div>
           {r.order_id ? (
             <div className="text-xs text-ink-muted">Создаётся автоматически при отметке «Доставлено» (вкладка «Курьер»); вручную не меняется.</div>
-          ) : (
+          ) : readOnly ? null : (
           <div className="flex gap-2">
             <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={() => startEdit(r)}>Изменить</Btn>
             <Btn kind="danger" className="!min-h-9 !px-3 !text-sm" onClick={() => remove(r.id)}>

@@ -13,6 +13,7 @@ import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { Btn, Card, Err, inputCls } from './ui';
 import { PinPoint } from './PinPoint';
 import { AddressEditor } from './AddressEditor';
+import { useReadOnly } from './role';
 import { PortionsEditor } from './PortionsEditor';
 
 interface Surcharge { id: number; amount: number; status: 'pending' | 'paid' | 'cash'; created_at: string; paid_at: string | null }
@@ -42,6 +43,7 @@ export function OrderCard({
   head?: ReactNode;
   className?: string;
 }) {
+  const readOnly = useReadOnly();
   const [isOpen, setOpen] = useState(false);
   const [error, setError] = useState('');
   const [delFor, setDelFor] = useState(false);
@@ -161,20 +163,27 @@ export function OrderCard({
             </div>
           )}
           <div><b>Адрес:</b> {o.address}</div>
-          {o.lat == null && <PinPoint orderId={o.id} onSaved={onChanged} />}
+          {o.lat == null && !readOnly && <PinPoint orderId={o.id} onSaved={onChanged} />}
           {o.hotel && <div><b>Отель:</b> {o.hotel}</div>}
           {o.comment && <div><b>Комментарий:</b> {o.comment}</div>}
           {o.cutlery && <div><b>🍴 Приборы:</b> да</div>}
           <div><b>Язык:</b> {(o.lang ?? '—').toUpperCase()}</div>
           <div>
-            <b>Дни</b> <span className="text-ink-muted">(нажмите, чтобы отметить доставку)</span>
+            <b>Дни</b> {!readOnly && <span className="text-ink-muted">(нажмите, чтобы отметить доставку)</span>}
             <ul className="mt-1 flex flex-col gap-1">
               {days.map((d) => (
                 <li key={d.id}>
-                  <button type="button" onClick={() => toggleDay(d)} className="flex min-h-9 w-full items-center gap-2 rounded-chip border border-line px-3 text-left hover:bg-sand">
-                    <span>{d.delivered ? '✅' : '⬜'}</span>
-                    <span>{labelShort(d.delivery_date, 'ru')} · {d.qty} порц.</span>
-                  </button>
+                  {readOnly ? (
+                    <div className="flex min-h-9 w-full items-center gap-2 rounded-chip border border-line px-3">
+                      <span>{d.delivered ? '✅' : '⬜'}</span>
+                      <span>{labelShort(d.delivery_date, 'ru')} · {d.qty} порц.</span>
+                    </div>
+                  ) : (
+                    <button type="button" onClick={() => toggleDay(d)} className="flex min-h-9 w-full items-center gap-2 rounded-chip border border-line px-3 text-left hover:bg-sand">
+                      <span>{d.delivered ? '✅' : '⬜'}</span>
+                      <span>{labelShort(d.delivery_date, 'ru')} · {d.qty} порц.</span>
+                    </button>
+                  )}
                 </li>
               ))}
             </ul>
@@ -191,7 +200,7 @@ export function OrderCard({
                         {x.status === 'pending' ? 'ожидает оплаты' : x.status === 'cash' ? 'наличными курьеру' : `оплачено ${x.paid_at ? fmtCreated(x.paid_at) : ''}`}
                       </span>
                     </span>
-                    {x.status === 'pending' && (
+                    {x.status === 'pending' && !readOnly && (
                       <Btn className="!min-h-9 !px-3 !text-sm" onClick={() => settle(x.id)}>{x.amount > 0 ? 'Оплачено' : 'Возвращено'}</Btn>
                     )}
                   </li>
@@ -216,6 +225,8 @@ export function OrderCard({
               Открыть сообщение в группе Orders →
             </a>
           )}
+          {!readOnly && (
+            <>
           <div className="mt-2 flex flex-wrap gap-2">
             <PortionsEditor o={o} onChanged={onChanged} onNotice={onNotice} />
             <AddressEditor o={o} onChanged={onChanged} onNotice={onNotice} />
@@ -253,6 +264,8 @@ export function OrderCard({
               </div>
             )}
           </div>
+            </>
+          )}
         </div>
       )}
     </Card>

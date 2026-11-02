@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { adminDb } from '@/lib/admin/client';
 import { ruError } from '@/lib/admin/errors';
 import { Btn, Card, Err, inputCls } from './ui';
+import { useReadOnly } from './role';
 
 interface Discount {
   id: number;
@@ -20,6 +21,7 @@ const parseEmail = (raw: string) => {
 const ddmmyyyy = (iso: string) => iso.split('-').reverse().join('.');
 
 export function DiscountCard() {
+  const readOnly = useReadOnly();
   const [list, setList] = useState<Discount[] | null>(null);
   const [mail, setMail] = useState('');
   const [percent, setPercent] = useState('');
@@ -87,22 +89,26 @@ export function DiscountCard() {
                 {d.note ? ` · ${d.note}` : ''}
               </div>
             </div>
-            <Btn kind={confirmId === d.id ? 'danger' : 'ghost'} className="min-h-9 flex-none px-3 text-sm" onClick={() => void remove(d.id)}>
+            {!readOnly && (
+              <Btn kind={confirmId === d.id ? 'danger' : 'ghost'} className="min-h-9 flex-none px-3 text-sm" onClick={() => void remove(d.id)}>
               {confirmId === d.id ? 'Точно удалить?' : 'Удалить'}
             </Btn>
+            )}
           </div>
         ))
       )}
+      {!readOnly && (
       <div className="flex flex-col gap-2">
-        <input className={inputCls} type="email" placeholder="email клиента" autoCapitalize="none" value={mail} onChange={(e) => setMail(e.target.value)} />
-        <input className={inputCls} inputMode="numeric" placeholder="Скидка, % (1–100)" value={percent} onChange={(e) => setPercent(e.target.value.replace(/\D/g, '').slice(0, 3))} />
-        <label className="flex flex-col gap-1 text-xs text-ink-muted">
-          Действует до (необязательно, включительно)
-          <input className={inputCls} type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
-        </label>
-        <input className={inputCls} placeholder="Заметка (необязательно)" value={note} onChange={(e) => setNote(e.target.value)} />
-        <Btn onClick={add} disabled={busy || !mail.trim() || !percent}>{busy ? 'Добавляем…' : 'Добавить скидку'}</Btn>
-      </div>
+          <input className={inputCls} type="email" placeholder="email клиента" autoCapitalize="none" value={mail} onChange={(e) => setMail(e.target.value)} />
+          <input className={inputCls} inputMode="numeric" placeholder="Скидка, % (1–100)" value={percent} onChange={(e) => setPercent(e.target.value.replace(/\D/g, '').slice(0, 3))} />
+          <label className="flex flex-col gap-1 text-xs text-ink-muted">
+            Действует до (необязательно, включительно)
+            <input className={inputCls} type="date" value={until} onChange={(e) => setUntil(e.target.value)} />
+          </label>
+          <input className={inputCls} placeholder="Заметка (необязательно)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Btn onClick={add} disabled={busy || !mail.trim() || !percent}>{busy ? 'Добавляем…' : 'Добавить скидку'}</Btn>
+        </div>
+      )}
       <Err>{error}</Err>
     </Card>
   );

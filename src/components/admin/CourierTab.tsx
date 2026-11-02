@@ -13,6 +13,7 @@ import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
 import { PinPoint } from './PinPoint';
+import { useReadOnly } from './role';
 
 interface Row {
   id: number;
@@ -48,6 +49,7 @@ const cashDue = (r: Row) =>
 const dayNo = (r: Row) => [...r.orders.order_days].map((d) => d.delivery_date).sort().indexOf(r.delivery_date) + 1;
 
 export function CourierTab() {
+  const readOnly = useReadOnly();
   const [date, setDate] = useState(() => addDays(todayISO(), 1));
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState('');
@@ -288,10 +290,12 @@ export function CourierTab() {
             <div className={`text-sm font-bold ${due && !r.delivered ? 'text-accent' : 'text-success'}`}>{r.delivered ? 'доставлено' : due ? `к получению: ${fmtMoney(due)}` : 'оплачено'}</div>
           </div>
         </div>
-        {r.orders.lat == null && onSaved && <PinPoint orderId={r.orders.id} onSaved={onSaved} />}
-        <Btn kind={r.delivered ? 'ghost' : 'primary'} className="mt-3 w-full" onClick={() => toggle(r)}>
-          {r.delivered ? '✓ Доставлено (отменить)' : 'Доставлено'}
-        </Btn>
+        {r.orders.lat == null && onSaved && !readOnly && <PinPoint orderId={r.orders.id} onSaved={onSaved} />}
+        {!readOnly && (
+          <Btn kind={r.delivered ? 'ghost' : 'primary'} className="mt-3 w-full" onClick={() => toggle(r)}>
+            {r.delivered ? '✓ Доставлено (отменить)' : 'Доставлено'}
+          </Btn>
+        )}
       </Card>
     );
   };
@@ -305,16 +309,18 @@ export function CourierTab() {
         <Btn kind="ghost" onClick={() => setDate(addDays(date, 1))} aria-label="Позже">→</Btn>
       </div>
       <div className="text-center text-sm font-bold text-ink-2">{labelFull(date, 'ru')}</div>
+      {!readOnly && (
       <div className="flex items-center justify-between gap-3 rounded-md2 border border-line bg-card px-4 py-2.5">
-        <span className="text-sm font-extrabold">Курьеров на этот день</span>
-        <div className="grid grid-cols-2 rounded-chip bg-sand p-1" role="radiogroup" aria-label="Число курьеров">
-          {([1, 2] as const).map((n) => (
-            <button key={n} role="radio" aria-checked={couriers === n} onClick={() => setCouriers(n)} className={`h-9 w-12 rounded-[10px] text-[15px] ${couriers === n ? 'bg-card font-extrabold shadow-seg' : 'font-bold text-ink-2'}`}>
-              {n}
-            </button>
-          ))}
+          <span className="text-sm font-extrabold">Курьеров на этот день</span>
+          <div className="grid grid-cols-2 rounded-chip bg-sand p-1" role="radiogroup" aria-label="Число курьеров">
+            {([1, 2] as const).map((n) => (
+              <button key={n} role="radio" aria-checked={couriers === n} onClick={() => setCouriers(n)} className={`h-9 w-12 rounded-[10px] text-[15px] ${couriers === n ? 'bg-card font-extrabold shadow-seg' : 'font-bold text-ink-2'}`}>
+                {n}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
+      )}
       <Err>{error}</Err>
       {notice && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{notice}</div>}
 
@@ -341,13 +347,13 @@ export function CourierTab() {
       {plan?.manual && (
         <div className="flex items-center justify-between gap-3 rounded-md2 border border-line bg-accent-soft px-4 py-2.5 text-sm font-bold lg:col-span-full">
           <span>✋ Ручное распределение по рейсам на этот день (используется и в отчёте)</span>
-          <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={resetOverride} disabled={savingMove}>Сбросить к авто</Btn>
+          {!readOnly && <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={resetOverride} disabled={savingMove}>Сбросить к авто</Btn>}
         </div>
       )}
       {plan && !plan.manual && override && (
         <div className="flex items-center justify-between gap-3 rounded-md2 border border-line bg-sand px-4 py-2.5 text-sm font-bold lg:col-span-full">
           <span>Ручное распределение сделано для {override.couriers} курьер(а) — при {couriers} не применяется</span>
-          <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={resetOverride} disabled={savingMove}>Сбросить</Btn>
+          {!readOnly && <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={resetOverride} disabled={savingMove}>Сбросить</Btn>}
         </div>
       )}
       {plan?.couriers.map((cr, ri) => {
@@ -377,7 +383,7 @@ export function CourierTab() {
                   const targets = Array.from({ length: cr.trips.length + (canNew ? 1 : 0) }, (_, i) => i + 1).filter((x) => x !== ti + 1);
                   return (
                     <div key={ts.key} className="flex flex-col gap-2">
-                      {targets.length > 0 && (
+                      {targets.length > 0 && !readOnly && (
                         <div className="flex flex-wrap items-center gap-1.5">
                           <span className="text-xs font-bold text-ink-muted">Точка {n}:</span>
                           {targets.map((x) => (
@@ -416,12 +422,16 @@ export function CourierTab() {
       {!kitchen && confirmed.map((r, i) => <DeliveryCard key={r.id} r={r} label={String(i + 1)} />)}
       </div>
 
+      {!readOnly && (
+        <>
       <Btn kind="outline" className="lg:col-start-2 lg:row-start-2 lg:!px-3 lg:!text-sm" onClick={sendReport} disabled={sending}>
         {sending ? 'Отправляем…' : `Отправить отчёт в Telegram (курьеров: ${couriers})`}
       </Btn>
       <Btn kind="outline" className="lg:col-start-2 lg:row-start-3 lg:!px-3 lg:!text-sm" onClick={sendKitchen} disabled={sendingKitchen}>
         {sendingKitchen ? 'Отправляем…' : 'Отправить порции повару'}
       </Btn>
+        </>
+      )}
     </div>
   );
 }

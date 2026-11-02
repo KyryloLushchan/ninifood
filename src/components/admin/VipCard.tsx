@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { adminDb } from '@/lib/admin/client';
 import { ruError } from '@/lib/admin/errors';
 import { Btn, Card, Err, inputCls } from './ui';
+import { useReadOnly } from './role';
 
 interface Vip {
   id: number;
@@ -18,6 +19,7 @@ const parseEmail = (raw: string) => {
 };
 
 export function VipCard() {
+  const readOnly = useReadOnly();
   const [list, setList] = useState<Vip[] | null>(null);
   const [mail, setMail] = useState('');
   const [note, setNote] = useState('');
@@ -76,17 +78,21 @@ export function VipCard() {
                 {v.note ?? 'без заметки'}
               </div>
             </div>
-            <Btn kind={confirmId === v.id ? 'danger' : 'ghost'} className="min-h-9 flex-none px-3 text-sm" onClick={() => void remove(v.id)}>
+            {!readOnly && (
+              <Btn kind={confirmId === v.id ? 'danger' : 'ghost'} className="min-h-9 flex-none px-3 text-sm" onClick={() => void remove(v.id)}>
               {confirmId === v.id ? 'Точно удалить?' : 'Удалить'}
             </Btn>
+            )}
           </div>
         ))
       )}
+      {!readOnly && (
       <div className="flex flex-col gap-2">
-        <input className={inputCls} type="email" placeholder="email клиента" autoCapitalize="none" value={mail} onChange={(e) => setMail(e.target.value)} />
-        <input className={inputCls} placeholder="Заметка (необязательно)" value={note} onChange={(e) => setNote(e.target.value)} />
-        <Btn onClick={add} disabled={busy || !mail.trim()}>{busy ? 'Добавляем…' : 'Добавить VIP'}</Btn>
-      </div>
+          <input className={inputCls} type="email" placeholder="email клиента" autoCapitalize="none" value={mail} onChange={(e) => setMail(e.target.value)} />
+          <input className={inputCls} placeholder="Заметка (необязательно)" value={note} onChange={(e) => setNote(e.target.value)} />
+          <Btn onClick={add} disabled={busy || !mail.trim()}>{busy ? 'Добавляем…' : 'Добавить VIP'}</Btn>
+        </div>
+      )}
       <Err>{error}</Err>
     </Card>
   );

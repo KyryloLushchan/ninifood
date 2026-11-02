@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
 import { Btn, Card, Err, Label, inputCls } from './ui';
+import { useReadOnly } from './role';
 
 const LANGS = [['ru', 'Русский'], ['ua', 'Українська'], ['en', 'English'], ['vi', 'Tiếng Việt']] as const;
 const POSITIONS = ['Суп', 'Горячее', 'Салат', 'Десерт'];
@@ -37,6 +38,7 @@ const toInt = (v: string): number | null => {
 };
 
 export function MenuTab() {
+  const readOnly = useReadOnly();
   const [weekday, setWeekday] = useState(1);
   const [form, setForm] = useState<Dish[]>(emptyForm);
   const [incomplete, setIncomplete] = useState<number[] | null>(null);
@@ -120,7 +122,7 @@ export function MenuTab() {
         </div>
       )}
 
-      <div className="text-xs text-ink-muted">Меню одинаковое каждую неделю: изменения сразу действуют на все такие дни недели.</div>
+      {!readOnly && <div className="text-xs text-ink-muted">Меню одинаковое каждую неделю: изменения сразу действуют на все такие дни недели.</div>}
       <div className="grid grid-cols-6 gap-1.5">
         {WEEKDAYS.map((w, i) => (
           <button
@@ -140,7 +142,30 @@ export function MenuTab() {
       {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}
 
       <div className="contents lg:grid lg:grid-cols-2 lg:items-start lg:gap-3">
-      {form.map((d, i) => (
+      {readOnly &&
+        form.map((d, i) => (
+          <Card key={i} className="flex flex-col gap-1.5">
+            <div className="text-[13px] font-extrabold uppercase tracking-[.04em] text-accent">{POSITIONS[i]}</div>
+            {LANGS.some(([l]) => d[`name_${l}`]) ? (
+              <>
+                {LANGS.map(([l, label]) => d[`name_${l}`] && (
+                  <div key={l} className="text-sm">
+                    <span className="text-ink-muted">{label}: </span>
+                    <b>{d[`name_${l}`]}</b>
+                    {d[`desc_${l}`] && <span className="text-ink-2"> — {d[`desc_${l}`]}</span>}
+                  </div>
+                ))}
+                <div className="text-sm text-ink-2">
+                  Вес: {d.weight_label || '—'} · {NUTRITION.map(([k, label]) => `${label} ${d[k] || '—'}`).join(' · ')}
+                </div>
+                <div className="break-all text-xs text-ink-muted">Фото: {d.photo_url || '—'}</div>
+              </>
+            ) : (
+              <div className="text-sm text-ink-muted">Блюда нет</div>
+            )}
+          </Card>
+        ))}
+      {!readOnly && form.map((d, i) => (
         <Card key={i} className="flex flex-col gap-2.5">
           <div className="text-[13px] font-extrabold uppercase tracking-[.04em] text-accent">{POSITIONS[i]}</div>
           {LANGS.map(([l, label]) => (
@@ -169,10 +194,14 @@ export function MenuTab() {
         </Card>
       ))}
       </div>
-      <div className="text-xs text-ink-muted">
-        Пустое название = блюда нет. Если язык не заполнен, на нём покажется русское название. КБЖУ — на порцию, примерные.
-      </div>
-      <Btn onClick={save} disabled={busy} className="sticky bottom-20">{busy ? 'Сохраняем…' : 'Сохранить'}</Btn>
+      {!readOnly && (
+        <>
+          <div className="text-xs text-ink-muted">
+            Пустое название = блюда нет. Если язык не заполнен, на нём покажется русское название. КБЖУ — на порцию, примерные.
+          </div>
+          <Btn onClick={save} disabled={busy} className="sticky bottom-20">{busy ? 'Сохраняем…' : 'Сохранить'}</Btn>
+        </>
+      )}
     </div>
   );
 }

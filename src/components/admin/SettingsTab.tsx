@@ -6,6 +6,7 @@ import { adminDb } from '@/lib/admin/client';
 import { DiscountCard } from './DiscountCard';
 import { VipCard } from './VipCard';
 import { Btn, Card, Err, Label, inputCls } from './ui';
+import { useReadOnly } from './role';
 
 const KITCHEN = [
   { key: 'kitchen_address', label: 'Адрес кухни (старт маршрута курьера)' },
@@ -32,6 +33,7 @@ const FIELDS = [
 ] as const;
 
 export function SettingsTab() {
+  const readOnly = useReadOnly();
   const [values, setValues] = useState<Record<string, string> | null>(null);
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
@@ -109,6 +111,31 @@ export function SettingsTab() {
   };
 
   if (!values) return <div className="py-6 text-center text-sm text-ink-muted">{error || 'Загрузка…'}</div>;
+
+  if (readOnly) {
+    const row = (label: string, v: string | undefined) => (
+      <div key={label} className="flex items-baseline justify-between gap-3 py-1.5 text-sm">
+        <span className="text-ink-2">{label}</span>
+        <b className="text-right">{v || '—'}</b>
+      </div>
+    );
+    return (
+      <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
+        <Card className="divide-y divide-line">{FIELDS.map((f) => row(f.label, values[f.key]))}</Card>
+        <Card className="divide-y divide-line">
+          <div className="pb-2 text-[17px] font-extrabold">Курьеры</div>
+          {KITCHEN.map((f) => row(f.label, values[f.key]))}
+          {row('Курьеров по умолчанию', values.couriers_count)}
+        </Card>
+        <Card className="divide-y divide-line">
+          <div className="pb-2 text-[17px] font-extrabold">Рейсы курьера</div>
+          {TRIPS.map((f) => row(f.label, values[f.key] ?? TRIP_DEFAULTS[f.key]))}
+        </Card>
+        <VipCard />
+        <DiscountCard />
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">

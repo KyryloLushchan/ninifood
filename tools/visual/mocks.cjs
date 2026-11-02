@@ -65,6 +65,7 @@ exports.respond = (req, state) => {
   if (/functions\/v1\/send-order/.test(u)) return ok({ ok: true, orderNumber: 'NF-9999' });
   if (/functions\/v1\/(auth-gate|resolve-point|daily-report|delete-order)/.test(u)) return ok({ ok: false, code: 'locked' }, 429);
   if (/rpc\/is_admin/.test(u)) return ok(state.mode === 'admin');
+  if (/rpc\/my_admin_role/.test(u)) return ok(JSON.stringify(state.mode === 'admin' ? (process.env.VISUAL_ROLE === 'viewer' ? 'viewer' : 'admin') : null));
   if (/rpc\/my_is_vip/.test(u)) return ok(false);
   if (/rpc\/my_discount/.test(u)) return ok(state.discount || 0);
   if (/auth\/v1/.test(u)) return ok({}, 200);

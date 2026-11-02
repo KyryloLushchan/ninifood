@@ -3,6 +3,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { useEffect, useState } from 'react';
 import { adminDb } from '@/lib/admin/client';
+import { RoleContext, type AdminRole } from './role';
 import { callGate } from '@/lib/auth-gate';
 import { TurnstileBox } from '@/components/ui/TurnstileWidget';
 import { CashTab } from './CashTab';
@@ -71,7 +72,7 @@ function Login() {
 
 export function AdminApp() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
-  const [isAdmin, setIsAdmin] = useState<boolean | null>(null);
+  const [role, setRole] = useState<AdminRole | null | undefined>(undefined);
   const [tab, setTab] = useState<Tab>('courier');
 
   useEffect(() => {
@@ -81,9 +82,9 @@ export function AdminApp() {
   }, []);
 
   useEffect(() => {
-    setIsAdmin(null);
+    setRole(undefined);
     if (!session) return;
-    adminDb.rpc('is_admin').then(({ data, error }) => setIsAdmin(!error && data === true));
+    adminDb.rpc('my_admin_role').then(({ data, error }) => setRole(!error && (data === 'admin' || data === 'viewer') ? data : null));
   }, [session?.user.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (session === undefined) return <div className="p-10 text-center text-ink-muted">Загрузка…</div>;
@@ -91,8 +92,8 @@ export function AdminApp() {
 
   const signOut = () => adminDb.auth.signOut();
 
-  if (isAdmin === null) return <div className="p-10 text-center text-ink-muted">Проверяем доступ…</div>;
-  if (!isAdmin) {
+  if (role === undefined) return <div className="p-10 text-center text-ink-muted">Проверяем доступ…</div>;
+  if (!role) {
     return (
       <div className="mx-auto flex min-h-screen max-w-sm flex-col items-center justify-center gap-4 px-5 text-center">
         <div className="font-serif text-[26px] font-semibold">Нет доступа</div>
@@ -103,9 +104,13 @@ export function AdminApp() {
   }
 
   return (
+    <RoleContext.Provider value={role}>
     <div className="mx-auto flex min-h-screen w-full max-w-[640px] flex-col md:max-w-[900px] lg:ml-[220px] lg:w-[calc(100%-220px)] lg:max-w-none">
       <header className="flex items-center justify-between px-4 py-3 lg:px-8 lg:py-5">
-        <div className="font-serif text-screen font-bold text-accent">NiniFood · админка</div>
+        <div className="font-serif text-screen font-bold text-accent">
+          NiniFood · админка
+          {role === 'viewer' && <span className="ml-0 mt-1 inline-block whitespace-nowrap rounded-full bg-sand px-2.5 py-1 align-middle font-sans text-xs font-extrabold text-ink-2 sm:ml-2 sm:mt-0">👁 Только просмотр</span>}
+        </div>
         <button onClick={signOut} className="text-sm font-bold text-ink-muted hover:underline">Выйти</button>
       </header>
       <main className="flex-1 px-4 pb-28 pt-1 lg:px-8 lg:pb-10">
@@ -128,5 +133,6 @@ export function AdminApp() {
         </div>
       </nav>
     </div>
+    </RoleContext.Provider>
   );
 }

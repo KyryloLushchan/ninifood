@@ -90,6 +90,8 @@ Deno.serve(async (req) => {
   if (jwt && jwt !== Deno.env.get('SUPABASE_ANON_KEY')) {
     const { data } = await db.auth.getUser(jwt);
     const email = (data.user?.email ?? '').toLowerCase();
+    // Аккаунт «только просмотр» (viewer) заказов не создаёт.
+    if (data.user && (await db.from('viewers').select('user_id').eq('user_id', data.user.id).maybeSingle()).data) return json({ ok: false, code: 'forbidden' }, 403); // без записи в order_attempts: ничего не меняем
     if (data.user && email) {
       customerId = data.user.id;
       vip = !!(await db.from('vip_customers').select('id').eq('email', email).maybeSingle()).data;
