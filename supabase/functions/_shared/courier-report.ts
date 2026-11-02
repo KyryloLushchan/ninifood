@@ -1,7 +1,8 @@
 import { esc } from './telegram.ts';
 import { labelRu } from './dates.ts';
 import { mapLinkHtml, money, phoneText, subLabel } from './order-text.ts';
-import { LONG_ROUTE_KM, planRoutes, type LatLng, type Route } from './route.ts';
+import type { LatLng } from './route.ts';
+import { hhmm, lateWarning, planDay, type CourierTrips, type RouteOverride, type TripSettings } from './trips.ts';
 
 export interface ReportDelivery {
   order_number: string;
@@ -20,6 +21,8 @@ export interface ReportDelivery {
   /** Для подписки: сколько всего дней в заказе и номер этого дня; для разового — null. */
   sub: { total: number; dayNo: number } | null;
   firstDay: boolean; // первый день доставки заказа — наличные берём только в него
+  /** Статус заказа: new — не подтверждён (⏳), delivered — уже доставлен. По умолчанию confirmed. */
+  status?: 'new' | 'confirmed' | 'delivered';
   /** Объединённая запись (несколько заказов одного клиента на один адрес): сумма наличных и пометки по подпискам. */
   cashOverride?: number;
   subNotes?: string[];
@@ -40,7 +43,7 @@ const portions = (n: number) => {
   return `${n} ${w}`;
 };
 
-const cashDue = (d: ReportDelivery) => d.cashOverride ?? (d.payment_method === 'cash' && d.firstDay ? d.total : 0);
+const cashDue = (d: ReportDelivery) => (d.status === 'delivered' ? 0 : d.cashOverride ?? (d.payment_method === 'cash' && d.firstDay ? d.total : 0));
 
 const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.map((x) => (x ?? '').trim()).filter(Boolean))];
 
@@ -60,6 +63,7 @@ export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
       order_number: g.map((d) => d.order_number).join(' + '),
       qty: g.reduce((n, d) => n + d.qty, 0),
       cutlery: g.some((d) => d.cutlery),
+      status: g.some((d) => d.status === 'new') ? ('new' as const) : g.every((d) => d.status === 'delivered') ? ('delivered' as const) : ('confirmed' as const),
       hotel: hotels.length ? hotels.join(' / ') : null,
       comment: comments.length ? comments.join(' / ') : null,
       phone: g.find((d) => d.phone)?.phone ?? null,
@@ -70,9 +74,11 @@ export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
   });
 }
 
-function entry(d: ReportDelivery, label: string): string {
+function entry(d: ReportDelivery, label: string, eta?: number): string {
   const due = cashDue(d);
-  const lines = [`<b>${label}. ${esc(d.order_number)}</b> · ${esc(handle(d.telegram))}`, `📍 <code>${esc(d.address)}</code>`];
+  const lines = [`<b>${label}. ${esc(d.order_number)}</b> · ${esc(handle(d.telegram))}${eta != null ? ` · 🕒 ≈ ${hhmm(eta)}` : ''}`];
+  if (d.status === 'new') lines.push('⏳ <b>Не подтверждён</b>');
+  lines.push(`📍 <code>${esc(d.address)}</code>`);
   const map = mapLinkHtml(d.lat, d.lng, d.place_id);
   if (map) lines.push(map);
   if (d.hotel) lines.push(`🏨 ${esc(d.hotel)}`);
@@ -81,12 +87,12 @@ function entry(d: ReportDelivery, label: string): string {
   if (d.subNotes?.length) lines.push(`🔁 ${d.subNotes.map(esc).join(' · ')}`);
   lines.push(`🍽 <b>${portions(d.qty).toUpperCase()}</b>`);
   if (d.cutlery) lines.push('🍴 <b>ПРИБОРЫ: ДА</b>');
-  lines.push(due ? `💵 Взять наличными: <b>${money(due)}</b>` : '✅ Оплачено');
+  lines.push(d.status === 'delivered' ? '✅ Доставлено' : due ? `💵 Взять наличными: <b>${money(due)}</b>` : '✅ Оплачено');
   if (d.comment) lines.push(`💬 ${esc(d.comment)}`);
   return lines.join('\n');
 }
 
-const kmText = (km: number) => `≈ ${(Math.round(km * 10) / 10).toString().replace('.', ',')} км (оценка по дорогам)`;
+const kmText = (km: number) => `≈ ${Math.round(km)} км`;
 const totals = (list: ReportDelivery[], addresses: number) =>
   `Адресов: ${addresses} · Порций: ${list.reduce((s, d) => s + d.qty, 0)} · Приборов: ${list.filter((d) => d.cutlery).length} · Наличными: ${money(list.reduce((s, d) => s + cashDue(d), 0))}`;
 
@@ -104,47 +110,71 @@ function pack(pieces: string[]): string[] {
   return chunks.map((c) => (c.length > TG_LIMIT ? c.slice(0, TG_LIMIT) : c));
 }
 
-const routeFooter = (r: Route<ReportDelivery>, warnLong: boolean) => {
-  const href = (u: string) => u.replace(/&/g, '&amp;');
-  const links = r.links.length === 1 ? `<a href="${href(r.links[0])}">Открыть в Google Maps</a>` : r.links.map((u, i) => `<a href="${href(u)}">Маршрут ${i + 1}/${r.links.length}</a>`).join(' · ');
-  return [`🗺 ${links}`, `📏 ${kmText(r.km)}`, ...(warnLong && r.km > LONG_ROUTE_KM ? ['⚠️ длинный маршрут, подумай о 2 курьерах'] : [])].join('\n');
-};
+const hrefAmp = (u: string) => u.replace(/&/g, '&amp;');
+
+/** Ссылки Google Maps рейса (по частям, если точек больше лимита ссылки): замкнутый — до кухни, открытый — до последней точки. */
+const tripLinks = (t: CourierTrips<ReportDelivery>['trips'][number]) =>
+  `🗺 ${t.links.length === 1 ? `<a href="${hrefAmp(t.links[0])}">Открыть в Google Maps</a>` : t.links.map((u, i) => `<a href="${hrefAmp(u)}">Часть ${i + 1}/${t.links.length}</a>`).join(' · ')} (${t.closed ? 'кухня → … → кухня' : 'кухня → … → последняя точка'})`;
+
+/** Блок курьера: предупреждение, рейсы («🚚 Рейс N — порц. · км · время»), точки со сквозной нумерацией и временем, ссылки рейса в его конце. */
+function courierBlock(cr: CourierTrips<ReportDelivery>, couriers: 1 | 2, index: number): string[] {
+  const block: string[] = [];
+  const all = cr.trips.flatMap((t) => t.stops.flatMap((s) => mergeSameClient(s.stop.items)));
+  if (couriers === 2) block.push(`🛵 <b>Курьер ${index + 1}</b>\n${totals(all, cr.trips.reduce((n, t) => n + t.stops.length, 0))} · ${kmText(cr.totalKm)}`);
+  const warn = lateWarning(cr, couriers, index);
+  if (warn) block.push(warn);
+  let no = 0;
+  cr.trips.forEach((t, ti) => {
+    // заголовок рейса идёт одним куском с первой точкой — при разбиении на сообщения они не разъезжаются
+    let title: string | null = `🚚 <b>Рейс ${ti + 1}</b> — ${t.portions} порц. · ${kmText(t.km)} · ${hhmm(t.startMin)}–${hhmm(t.endMin)}${t.overCapacity ? ' 🔴 больше вместимости' : ''}`;
+    t.stops.forEach((s) => {
+      no++;
+      const list = mergeSameClient(s.stop.items);
+      list.forEach((d, k) => {
+        const e = entry(d, list.length > 1 ? `${no}.${k + 1}` : String(no), s.arriveMin);
+        block.push(title ? `${title}\n\n${e}` : e);
+        title = null;
+      });
+    });
+    block.push(tripLinks(t));
+  });
+  return block;
+}
 
 /**
  * Текст(ы) отчёта на дату; при длине > 4096 режется по границам записей.
- * Есть координаты кухни — остановки в порядке маршрута (1 или 2 курьера, у каждого своя нумерация, итоги и ссылка Google Maps);
- * доставки без координат — отдельный блок. Нет кухни — как раньше, по номеру заказа.
+ * Есть координаты кухни — рейсы по вместимости (`planDay`): у каждого курьера свой блок (при 2 курьерах — с нового сообщения), рейсы со временем и ссылками;
+ * неподтверждённые помечены ⏳; доставки без координат — отдельный блок. Нет кухни — как раньше, по номеру заказа.
  */
-export function buildCourierReport(date: string, deliveries: ReportDelivery[], from: string, to: string, opts?: { kitchen: LatLng | null; couriers: 1 | 2 }): string[] {
+export function buildCourierReport(
+  date: string,
+  deliveries: ReportDelivery[],
+  from: string,
+  to: string,
+  opts?: { kitchen: LatLng | null; couriers: 1 | 2; trip?: TripSettings; override?: RouteOverride | null },
+): string[] {
   const label = labelRu(date);
   if (deliveries.length === 0) return [`На ${label} доставок нет`];
   const couriers = opts?.couriers ?? 1;
   const kitchen = opts?.kitchen ?? null;
   const byNumber = (a: ReportDelivery, b: ReportDelivery) => a.order_number.localeCompare(b.order_number);
 
-  if (!kitchen) {
+  if (!kitchen || !opts?.trip) {
     const list = [...deliveries].sort(byNumber);
     return pack([[`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, totals(list, list.length)].join('\n'), ...list.map((d, i) => entry(d, String(i + 1)))]);
   }
 
-  const plan = planRoutes([...deliveries].sort(byNumber), { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty }, kitchen, couriers);
-  const stopsTotal = plan.routes.reduce((s, r) => s + r.stops.length, 0) + plan.noPoint.length;
-  const header = [`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, totals(plan.routes.flatMap((r) => r.stops.flatMap((s) => mergeSameClient(s.items))).concat(plan.noPoint), stopsTotal)].join('\n');
-  // Блоки: у каждого курьера свой (заголовок, остановки, ссылки маршрута в конце) — при 2 курьерах каждый блок начинается с нового сообщения, чтобы его можно было переслать целиком.
-  const blocks: string[][] = [];
-  plan.routes.forEach((r, ri) => {
-    const merged = r.stops.map((s) => mergeSameClient(s.items));
-    const items = merged.flat();
-    const block: string[] = [];
-    if (couriers === 2) block.push(`🛵 <b>Курьер ${ri + 1}</b>\n${totals(items, r.stops.length)} · ${kmText(r.km)}`);
-    merged.forEach((list, si) => list.forEach((d, k) => block.push(entry(d, list.length > 1 ? `${si + 1}.${k + 1}` : String(si + 1)))));
-    block.push(routeFooter(r, couriers === 1));
-    blocks.push(block);
-  });
-  if (couriers === 2 && plan.routes.length === 1) blocks[0].unshift('🛵 <b>Курьер 1</b>' + `\n${totals(plan.routes[0].stops.flatMap((s) => mergeSameClient(s.items)), plan.routes[0].stops.length)}`);
+  const plan = planDay([...deliveries].sort(byNumber), { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty }, kitchen, couriers, opts.trip, opts.override);
+  const stopsTotal = plan.couriers.reduce((s, c) => s + c.trips.reduce((n, t) => n + t.stops.length, 0), 0) + plan.noPoint.length;
+  const placed = plan.couriers.flatMap((c) => c.trips.flatMap((t) => t.stops.flatMap((s) => mergeSameClient(s.stop.items)))).concat(plan.noPoint);
+  const tripsTotal = plan.couriers.reduce((n, c) => n + c.trips.length, 0);
+  const header = [`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, `${totals(placed, stopsTotal)} · Рейсов: ${tripsTotal}${plan.manual ? ' · ручное распределение' : ''}`].join('\n');
+  const blocks = plan.couriers.map((c, i) => courierBlock(c, couriers, i));
+  if (couriers === 2 && blocks.length === 1) blocks[0].unshift('🛵 <b>Курьер 1</b>');
   if (plan.noPoint.length) {
     blocks.push([`⚠️ <b>Без точки на карте — распределить/проверить вручную</b> (${plan.noPoint.length})`, ...plan.noPoint.map((d, i) => entry(d, String(i + 1)))]);
   }
+  // Блоки курьеров: при 2 курьерах каждый начинается с нового сообщения, чтобы его можно было переслать целиком.
   if (couriers === 2) return [header, ...blocks.flatMap((b) => pack(b))];
   return pack([header, ...blocks.flat()]);
 }

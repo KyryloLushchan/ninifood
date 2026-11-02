@@ -5,7 +5,8 @@ import { addDays, labelFull, todayISO } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
-import { LONG_ROUTE_KM, planRoutes, type LatLng, type Route } from '@/lib/admin/route';
+import type { LatLng } from '@/lib/admin/route';
+import { hhmm, lateWarning, parseTripSettings, planAssignment, planDay, stopKey, type CourierTrips, type RouteOverride } from '@/lib/admin/trips';
 import { subLabel } from '@/lib/admin/sub-label';
 import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
@@ -22,7 +23,7 @@ interface Row {
     id: string;
     order_number: string;
     type: 'single' | 'subscription';
-    status: 'new' | 'confirmed';
+    status: 'new' | 'confirmed' | 'delivered';
     telegram: string;
     phone: string | null;
     address: string;
@@ -55,11 +56,15 @@ export function CourierTab() {
   const [notice, setNotice] = useState('');
   const [kitchen, setKitchen] = useState<LatLng | null>(null);
   const [couriers, setCouriers] = useState<1 | 2>(1);
+  const [trip, setTrip] = useState(() => parseTripSettings({}));
+  const [override, setOverride] = useState<RouteOverride | null>(null);
+  const [savingMove, setSavingMove] = useState(false);
 
-  // Кухня и число курьеров по умолчанию — из Настроек; переключатель ниже действует только на выбранную дату.
+  // Кухня, число курьеров и параметры рейсов — из Настроек; переключатель ниже действует только на выбранную дату.
   useEffect(() => {
-    adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count']).then(({ data }) => {
+    adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min']).then(({ data }) => {
       const c = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
+      setTrip(parseTripSettings(c));
       const lat = Number(c.kitchen_lat);
       const lng = Number(c.kitchen_lng);
       if (c.kitchen_lat && c.kitchen_lng && Number.isFinite(lat) && Number.isFinite(lng)) setKitchen({ lat, lng });
@@ -75,7 +80,7 @@ export function CourierTab() {
         'id, delivery_date, qty, delivered, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date))',
       )
       .eq('delivery_date', date)
-      .in('orders.status', ['new', 'confirmed'])
+      .in('orders.status', ['new', 'confirmed', 'delivered']) // доставленные остаются в плане (серыми), чтобы рейсы не «плыли» в течение дня
       .order('id');
     if (error) setError(ruError(error.message));
     else setRows((data ?? []) as unknown as Row[]);
@@ -87,48 +92,89 @@ export function CourierTab() {
     load();
   }, [load]);
 
+  // Ручное распределение точек по рейсам на выбранную дату (если есть).
+  useEffect(() => {
+    setOverride(null);
+    adminDb.from('route_overrides').select('couriers, assign').eq('date', date).maybeSingle().then(({ data }) => {
+      if (data) setOverride({ couriers: data.couriers === 2 ? 2 : 1, assign: (data.assign ?? {}) as RouteOverride['assign'] });
+    });
+  }, [date]);
+
   const toggle = async (r: Row) => {
     const { error } = await adminDb.from('order_days').update({ delivered: !r.delivered }).eq('id', r.id);
     if (error) setError(ruError(error.message));
     else load(); // статус заказа меняет триггер в БД
   };
 
-  const confirmed = (rows ?? []).filter((r) => r.orders.status === 'confirmed');
+  // «Подтверждённые» = confirmed + delivered (доставленные остаются в плане); ждущие подтверждения (new) — в плане с пометкой ⏳.
+  const confirmed = (rows ?? []).filter((r) => r.orders.status !== 'new');
   const pending = (rows ?? []).filter((r) => r.orders.status === 'new');
   const sum = (l: Row[]) => l.reduce((s, r) => s + r.qty, 0);
   const cutleryCount = (l: Row[]) => l.filter((r) => r.orders.cutlery).length;
 
-  // Маршрут: те же функции, что у ночного отчёта (haversine × 1.3, nearest neighbor + 2-opt; при 2 курьерах — секторы вокруг кухни).
+  // Рейсы: те же функции, что у ночного отчёта (`planDay`: рейсы по вместимости, время, ручное распределение).
   const plan = useMemo(
-    () => (kitchen ? planRoutes(confirmed, { lat: (r) => r.orders.lat, lng: (r) => r.orders.lng, address: (r) => r.orders.address, qty: (r) => r.qty }, kitchen, couriers) : null),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rows, kitchen, couriers],
+    () =>
+      kitchen && rows
+        ? planDay([...rows].sort((a, b) => a.orders.order_number.localeCompare(b.orders.order_number)), { lat: (r) => r.orders.lat, lng: (r) => r.orders.lng, address: (r) => r.orders.address, qty: (r) => r.qty }, kitchen, couriers, trip, override)
+        : null,
+    [rows, kitchen, couriers, trip, override],
   );
 
-  // Точки доставки — как «Адресов» в ночном отчёте: заказы на одной точке (один адрес/координаты) считаются одной остановкой.
-  const stopCount = plan ? plan.routes.reduce((n, r) => n + r.stops.length, 0) + plan.noPoint.length : confirmed.length;
+  // Точки доставки — как «Адресов» в ночном отчёте: заказы на одной точке считаются одной остановкой.
+  const stopCount = plan ? plan.couriers.reduce((n, c) => n + c.trips.reduce((m, t) => m + t.stops.length, 0), 0) + plan.noPoint.length : confirmed.length;
 
-  const rowText = (r: Row, label: string) => {
+  // Ручной перенос точки в другой рейс (того же курьера): сохраняем всё текущее распределение дня, пересчёт — на лету.
+  const moveStop = async (key: string, courier: number, tripNo: number) => {
+    if (!plan) return;
+    const assign = { ...planAssignment(plan), [key]: { c: courier, t: tripNo } };
+    const next: RouteOverride = { couriers, assign };
+    setSavingMove(true);
+    setError('');
+    const { data: u } = await adminDb.auth.getUser();
+    const { error } = await adminDb.from('route_overrides').upsert({ date, couriers, assign, updated_at: new Date().toISOString(), updated_by: u.user?.email ?? null }, { onConflict: 'date' });
+    setSavingMove(false);
+    if (error) setError(ruError(error.message));
+    else setOverride(next);
+  };
+  const resetOverride = async () => {
+    setSavingMove(true);
+    setError('');
+    const { error } = await adminDb.from('route_overrides').delete().eq('date', date);
+    setSavingMove(false);
+    if (error) setError(ruError(error.message));
+    else setOverride(null);
+  };
+
+  const rowText = (r: Row, label: string, eta?: number) => {
     const due = cashDue(r);
     return [
-      `${label}) ${r.orders.address}${r.orders.hotel ? ` (${r.orders.hotel})` : ''}`,
+      `${label}) ${eta != null ? `≈${hhmm(eta)} ` : ''}${r.orders.status === 'new' ? '⏳ (не подтверждён) ' : ''}${r.orders.address}${r.orders.hotel ? ` (${r.orders.hotel})` : ''}`,
       `   Telegram: ${tgLabel(r.orders.telegram)}`,
       ...(r.orders.phone ? [`   Тел.: ${formatPhone(r.orders.phone)}`] : []),
       ...(r.orders.type === 'subscription' ? [`   ${subLabel(r.orders.order_days.length)}, день ${dayNo(r)} из ${r.orders.order_days.length}`] : []),
       `   ПОРЦИЙ: ${r.qty}`,
       ...(r.orders.cutlery ? ['   ПРИБОРЫ: ДА'] : []),
-      `   ${due ? `Взять наличными: ${fmtMoney(due)}` : 'Оплачено'}`,
+      `   ${r.delivered ? 'Доставлено' : due ? `Взять наличными: ${fmtMoney(due)}` : 'Оплачено'}`,
       ...(r.orders.comment ? [`   Комментарий: ${r.orders.comment}`] : []),
       '',
     ];
   };
 
-  /** Текст маршрута для отправки курьеру: остановки по порядку + ссылки Google Maps. */
-  const routeText = (r: Route<Row>, title: string) => {
-    const items = r.stops.flatMap((st) => st.items);
-    const lines = [`${title} на ${labelFull(date, 'ru')} — ${r.stops.length} адр., ${sum(items)} порц., приборов: ${cutleryCount(items)}, ${km(r.km)}`, ''];
-    r.stops.forEach((st, si) => st.items.forEach((row, k) => lines.push(...rowText(row, st.items.length > 1 ? `${si + 1}.${k + 1}` : String(si + 1)))));
-    r.links.forEach((u, i) => lines.push(`Маршрут${r.links.length > 1 ? ` ${i + 1}/${r.links.length}` : ''}: ${u}`));
+  /** Текст для курьера (копирование): рейсы, точки по порядку со временем + ссылки Google Maps каждого рейса. */
+  const courierText = (cr: CourierTrips<Row>, title: string) => {
+    const all = cr.trips.flatMap((t) => t.stops.flatMap((st) => st.stop.items));
+    const lines = [`${title} на ${labelFull(date, 'ru')} — ${cr.trips.reduce((n, t) => n + t.stops.length, 0)} адр., ${sum(all)} порц., рейсов: ${cr.trips.length}, приборов: ${cutleryCount(all)}, ${km(cr.totalKm)}`, ''];
+    let no = 0;
+    cr.trips.forEach((t, ti) => {
+      lines.push(`РЕЙС ${ti + 1} — ${t.portions} порц. · ${km(t.km)} · ${hhmm(t.startMin)}–${hhmm(t.endMin)}`, '');
+      t.stops.forEach((st) => {
+        no++;
+        st.stop.items.forEach((row, k) => lines.push(...rowText(row, st.stop.items.length > 1 ? `${no}.${k + 1}` : String(no), st.arriveMin)));
+      });
+      t.links.forEach((u, i) => lines.push(`Маршрут рейса ${ti + 1}${t.links.length > 1 ? ` (${i + 1}/${t.links.length})` : ''}: ${u}`));
+      lines.push('');
+    });
     return lines.join('\n').trim();
   };
 
@@ -182,7 +228,7 @@ export function CourierTab() {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/daily-report`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${data.session?.access_token ?? ''}` },
-        body: JSON.stringify({ date, parts: 'kitchen' }),
+        body: JSON.stringify({ date, couriers, parts: 'kitchen' }),
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok || !body.ok) {
@@ -200,15 +246,19 @@ export function CourierTab() {
     }
   };
 
-  const DeliveryCard = ({ r, label, onSaved }: { r: Row; label: string; onSaved?: () => void }) => {
+  const DeliveryCard = ({ r, label, eta, onSaved }: { r: Row; label: string; eta?: number; onSaved?: () => void }) => {
     const due = cashDue(r);
     const href = tgHref(r.orders.telegram);
     return (
       <Card className={r.delivered ? 'bg-success-bg2 opacity-80' : ''}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 gap-2.5">
-            <div className="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-accent text-[13px] font-extrabold text-white">{label}</div>
+            <div className="flex flex-none flex-col items-center gap-1">
+              <div className="flex h-7 min-w-7 items-center justify-center rounded-full bg-accent px-1 text-[13px] font-extrabold text-white">{label}</div>
+              {eta != null && <div className="text-[11px] font-bold text-ink-muted">≈{hhmm(eta)}</div>}
+            </div>
             <div className="flex min-w-0 flex-col gap-0.5">
+              {r.orders.status === 'new' && <div className="text-xs font-extrabold text-accent">⏳ не подтверждён</div>}
               <div className="text-[15px] font-extrabold">{r.orders.address}</div>
               {r.orders.hotel && <div className="text-sm text-ink-2">🏨 {r.orders.hotel}</div>}
               <div className="text-sm">
@@ -235,7 +285,7 @@ export function CourierTab() {
           <div className="flex-none text-right">
             <div className="text-[24px] font-extrabold leading-none">{r.qty} <span className="text-[15px]">{plural(r.qty)}</span></div>
             {r.orders.cutlery && <div className="mt-1.5 inline-block rounded-full bg-accent px-2.5 py-1 text-[13px] font-extrabold text-white">🍴 Приборы</div>}
-            <div className={`text-sm font-bold ${due ? 'text-accent' : 'text-success'}`}>{due ? `к получению: ${fmtMoney(due)}` : 'оплачено'}</div>
+            <div className={`text-sm font-bold ${due && !r.delivered ? 'text-accent' : 'text-success'}`}>{r.delivered ? 'доставлено' : due ? `к получению: ${fmtMoney(due)}` : 'оплачено'}</div>
           </div>
         </div>
         {r.orders.lat == null && onSaved && <PinPoint orderId={r.orders.id} onSaved={onSaved} />}
@@ -288,32 +338,71 @@ export function CourierTab() {
       </div>
 
       <div className={`contents lg:col-start-1 lg:row-span-2 lg:row-start-1 lg:grid lg:items-start lg:gap-6 ${couriers === 2 ? 'lg:grid-cols-2' : ''}`}>
-      {plan?.routes.map((route, ri) => {
-        const items = route.stops.flatMap((st) => st.items);
+      {plan?.manual && (
+        <div className="flex items-center justify-between gap-3 rounded-md2 border border-line bg-accent-soft px-4 py-2.5 text-sm font-bold lg:col-span-full">
+          <span>✋ Ручное распределение по рейсам на этот день (используется и в отчёте)</span>
+          <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={resetOverride} disabled={savingMove}>Сбросить к авто</Btn>
+        </div>
+      )}
+      {plan && !plan.manual && override && (
+        <div className="flex items-center justify-between gap-3 rounded-md2 border border-line bg-sand px-4 py-2.5 text-sm font-bold lg:col-span-full">
+          <span>Ручное распределение сделано для {override.couriers} курьер(а) — при {couriers} не применяется</span>
+          <Btn kind="ghost" className="!min-h-9 !px-3 !text-sm" onClick={resetOverride} disabled={savingMove}>Сбросить</Btn>
+        </div>
+      )}
+      {plan?.couriers.map((cr, ri) => {
+        const all = cr.trips.flatMap((t) => t.stops.flatMap((st) => st.stop.items));
         const key = `r${ri}`;
-        const long = couriers === 1 && route.km > LONG_ROUTE_KM;
+        const warn = lateWarning(cr, couriers, ri);
+        let no = 0;
         return (
           <section key={key} className="flex flex-col gap-3">
             <div className="rounded-md2 border border-line bg-sand/50 px-4 py-3">
               <div className="text-[17px] font-extrabold">{couriers === 2 ? `🛵 Курьер ${ri + 1}` : '🛵 Маршрут'}</div>
               <div className="text-sm text-ink-2">
-                {route.stops.length} адр. · {sum(items)} порц. · приборов: {cutleryCount(items)} · {km(route.km)}
+                {cr.trips.reduce((n, t) => n + t.stops.length, 0)} адр. · {sum(all)} порц. · рейсов {cr.trips.length} · приборов: {cutleryCount(all)} · {km(cr.totalKm)}
               </div>
-              {long && <div className="mt-1 text-sm font-extrabold text-danger">⚠️ длинный маршрут, подумай о 2 курьерах</div>}
+              {warn && <div className="mt-1 text-sm font-extrabold text-danger">{warn}</div>}
             </div>
-            {route.stops.map((st, si) => st.items.map((r, k) => <DeliveryCard key={r.id} r={r} label={st.items.length > 1 ? `${si + 1}.${k + 1}` : String(si + 1)} />))}
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-wrap gap-2">
-                {route.links.map((u, i) => (
-                  <a key={u} href={u} target="_blank" rel="noreferrer" className="flex min-h-11 flex-1 items-center justify-center rounded-md2 border-2 border-accent px-4 text-[15px] font-extrabold text-accent hover:bg-accent-soft/60 hover:no-underline">
-                    🗺 Открыть маршрут{route.links.length > 1 ? ` ${i + 1}/${route.links.length}` : ''}
-                  </a>
-                ))}
+            {cr.trips.map((t, ti) => (
+              <div key={ti} className="flex flex-col gap-3">
+                <div className={`rounded-md2 border px-4 py-2.5 ${t.overCapacity ? 'border-danger bg-danger-bg' : 'border-line bg-card'}`}>
+                  <div className="text-[16px] font-extrabold">🚚 Рейс {ti + 1} — {t.portions} порц. · {km(t.km)} · {hhmm(t.startMin)}–{hhmm(t.endMin)}</div>
+                  {t.overCapacity && <div className="text-sm font-extrabold text-danger">🔴 больше вместимости ({t.portions} из {trip.capacity})</div>}
+                </div>
+                {t.stops.map((ts) => {
+                  no++;
+                  const n = no;
+                  const canNew = t.stops.length > 1; // в новый рейс переносим, только если в этом рейсе есть ещё точки
+                  const targets = Array.from({ length: cr.trips.length + (canNew ? 1 : 0) }, (_, i) => i + 1).filter((x) => x !== ti + 1);
+                  return (
+                    <div key={ts.key} className="flex flex-col gap-2">
+                      {targets.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <span className="text-xs font-bold text-ink-muted">Точка {n}:</span>
+                          {targets.map((x) => (
+                            <Btn key={x} kind="ghost" className="!min-h-8 !px-2.5 !text-xs" disabled={savingMove} onClick={() => moveStop(ts.key, ri + 1, x)}>
+                              → Рейс {x}{x > cr.trips.length ? ' (новый)' : ''}
+                            </Btn>
+                          ))}
+                        </div>
+                      )}
+                      {ts.stop.items.map((r, k) => <DeliveryCard key={r.id} r={r} eta={ts.arriveMin} label={ts.stop.items.length > 1 ? `${n}.${k + 1}` : String(n)} />)}
+                    </div>
+                  );
+                })}
+                <div className="flex flex-wrap gap-2">
+                  {t.links.map((u, i) => (
+                    <a key={u} href={u} target="_blank" rel="noreferrer" className="flex min-h-11 flex-1 items-center justify-center rounded-md2 border-2 border-accent px-4 text-[15px] font-extrabold text-accent hover:bg-accent-soft/60 hover:no-underline">
+                      🗺 Маршрут рейса {ti + 1}{t.links.length > 1 ? ` · часть ${i + 1}/${t.links.length}` : ''}{t.closed ? ' (с возвратом)' : ''}
+                    </a>
+                  ))}
+                </div>
               </div>
-              <Btn kind="outline" onClick={() => copyText(key, routeText(route, couriers === 2 ? `Курьер ${ri + 1}` : 'Доставка'))}>
-                {copied === key ? 'Скопировано ✓' : 'Скопировать список'}
-              </Btn>
-            </div>
+            ))}
+            <Btn kind="outline" onClick={() => copyText(key, courierText(cr, couriers === 2 ? `Курьер ${ri + 1}` : 'Доставка'))}>
+              {copied === key ? 'Скопировано ✓' : 'Скопировать список'}
+            </Btn>
           </section>
         );
       })}

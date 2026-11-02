@@ -13,6 +13,17 @@ const KITCHEN = [
   { key: 'kitchen_lng', label: 'Долгота кухни' },
 ] as const;
 
+const TRIPS = [
+  { key: 'trip_capacity', label: 'Порций за рейс', kind: 'int', min: 1, max: 50 },
+  { key: 'courier_speed_kmh', label: 'Средняя скорость, км/ч', kind: 'num', min: 5, max: 80 },
+  { key: 'stop_minutes', label: 'Время на точку, мин', kind: 'num', min: 0, max: 30 },
+  { key: 'road_factor', label: 'Коэффициент дорог к прямой (по умолчанию 1,3)', kind: 'num', min: 1, max: 3 },
+  { key: 'depart_time', label: 'Выезд с кухни (ЧЧ:ММ)', kind: 'time' },
+  { key: 'deadline_time', label: 'Конец окна доставки (ЧЧ:ММ)', kind: 'time' },
+  { key: 'trip_gap_min', label: 'Пауза между рейсами (перезагрузка на кухне), мин', kind: 'num', min: 0, max: 120 },
+] as const;
+const TRIP_DEFAULTS: Record<string, string> = { trip_capacity: '9', courier_speed_kmh: '25', stop_minutes: '4', road_factor: '1.3', depart_time: '13:00', deadline_time: '16:00', trip_gap_min: '10' };
+
 const FIELDS = [
   { key: 'price_single', label: 'Цена обеда, ₫', numeric: true },
   { key: 'price_subscription', label: 'Цена подписки за 5 дней, ₫ (обед в подписке = 1/5)', numeric: true },
@@ -51,6 +62,32 @@ export function SettingsTab() {
     setBusy(false);
     if (error) setError(ruError(error.message));
     else setMsg('Курьеры сохранены. Следующий ночной отчёт будет по этим настройкам.');
+  };
+
+  const saveTrips = async () => {
+    if (!values) return;
+    setError('');
+    setMsg('');
+    const rows: { key: string; value: string; is_public: boolean }[] = [];
+    for (const f of TRIPS) {
+      const v = (values[f.key] ?? TRIP_DEFAULTS[f.key]).trim().replace(',', '.');
+      const bad =
+        f.kind === 'time'
+          ? !/^([01]?\d|2[0-3]):[0-5]\d$/.test(v)
+          : !(v !== '' && Number.isFinite(Number(v)) && Number(v) >= f.min && Number(v) <= f.max && (f.kind !== 'int' || Number.isInteger(Number(v))));
+      if (bad) return setError(`Проверьте поле: ${f.label}`);
+      rows.push({ key: f.key, value: v, is_public: false });
+    }
+    const toMin = (k: string) => {
+      const [h, m] = rows.find((r) => r.key === k)!.value.split(':');
+      return +h * 60 + +m;
+    };
+    if (toMin('depart_time') >= toMin('deadline_time')) return setError('Выезд должен быть раньше конца окна.');
+    setBusy(true);
+    const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
+    setBusy(false);
+    if (error) setError(ruError(error.message));
+    else setMsg('Параметры рейсов сохранены. Отчёт курьеру и вкладка «Курьер» будут считаться по ним.');
   };
 
   const save = async () => {
@@ -117,6 +154,17 @@ export function SettingsTab() {
           </div>
         </div>
         <Btn onClick={saveCouriers} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить курьеров'}</Btn>
+      </Card>
+      <Card className="flex flex-col gap-3">
+        <div className="text-[17px] font-extrabold">Рейсы курьера</div>
+        {TRIPS.map((f) => (
+          <div key={f.key}>
+            <Label>{f.label}</Label>
+            <input className={inputCls} inputMode={f.kind === 'time' ? 'text' : 'decimal'} value={values[f.key] ?? TRIP_DEFAULTS[f.key]} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+          </div>
+        ))}
+        <div className="text-xs text-ink-muted">Расстояние — по прямой × коэффициент, платных карт нет. Рейс — это порции за один выезд; промежуточные рейсы возвращаются на кухню, последний — нет.</div>
+        <Btn onClick={saveTrips} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить рейсы'}</Btn>
       </Card>
       <VipCard />
       <DiscountCard />
