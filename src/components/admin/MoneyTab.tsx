@@ -6,7 +6,7 @@ import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb, type AdminOrder } from '@/lib/admin/client';
 import { cashReceivable, computeProfit, computeRevenue, type Bucket, type CashCategory, type CashMovement } from '@/lib/admin/money';
-import { PRESETS, periodRange, type Preset } from '@/lib/admin/period';
+import { MONEY_PRESETS, periodRange, type Preset } from '@/lib/admin/period';
 import { Btn, Card, Err, Note, inputCls } from './ui';
 
 function Row({ title, b }: { title: string; b: Bucket }) {
@@ -21,6 +21,19 @@ function Row({ title, b }: { title: string; b: Bucket }) {
   );
 }
 
+const PAGE = 1000;
+
+/** Читает все строки запроса страницами (PostgREST отдаёт не больше 1000 за раз) — нужно для «За всё время». */
+async function pageAll<T>(q: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ data: T[]; error: { message: string } | null }> {
+  const all: T[] = [];
+  for (let i = 0; ; i += PAGE) {
+    const { data, error } = await q(i, i + PAGE - 1);
+    if (error) return { data: [], error };
+    all.push(...(data ?? []));
+    if (!data || data.length < PAGE) return { data: all, error: null };
+  }
+}
+
 export function MoneyTab() {
   const [preset, setPreset] = useState<Preset>('week');
   const [from, setFrom] = useState(todayISO());
@@ -31,24 +44,37 @@ export function MoneyTab() {
   const [moves, setMoves] = useState<CashMovement[] | null>(null);
   const [cats, setCats] = useState<CashCategory[]>([]);
   const [error, setError] = useState('');
+  const [first, setFirst] = useState<string | undefined>();
 
-  const [a, b] = periodRange(preset, from, to);
+  // Дата первого заказа (Дананг-время) — начало периода «За всё время».
+  useEffect(() => {
+    adminDb.from('orders').select('created_at').order('created_at', { ascending: true }).limit(1).then(({ data }) => {
+      const c = data?.[0]?.created_at as string | undefined;
+      if (c) setFirst(new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Ho_Chi_Minh' }).format(new Date(c)));
+    });
+  }, []);
+
+  const [a, b] = periodRange(preset, from, to, first);
 
   useEffect(() => {
     setOrders(null);
     const { from: f, to: t } = dayRangeUTC(a, b);
-    adminDb
-      .from('orders')
-      .select('*, order_days(id, delivery_date, qty, delivered)')
-      .in('status', ['confirmed', 'delivered'])
-      .neq('payment_method', 'cash') // наличные считаются по доставке (ниже)
-      .gte('created_at', f)
-      .lt('created_at', t)
-      .then(({ data, error }) => {
+    pageAll((x, y) =>
+      adminDb
+        .from('orders')
+        .select('*, order_days(id, delivery_date, qty, delivered)')
+        .in('status', ['confirmed', 'delivered'])
+        .neq('payment_method', 'cash') // наличные считаются по доставке (ниже)
+        .gte('created_at', f)
+        .lt('created_at', t)
+        .order('created_at')
+        .order('id')
+        .range(x, y),
+    ).then(({ data, error }) => {
         if (error) setError(ruError(error.message));
         else {
           setError('');
-          setOrders((data ?? []) as unknown as AdminOrder[]);
+          setOrders(data as unknown as AdminOrder[]);
         }
       });
   }, [a, b]);
@@ -56,16 +82,19 @@ export function MoneyTab() {
   // Наличные: заказы автозаписей кассы с датой в периоде (дата = день доставки первого дня, отмечен доставленным).
   useEffect(() => {
     setCashOrders(null);
-    adminDb
-      .from('cash_movements')
-      .select('order_id, orders(*, order_days(id, delivery_date, qty, delivered))')
-      .not('order_id', 'is', null)
-      .gte('date', a)
-      .lte('date', b)
-      .then(({ data, error }) => {
-        if (error) setError(ruError(error.message));
-        else setCashOrders(((data ?? []) as unknown as { orders: AdminOrder | null }[]).map((r) => r.orders).filter((o): o is AdminOrder => !!o));
-      });
+    pageAll((x, y) =>
+      adminDb
+        .from('cash_movements')
+        .select('order_id, orders(*, order_days(id, delivery_date, qty, delivered))')
+        .not('order_id', 'is', null)
+        .gte('date', a)
+        .lte('date', b)
+        .order('id')
+        .range(x, y),
+    ).then(({ data, error }) => {
+      if (error) setError(ruError(error.message));
+      else setCashOrders((data as unknown as { orders: AdminOrder | null }[]).map((r) => r.orders).filter((o): o is AdminOrder => !!o));
+    });
   }, [a, b]);
 
   // «К получению»: все подтверждённые наличные, первый день не доставлен (не зависит от периода).
@@ -81,13 +110,13 @@ export function MoneyTab() {
   useEffect(() => {
     setMoves(null);
     Promise.all([
-      adminDb.from('cash_movements').select('id, date, type, category_id, amount, comment, order_id').gte('date', a).lte('date', b),
+      pageAll((x, y) => adminDb.from('cash_movements').select('id, date, type, category_id, amount, comment, order_id').gte('date', a).lte('date', b).order('id').range(x, y)),
       adminDb.from('cash_categories').select('*'),
     ]).then(([m, c]) => {
       const err = m.error ?? c.error;
       if (err) setError(ruError(err.message));
       else {
-        setMoves((m.data ?? []) as CashMovement[]);
+        setMoves(m.data as CashMovement[]);
         setCats((c.data ?? []) as CashCategory[]);
       }
     });
@@ -99,8 +128,8 @@ export function MoneyTab() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid grid-cols-4 gap-1.5">
-        {PRESETS.map(([id, label]) => (
+      <div className="grid grid-cols-3 gap-1.5 lg:grid-cols-5">
+        {MONEY_PRESETS.map(([id, label]) => (
           <Btn key={id} kind={preset === id ? 'primary' : 'ghost'} className="!px-1 !text-sm" onClick={() => setPreset(id)}>
             {label}
           </Btn>
