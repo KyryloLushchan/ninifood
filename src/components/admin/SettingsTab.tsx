@@ -23,6 +23,12 @@ const TRIPS = [
   { key: 'deadline_time', label: 'Конец окна доставки (ЧЧ:ММ)', kind: 'time' },
   { key: 'trip_gap_min', label: 'Пауза между рейсами (перезагрузка на кухне), мин', kind: 'num', min: 0, max: 120 },
 ] as const;
+const PAY = [
+  { key: 'courier_pay_per_address', label: 'Оплата за адрес, ₫', kind: 'int', min: 0, max: 1000000 },
+  { key: 'courier_fuel_l100', label: 'Расход бензина, л/100 км', kind: 'num', min: 0, max: 50 },
+  { key: 'courier_fuel_price', label: 'Цена бензина, ₫/л (меняется вручную)', kind: 'int', min: 0, max: 200000 },
+] as const;
+const PAY_DEFAULTS: Record<string, string> = { courier_pay_per_address: '20000', courier_fuel_l100: '2.2', courier_fuel_price: '26000' };
 const TRIP_DEFAULTS: Record<string, string> = { trip_capacity: '9', courier_speed_kmh: '25', stop_minutes: '4', road_factor: '1.3', depart_time: '13:00', deadline_time: '16:00', trip_gap_min: '10' };
 
 const FIELDS = [
@@ -64,6 +70,24 @@ export function SettingsTab() {
     setBusy(false);
     if (error) setError(ruError(error.message));
     else setMsg('Курьеры сохранены. Следующий ночной отчёт будет по этим настройкам.');
+  };
+
+  const savePay = async () => {
+    if (!values) return;
+    setError('');
+    setMsg('');
+    const rows: { key: string; value: string; is_public: boolean }[] = [];
+    for (const f of PAY) {
+      const v = (values[f.key] ?? PAY_DEFAULTS[f.key]).trim().replace(',', '.');
+      const n = Number(v);
+      if (v === '' || !Number.isFinite(n) || n < f.min || n > f.max || (f.kind === 'int' && !Number.isInteger(n))) return setError(`Проверьте поле: ${f.label}`);
+      rows.push({ key: f.key, value: v, is_public: false });
+    }
+    setBusy(true);
+    const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
+    setBusy(false);
+    if (error) setError(ruError(error.message));
+    else setMsg('Параметры ЗП курьера сохранены. Применятся к расчёту (уже выплаченные дни не меняются).');
   };
 
   const saveTrips = async () => {
@@ -128,6 +152,10 @@ export function SettingsTab() {
           {row('Курьеров по умолчанию', values.couriers_count)}
         </Card>
         <Card className="divide-y divide-line">
+          <div className="pb-2 text-[17px] font-extrabold">ЗП курьера</div>
+          {PAY.map((f) => row(f.label, values[f.key] ?? PAY_DEFAULTS[f.key]))}
+        </Card>
+        <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">Рейсы курьера</div>
           {TRIPS.map((f) => row(f.label, values[f.key] ?? TRIP_DEFAULTS[f.key]))}
         </Card>
@@ -181,6 +209,17 @@ export function SettingsTab() {
           </div>
         </div>
         <Btn onClick={saveCouriers} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить курьеров'}</Btn>
+      </Card>
+      <Card className="flex flex-col gap-3">
+        <div className="text-[17px] font-extrabold">ЗП курьера</div>
+        {PAY.map((f) => (
+          <div key={f.key}>
+            <Label>{f.label}</Label>
+            <input className={inputCls} inputMode="decimal" value={values[f.key] ?? PAY_DEFAULTS[f.key]} onChange={(e) => setValues({ ...values, [f.key]: e.target.value })} />
+          </div>
+        ))}
+        <div className="text-xs text-ink-muted">ЗП = адреса × оплата за адрес + бензин (км × расход / 100 × цена, округлено до 500 ₫). Адрес = клиент в точке доставки.</div>
+        <Btn onClick={savePay} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить ЗП курьера'}</Btn>
       </Card>
       <Card className="flex flex-col gap-3">
         <div className="text-[17px] font-extrabold">Рейсы курьера</div>

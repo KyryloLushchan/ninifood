@@ -24,7 +24,8 @@ const hm = (v: string | undefined, d: number) => {
   return m ? +m[1] * 60 + +m[2] : d;
 };
 const num = (v: string | undefined, d: number, min: number, max: number) => {
-  const n = Number((v ?? '').replace(',', '.'));
+  if (v === undefined || v.trim() === '') return d; // нет значения — по умолчанию (а не 0)
+  const n = Number(v.replace(',', '.'));
   return Number.isFinite(n) && n >= min && n <= max ? n : d;
 };
 

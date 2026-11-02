@@ -13,6 +13,7 @@ import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
 import { PinPoint } from './PinPoint';
+import { CourierPayBlock } from './PayrollParts';
 import { useReadOnly } from './role';
 
 interface Row {
@@ -50,7 +51,11 @@ const dayNo = (r: Row) => [...r.orders.order_days].map((d) => d.delivery_date).s
 
 export function CourierTab() {
   const readOnly = useReadOnly();
-  const [date, setDate] = useState(() => addDays(todayISO(), 1));
+  const [date, setDate] = useState(() => {
+    // ссылка из недельного отчёта по ЗП: /admin?tab=courier&date=ГГГГ-ММ-ДД
+    const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('date') : null;
+    return q && /^\d{4}-\d{2}-\d{2}$/.test(q) ? q : addDays(todayISO(), 1);
+  });
   const [rows, setRows] = useState<Row[] | null>(null);
   const [error, setError] = useState('');
   const [copied, setCopied] = useState('');
@@ -336,6 +341,8 @@ export function CourierTab() {
           )}
         </Card>
       )}
+
+      {rows && <CourierPayBlock date={date} refreshKey={rows} />}
 
       {rows === null && <Note>Загрузка…</Note>}
       {rows && confirmed.length === 0 && <Note>На эту дату подтверждённых доставок нет</Note>}

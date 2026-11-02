@@ -8,6 +8,7 @@ import { adminDb, type AdminOrder } from '@/lib/admin/client';
 import { cashReceivable, computeProfit, computeRevenue, type Bucket, type CashCategory, type CashMovement } from '@/lib/admin/money';
 import { MONEY_PRESETS, periodRange, type Preset } from '@/lib/admin/period';
 import { Btn, Card, Err, Note, inputCls } from './ui';
+import { PayrollCard } from './PayrollParts';
 
 function Row({ title, b }: { title: string; b: Bucket }) {
   return (
@@ -178,6 +179,7 @@ export function MoneyTab() {
             {report.total.discount > 0 && <div className="text-sm text-ink-2">Скидки (уже вычтены из выручки): {fmtMoney(report.total.discount)}</div>}
             <div className="text-sm text-ink-2">{report.total.orders} заказов · {report.total.portions} порций</div>
           </Card>
+          <PayrollCard from={a} to={b} />
           {receivable && (
             <Card>
               <div className="text-sm text-ink-muted">Наличные к получению</div>

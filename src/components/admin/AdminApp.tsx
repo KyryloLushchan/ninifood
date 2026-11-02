@@ -73,7 +73,10 @@ function Login() {
 export function AdminApp() {
   const [session, setSession] = useState<Session | null | undefined>(undefined);
   const [role, setRole] = useState<AdminRole | null | undefined>(undefined);
-  const [tab, setTab] = useState<Tab>('courier');
+  const [tab, setTab] = useState<Tab>(() => {
+    const q = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('tab') : null;
+    return TABS.some(([id]) => id === q) ? (q as Tab) : 'courier';
+  });
 
   useEffect(() => {
     adminDb.auth.getSession().then(({ data }) => setSession(data.session));

@@ -74,6 +74,12 @@ exports.respond = (req, state) => {
   if (/rest\/v1\/menu_dishes/.test(u)) return ok(fx('menu_dishes.json'));
   if (/rest\/v1\/settings/.test(u)) return ok(state.mode === 'admin' ? SETTINGS_ALL : fx('settings.json'));
   if (/rest\/v1\/customers/.test(u)) return wantsObject ? ok(CUSTOMER) : ok([CUSTOMER]);
+  // ЗП курьера (PayrollParts): запрос `delivery_date, qty, orders!inner(status, telegram, ...)` по датам — отдаём те же строки с запрошенной датой.
+  if (/rest\/v1\/order_days\?select=delivery_date/.test(u)) {
+    const m = /delivery_date=in\.\(([^)]*)\)/.exec(decodeURIComponent(u));
+    const d = m ? m[1].split(',')[0].replace(/"/g, '') : '2026-10-29';
+    return ok(courierRows.map((r) => ({ delivery_date: d, qty: r.qty, orders: r.orders })));
+  }
   if (/rest\/v1\/order_days/.test(u)) return ok(courierRows);
   if (/rest\/v1\/orders/.test(u)) return ok(state.mode === 'admin' ? ORDERS : MY_ORDERS);
   if (/rest\/v1\/cash_categories/.test(u)) return ok(CATS);
