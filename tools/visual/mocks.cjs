@@ -44,6 +44,8 @@ const MY_ORDERS = [
 const CUSTOMER = { user_id: 'c1', email: 'anna.test@example.com', telegram: '@anna_test', phone: '+84901234567', address: '12 Bạch Đằng, Hải Châu, Đà Nẵng', place_id: null, lat: null, lng: null, cutlery: false };
 const DRAFT = (payment) => ({ type: 'single', days: ['2026-10-30'], portions: 2, payment, lang: null, telegram: '@ninitest', phone: '+84901234567', address: '12 Bạch Đằng, Hải Châu, Đà Nẵng', hotel: 'Hotel Sun', comment: 'Позвонить за 10 минут', cutlery: false, place_id: null, lat: null, lng: null });
 
+const RENEWAL = { telegram: '@ninitest', phone_hint: '90 *** 67', address: '12 Bạch Đằng, Hải Châu, Đà Nẵng', place_id: null, lat: null, lng: null, hotel: 'Hotel Sun', comment: 'Позвонить за 10 минут', cutlery: true, lang: null, portions: 2 };
+
 const QR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="540" height="640" viewBox="0 0 540 640"><rect width="540" height="640" fill="#fff"/><g fill="#000">' +
   Array.from({ length: 21 }, (_, y) => Array.from({ length: 21 }, (_, x) => ((x * 7 + y * 13 + x * y) % 3 === 0 ? `<rect x="${60 + x * 20}" y="${40 + y * 20}" width="20" height="20"/>` : '')).join('')).join('') +
   '</g><text x="270" y="600" font-family="Arial" font-size="28" text-anchor="middle">TEST QR</text></svg>';
@@ -59,6 +61,7 @@ exports.respond = (req, state) => {
   if (req.method() === 'OPTIONS') return { status: 204, headers: { 'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*' } };
   if (/functions\/v1\/order-draft/.test(u)) {
     const body = JSON.parse(req.postData() || '{}');
+    if (body.action === 'renewal_get') return state.renewal ? ok({ ok: true, renewal: RENEWAL }) : ok({ ok: false, code: 'not_found' }, 404);
     if (body.action === 'create') return ok({ ok: true, id: 'AbCdEfGhIjKlMnOpQrStUv' });
     return state.draft ? ok({ ok: true, draft: DRAFT(state.draft) }) : ok({ ok: false, code: 'not_found' }, 404);
   }

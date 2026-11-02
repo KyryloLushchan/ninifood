@@ -20,7 +20,7 @@ const REQUIRED: (keyof Contact)[] = ['telegram', 'phone', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
-  const { customer, cutlery, setCutlery, go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError } = useApp();
+  const { customer, cutlery, setCutlery, go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError, renewal, phoneKept, setPhoneKept } = useApp();
   const [phoneForeign, setPhoneForeign] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
@@ -47,7 +47,7 @@ export function Checkout() {
   };
 
   const submit = () => {
-    const bad = REQUIRED.filter((k) => (k === 'phone' ? !isValidPhone(contact.phone) : !contact[k].trim()));
+    const bad = REQUIRED.filter((k) => (k === 'phone' ? !phoneKept && !isValidPhone(contact.phone) : !contact[k].trim()));
     setErrors(Object.fromEntries(bad.map((k) => [k, true])));
     if (bad.length) {
       document.querySelector<HTMLInputElement>(`input[name="${bad[0]}"]`)?.focus();
@@ -104,10 +104,11 @@ export function Checkout() {
           inputMode="tel"
           autoComplete="tel-national"
           error={err('phone')}
-          hint={phoneForeign ? t('checkout.phoneForeign') : undefined}
-          value={formatDigits(contact.phone)}
+          hint={phoneKept ? t('checkout.phoneKept') : phoneForeign ? t('checkout.phoneForeign') : undefined}
+          value={phoneKept ? (renewal?.phoneHint ?? '') : formatDigits(contact.phone)}
+          onFocus={() => phoneKept && setPhoneKept(false)}
           onChange={(e) => onPhone(e.target, isTyping(e))}
-          onBlur={(e) => e.target.value !== formatDigits(contact.phone) && onPhone(e.target, false)}
+          onBlur={(e) => (renewal?.phoneHint && !phoneKept && contact.phone === '' && e.target.value === '' ? setPhoneKept(true) : e.target.value !== formatDigits(contact.phone) && onPhone(e.target, false))}
           onAnimationStart={(e) => onPhone(e.currentTarget, false)}
         />
         <AddressField

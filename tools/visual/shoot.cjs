@@ -50,7 +50,7 @@ async function stable(page) {
 }
 const settle = async (page, ms = 500) => { await page.evaluate(() => document.fonts.ready); await sleep(ms); };
 
-async function newPage(browser, w, { mobile, lang, mode, session, draft, discount }) {
+async function newPage(browser, w, { mobile, lang, mode, session, draft, discount, renewal }) {
   // Отдельный контекст на страницу: localStorage (язык, сессии) не должен утекать между параллельными сценариями.
   const ctx = await browser.createBrowserContext();
   const page = await ctx.newPage();
@@ -58,7 +58,7 @@ async function newPage(browser, w, { mobile, lang, mode, session, draft, discoun
   await page.setViewport({ width: w, height: 800, deviceScaleFactor: 1, isMobile: mobile, hasTouch: mobile });
   await page.emulateTimezone('Asia/Ho_Chi_Minh');
   page.on('pageerror', (e) => console.error('PAGEERR', e.message));
-  const state = { mode, draft, discount };
+  const state = { mode, draft, discount, renewal };
   await page.evaluateOnNewDocument((FIXED, lang, session, mode) => {
     const R = Date; const t0 = performance.now();
     class D extends R { constructor(...a) { if (a.length) super(...a); else super(FIXED + (performance.now() - t0)); } static now() { return FIXED + (performance.now() - t0); } }
@@ -107,6 +107,10 @@ const SITE = [
   ['payment-qr', async (p) => { await sleep(1200); }, { draft: 'qr', url: '/?d=AbCdEfGhIjKlMnOpQrStUv' }],
   ['payment-other', async (p) => { await sleep(800); }, { draft: 'other', url: '/?d=AbCdEfGhIjKlMnOpQrStUv' }],
   ['draft-stale', async (p) => { await sleep(500); }, { url: '/?d=AbCdEfGhIjKlMnOpQrStUv' }],
+  // Ссылка продления подписки: данные по коду подставляются (телефон — маской); неверный код — обычный пустой сайт.
+  ['renewal-order', async (p) => { await sleep(900); }, { renewal: true, url: '/?r=AbCdEfGhIjKlMnOpQrStUv' }],
+  ['renewal-checkout', async (p, l) => { await sleep(900); await click(p, tr(l, 'order.next')); await sleep(500); }, { renewal: true, url: '/?r=AbCdEfGhIjKlMnOpQrStUv' }],
+  ['renewal-invalid', async (p) => { await sleep(700); }, { url: '/?r=ZZZZZZZZZZZZZZZZZZZZZZ' }],
   ['auth-login', async (p, l) => { await click(p, tr(l, 'auth.login')); }],
   ['auth-register', async (p, l) => { await click(p, tr(l, 'auth.login')); await click(p, tr(l, 'auth.noAccount')); }],
   ['auth-forgot', async (p, l) => { await click(p, tr(l, 'auth.login')); await click(p, tr(l, 'auth.forgot')); }],
@@ -141,7 +145,7 @@ async function main() {
       let page;
       try {
         const session = j.o.session === 'customer' ? mocks.customerSession : j.mode === 'admin' && !j.o.noSession ? mocks.adminSession : null;
-        page = await newPage(browser, j.w, { mobile: j.mobile, lang: j.l, mode: j.mode, session, draft: j.o.draft, discount: j.o.discount });
+        page = await newPage(browser, j.w, { mobile: j.mobile, lang: j.l, mode: j.mode, session, draft: j.o.draft, discount: j.o.discount, renewal: j.o.renewal });
         await page.goto(BASE + (j.mode === 'admin' ? '/admin.html' : j.o.url || '/'), { waitUntil: 'networkidle0' });
         await settle(page, 700);
         await j.run(page, j.l);

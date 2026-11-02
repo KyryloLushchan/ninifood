@@ -91,6 +91,7 @@ export const en: Record<TKey, string> = {
   'checkout.phone': 'Phone *',
   'checkout.phonePh': '90 123 45 67',
   'checkout.phoneForeign': "Please enter a Vietnamese number",
+  'checkout.phoneKept': 'Number from your last order — tap to change',
   'checkout.address': 'Address *',
   'checkout.addressPh': 'Street, building, district',
   'checkout.poweredBy': 'Powered by Google',

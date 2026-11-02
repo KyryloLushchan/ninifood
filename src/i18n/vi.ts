@@ -91,6 +91,7 @@ export const vi: Record<TKey, string> = {
   'checkout.phone': 'Số điện thoại *',
   'checkout.phonePh': '90 123 45 67',
   'checkout.phoneForeign': "Vui lòng nhập số điện thoại Việt Nam",
+  'checkout.phoneKept': 'Số từ đơn trước — chạm để đổi',
   'checkout.address': 'Địa chỉ *',
   'checkout.addressPh': 'Đường, số nhà, quận',
   'checkout.poweredBy': 'Powered by Google',

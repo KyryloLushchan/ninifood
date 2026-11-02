@@ -105,7 +105,13 @@ Deno.serve(async (req) => {
   const type = p.type === 'once' || p.type === 'single' ? 'single' : p.type === 'sub' || p.type === 'subscription' ? 'subscription' : null;
   const payment = p.payment === 'qr' || p.payment === 'cash' || p.payment === 'other' ? p.payment : null;
   const telegram = str(p.telegram, 64);
-  const phone = str(p.phone, 32).replace(/[\s-]/g, '');
+  let phone = str(p.phone, 32).replace(/[\s-]/g, '');
+  // Ссылка продления (?r=КОД): телефон на странице показан маской — если клиент его не менял, подставляем полный номер из прошлого заказа по коду.
+  const renewalCode = /^[0-9A-Za-z]{22}$/.test(String(p.renewal ?? '')) ? String(p.renewal) : null;
+  if (renewalCode && !phone) {
+    const { data: rl } = await db.from('renewal_links').select('orders!inner(phone)').eq('code', renewalCode).is('used_at', null).gt('expires_at', new Date().toISOString()).maybeSingle();
+    phone = String((rl as any)?.orders?.phone ?? '');
+  }
   const address = str(p.address, 300);
   const hotel = str(p.hotel, 150);
   const comment = str(p.comment, 500);
@@ -276,6 +282,11 @@ Deno.serve(async (req) => {
   }
 
   // Заказ ушёл с телефона по ссылке «Продолжить на телефоне» — черновик больше не нужен.
+  // Код продления одноразовый: после оформления заказа больше не работает.
+  if (renewalCode) {
+    const { error } = await db.from('renewal_links').update({ used_at: new Date().toISOString(), used_order_id: order.id }).eq('code', renewalCode).is('used_at', null);
+    if (error) console.error(`mark renewal used failed for ${order.order_number}:`, error.message);
+  }
   const draftId = str(p.draft_id, 22);
   if (/^[0-9A-Za-z]{22}$/.test(draftId)) {
     const { error } = await db.from('order_drafts').delete().eq('id', draftId);

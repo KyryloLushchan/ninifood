@@ -29,6 +29,9 @@ export interface OrderPayload {
   accessToken?: string | null;
   /** Черновик «Продолжить на телефоне»: после успешного заказа сервер его удалит. */
   draftId?: string | null;
+  /** Код ссылки продления: после заказа сервер гасит ссылку; при keepPhone полный номер подставляется на сервере по коду. */
+  renewalCode?: string | null;
+  keepPhone?: boolean;
 }
 
 /** Код ошибки от сервера (или 'network' / 'generic') — фронт превращает в текст на языке клиента. */
@@ -55,8 +58,9 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
       captcha: payload.captcha,
       cutlery: payload.cutlery === true,
       ...(payload.draftId ? { draft_id: payload.draftId } : {}),
+      ...(payload.renewalCode ? { renewal: payload.renewalCode } : {}),
       ...payload.contact,
-      phone: `${PHONE_PREFIX}${payload.contact.phone}`,
+      phone: payload.keepPhone && payload.renewalCode ? '' : `${PHONE_PREFIX}${payload.contact.phone}`,
       ...(payload.place ? { place_id: payload.place.placeId, lat: payload.place.lat, lng: payload.place.lng } : {}),
     }),
   );

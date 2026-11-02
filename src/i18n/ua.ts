@@ -91,6 +91,7 @@ export const ua: Record<TKey, string> = {
   'checkout.phone': 'Телефон *',
   'checkout.phonePh': '90 123 45 67',
   'checkout.phoneForeign': "Вкажіть в'єтнамський номер",
+  'checkout.phoneKept': 'Номер із попереднього замовлення — натисніть, щоб змінити',
   'checkout.address': 'Адреса *',
   'checkout.addressPh': 'Вулиця, будинок, район',
   'checkout.poweredBy': 'Powered by Google',

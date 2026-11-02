@@ -10,6 +10,7 @@ const SUB_MIN_DAYS = 5;
 const MAX_QTY = 99;
 const MAX_BODY = 20_000;
 const RATE_PER_HOUR = 10; // черновиков с одного IP в час
+const RENEWAL_FAILS_PER_HOUR = 20; // неудачных запросов кода продления с одного IP в час (защита от перебора)
 const ID_RE = /^[0-9A-Za-z]{22}$/;
 const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
 
@@ -56,6 +57,52 @@ Deno.serve(async (req) => {
       return json({ ok: false, code: 'server_error' }, 500);
     }
     return data ? json({ ok: true, draft: data.payload }) : json({ ok: false, code: 'not_found' }, 404);
+  }
+  // Ссылка продления подписки (?r=КОД): по коду отдаём данные последнего заказа клиента; телефон — только в маске, полный подставит send-order по тому же коду.
+  if (p?.action === 'renewal_get') {
+    const code = String(p.code ?? '');
+    const ip = clientIp(req);
+    const ipHash = ip ? await sha256hex(`${Deno.env.get('IP_HASH_SALT') ?? ''}:${ip}`) : null;
+    if (ipHash) {
+      const since = new Date(Date.now() - 3600_000).toISOString();
+      const { count } = await db.from('renewal_attempts').select('id', { count: 'exact', head: true }).eq('ip_hash', ipHash).gte('created_at', since);
+      if ((count ?? 0) >= RENEWAL_FAILS_PER_HOUR) return json({ ok: false, code: 'rate_limited' }, 429);
+    }
+    const miss = async () => {
+      if (ipHash) await db.from('renewal_attempts').insert({ ip_hash: ipHash });
+      return json({ ok: false, code: 'not_found' }, 404);
+    };
+    if (!ID_RE.test(code)) return await miss();
+    const { data, error } = await db
+      .from('renewal_links')
+      .select('portions, orders!inner(telegram, phone, address, place_id, lat, lng, hotel, comment, cutlery, lang)')
+      .eq('code', code)
+      .is('used_at', null)
+      .gt('expires_at', new Date().toISOString())
+      .maybeSingle();
+    if (error) {
+      console.error('renewal_get failed:', error.message);
+      return json({ ok: false, code: 'server_error' }, 500);
+    }
+    if (!data) return await miss();
+    const o = (data as any).orders;
+    const digits = String(o.phone ?? '').replace(/^\+84/, '');
+    return json({
+      ok: true,
+      renewal: {
+        telegram: o.telegram,
+        phone_hint: /^\d{9}$/.test(digits) ? `${digits.slice(0, 2)} *** ${digits.slice(-2)}` : null,
+        address: o.address,
+        place_id: o.place_id,
+        lat: o.lat,
+        lng: o.lng,
+        hotel: o.hotel ?? '',
+        comment: o.comment ?? '',
+        cutlery: o.cutlery === true,
+        lang: o.lang ?? null,
+        portions: (data as any).portions,
+      },
+    });
   }
   if (p?.action !== 'create') return json({ ok: false, code: 'bad_request' }, 400);
 

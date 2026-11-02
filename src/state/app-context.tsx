@@ -14,6 +14,7 @@ import type { GateSession } from '@/lib/auth-gate';
 import { customerDb, fetchProfile, signOutCustomer, type CustomerProfile } from '@/lib/customer-auth';
 import { phoneDigits } from '@/lib/phone';
 import { DRAFT_ID_RE, fetchDraft } from '@/lib/order-draft';
+import { fetchRenewal, RENEWAL_RE } from '@/lib/renewal';
 
 export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks' | 'orders' | 'auth';
 export type Payment = 'qr' | 'cash' | 'other';
@@ -121,6 +122,10 @@ interface AppValue {
   placed: PlacedOrder | null;
   /** Ссылка «Продолжить на телефоне» (?d=) устарела или не найдена — показать уведомление. */
   draftStale: boolean;
+  /** Продление подписки по ссылке (?r=КОД): код и маска телефона; phoneKept — телефон остаётся из прошлого заказа (полный номер подставит сервер). */
+  renewal: { code: string; phoneHint: string | null } | null;
+  phoneKept: boolean;
+  setPhoneKept: (v: boolean) => void;
   dismissDraftStale: () => void;
   reset: () => void;
 }
@@ -133,6 +138,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   langRef.current = { lang, confirmLang };
   const draftIdRef = useRef<string | null>(null);
   const [draftStale, setDraftStale] = useState(false);
+  const [renewal, setRenewal] = useState<{ code: string; phoneHint: string | null } | null>(null);
+  const [phoneKept, setPhoneKept] = useState(false);
   const [screen, setScreen] = useState<Screen>('home');
   const [today, setToday] = useState<string | null>(null);
   const [menu, setMenu] = useState<Menu>({});
@@ -246,6 +253,30 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (d.lang && ['ua', 'ru', 'en', 'vi'].includes(d.lang) && !localStorage.getItem('ninifood.lang')) langRef.current.confirmLang(d.lang as Lang);
       setScreen(d.payment === 'cash' ? 'checkout' : 'payment');
       clean();
+    });
+  }, []);
+
+  // Ссылка продления подписки: ?r=КОД → данные последнего заказа клиента с сервера → оформление «Подписка» (дни — ближайшие 5 рабочих, можно поменять).
+  // Неверный/просроченный/использованный код — обычный пустой сайт без ошибок.
+  useEffect(() => {
+    const code = new URLSearchParams(window.location.search).get('r');
+    if (code === null) return;
+    const u = new URL(window.location.href);
+    u.searchParams.delete('r');
+    window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+    if (!RENEWAL_RE.test(code)) return;
+    void fetchRenewal(code).then((d) => {
+      if (!d) return;
+      setOrderType('sub');
+      setSubDays(null); // по умолчанию — ближайшие 5 рабочих дней
+      setPortionsState(Math.max(1, d.portions));
+      setContact({ telegram: d.telegram, phone: '', address: d.address, hotel: d.hotel, comment: d.comment });
+      setPlace(d.place_id && d.lat != null && d.lng != null ? { placeId: d.place_id, text: d.address, lat: d.lat, lng: d.lng } : null);
+      setCutlery(d.cutlery === true);
+      setRenewal({ code, phoneHint: d.phone_hint });
+      setPhoneKept(!!d.phone_hint);
+      if (d.lang && ['ua', 'ru', 'en', 'vi'].includes(d.lang) && !localStorage.getItem('ninifood.lang')) langRef.current.confirmLang(d.lang as Lang);
+      setScreen('order');
     });
   }, []);
 
@@ -391,6 +422,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubmitError(null);
     setPlaced(null);
     draftIdRef.current = null;
+    setRenewal(null);
+    setPhoneKept(false);
     go('home');
   }, [go, customer]);
 
@@ -413,6 +446,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         lang,
         accessToken,
         draftId: draftIdRef.current,
+        renewalCode: renewal?.code ?? null,
+        keepPhone: phoneKept,
       });
       draftIdRef.current = null;
       setPlaced({ orderId: orderNumber, type: orderType, days, portions, total, payment });
@@ -424,7 +459,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setSending(false);
     }
-  }, [orderType, days, portions, total, payment, contact, place, captcha, cutlery, screenshot, lang, go, customer, loadProfile]);
+  }, [orderType, days, portions, total, payment, contact, place, captcha, cutlery, screenshot, lang, go, customer, loadProfile, renewal, phoneKept]);
 
   const value: AppValue = {
     screen,
@@ -486,6 +521,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     placeOrder,
     placed,
     draftStale,
+    renewal,
+    phoneKept,
+    setPhoneKept,
     dismissDraftStale: () => setDraftStale(false),
     reset,
   };
