@@ -80,6 +80,8 @@ interface AppValue {
 
   orderType: OrderType;
   setOrderType: (t: OrderType) => void;
+  /** Разовый заказ автоматически переключён на подписку (выбрано 5+ дней) — показываем подсказку. */
+  autoSub: boolean;
   onceDays: string[];
   toggleOnceDay: (iso: string) => void;
   subDays: string[];
@@ -142,6 +144,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const [orderType, setOrderType] = useState<OrderType>('once');
+  const [autoSub, setAutoSub] = useState(false);
   const [onceDaysRaw, setOnceDays] = useState<string[]>([]);
   const [subDaysRaw, setSubDays] = useState<string[] | null>(null);
   const [portions, setPortionsState] = useState(1);
@@ -305,16 +308,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
       : subTotals(subDays.length, portions, siteSettings.priceSub, SUB_MIN_DAYS, siteSettings.deliverySingle, discount);
   const { total } = sum;
 
+  // 5+ дней разовым заказом → сразу подписка (выбранные дни сохраняются).
   const toggleOnceDay = useCallback(
-    (iso: string) => setOnceDays((prev) => (prev.includes(iso) ? prev.filter((d) => d !== iso) : [...prev, iso])),
-    [],
+    (iso: string) => {
+      const next = onceDays.includes(iso) ? onceDays.filter((d) => d !== iso) : [...onceDays, iso].sort();
+      setOnceDays(next);
+      if (next.length >= SUB_MIN_DAYS) {
+        setSubDays(next);
+        setOrderType('sub');
+        setAutoSub(true);
+      }
+    },
+    [onceDays],
   );
 
+  // Автоподписка: если дней стало меньше 5 — обратно на разовый заказ с теми же днями.
   const toggleSubDay = useCallback(
     (iso: string) => {
-      setSubDays(subDays.includes(iso) ? subDays.filter((d) => d !== iso) : [...subDays, iso]);
+      const next = subDays.includes(iso) ? subDays.filter((d) => d !== iso) : [...subDays, iso];
+      if (autoSub && next.length < SUB_MIN_DAYS) {
+        setOnceDays(next);
+        setSubDays(null);
+        setOrderType('once');
+        setAutoSub(false);
+        return;
+      }
+      setSubDays(next);
     },
-    [subDays],
+    [subDays, autoSub],
   );
 
   const go = useCallback((s: Screen) => {
@@ -342,6 +363,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const startOnce = useCallback(
     (iso: string) => {
+      setAutoSub(false);
       setOrderType('once');
       setOnceDays([iso]);
       go('order');
@@ -350,11 +372,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   );
 
   const startSub = useCallback(() => {
+    setAutoSub(false);
     setOrderType('sub');
     go('order');
   }, [go]);
 
   const reset = useCallback(() => {
+    setAutoSub(false);
     setOrderType('once');
     setOnceDays([]);
     setSubDays(null);
@@ -421,7 +445,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     nearestDay,
     subscriptionDays,
     orderType,
-    setOrderType,
+    setOrderType: (t: OrderType) => {
+      setAutoSub(false);
+      setOrderType(t);
+    },
+    autoSub,
     onceDays,
     toggleOnceDay,
     subDays,

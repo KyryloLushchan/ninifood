@@ -17,7 +17,7 @@ import { TwoCol } from '../ui/Layout';
 
 export function Order() {
   const { t } = useI18n();
-  const { orderType, setOrderType, portions, setPortions, go } = useApp();
+  const { orderType, setOrderType, autoSub, portions, setPortions, go } = useApp();
 
   const seg = (active: boolean) =>
     `h-[42px] rounded-[11px] text-[15px] ${active ? 'bg-card font-extrabold shadow-seg' : 'font-bold text-ink-2'}`;
@@ -35,6 +35,12 @@ export function Order() {
             {t('order.tabSub')}
           </button>
         </div>
+
+        {autoSub && orderType === 'sub' && (
+          <div role="status" className="rounded-md2 bg-accent-soft px-4 py-3 text-sm font-bold leading-snug text-ink-2">
+            {t('order.autoSub')}
+          </div>
+        )}
 
         <div className="flex items-center justify-between gap-3">
           <div className="flex flex-col gap-0.5">

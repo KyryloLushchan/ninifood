@@ -9,7 +9,6 @@ import { useApp, type Contact, type Payment } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
 import { AddressField } from '../ui/AddressField';
-import { AuthControl } from '../ui/AuthControl';
 import { DiscountBadge } from '../ui/DiscountBadge';
 import { Field } from '../ui/Field';
 import { TwoCol } from '../ui/Layout';
@@ -87,12 +86,6 @@ export function Checkout() {
         </div>
 
         <DiscountBadge />
-        {customer ? null : (
-          <div className="flex flex-col gap-2.5 rounded-md2 bg-card px-4 py-3.5">
-            <div className="text-[13px] leading-snug text-ink-2">{t('auth.checkoutHint')}</div>
-            <AuthControl variant="full" />
-          </div>
-        )}
         <Field
           name="telegram"
           label={t('checkout.telegram')}
