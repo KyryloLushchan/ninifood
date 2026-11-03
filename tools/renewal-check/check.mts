@@ -74,7 +74,7 @@ async function load(fn: string) {
   return handler;
 }
 const { addDays, todayISO, isSunday } = await import(`${ROOT}/supabase/functions/_shared/dates.ts`);
-const { selectEntries, clientText, nickText } = await import(`${ROOT}/supabase/functions/_shared/renewal.ts`);
+const { selectEntries, clientText, nickText, renewalLink } = await import(`${ROOT}/supabase/functions/_shared/renewal.ts`);
 const TODAY = todayISO();
 const D = (n: number) => addDays(TODAY, n);
 
@@ -86,14 +86,14 @@ const mkOrder = (num: number, tg: string, o: any = {}) => {
   for (const d of o.days ?? [-4, -3, -2, -1, 0]) store.order_days.push({ id: `d${++seq}`, order_id: id, delivery_date: D(d), qty: o.dayQty ?? 1 });
   return id;
 };
-mkOrder(1, '@alice', { phone: '+84326477671', hotel: 'Hotel Sun', comment: 'этаж 7' });                       // заканчивается сегодня → в списке
+mkOrder(1, '@alice', { phone: '+84326477671', hotel: 'Hotel Sun', comment: 'этаж 7', fields: { lang: 'ua' } });                       // заканчивается сегодня → в списке
 mkOrder(2, '@bob'); mkOrder(3, '@bob', { fields: { status: 'new' }, days: [1, 2, 3, 4, 5] });                   // уже есть следующая (неподтверждённая) → нет
 mkOrder(4, '@carol', { phone: '+84911111111' }); mkOrder(5, '@someone_else', { fields: { type: 'single' }, phone: '+84911111111', days: [2] }); // тот же телефон → нет
 mkOrder(6, '@dave', { customer_id: 'cust-1' }); mkOrder(7, '@dave2', { customer_id: 'cust-1', days: [3] });     // тот же аккаунт → нет
-mkOrder(8, '@erin'); mkOrder(9, '@erin', { fields: { status: 'cancelled' }, days: [1, 2, 3, 4, 5] });          // будущая отменена → в списке
+mkOrder(8, '@erin', { fields: { lang: 'en' } }); mkOrder(9, '@erin', { fields: { status: 'cancelled' }, days: [1, 2, 3, 4, 5] });          // будущая отменена → в списке
 mkOrder(10, '@frank', { days: [-5, -4, -3, -2, -1] });                                                         // закончилась вчера → нет
 mkOrder(11, '@gina', { days: [-2, -1, 0, 1, 2] });                                                             // заканчивается позже → нет
-mkOrder(12, '@hank', { fields: { status: 'delivered' } });                                                     // доставлена (все дни) → в списке
+mkOrder(12, '@hank', { fields: { status: 'delivered', lang: 'vi' } });                                                     // доставлена (все дни) → в списке
 mkOrder(13, '@ivan', { fields: { type: 'single' }, days: [0] });                                               // разовый → нет
 mkOrder(14, '@jane', { fields: { status: 'new' } });                                                           // не подтверждена → нет
 mkOrder(15, '@kim', { dayQty: 1 }); mkOrder(16, '@kim', { dayQty: 1 });                                        // два заказа одного клиента → одна запись
@@ -122,10 +122,13 @@ ok(sent.length === 4 && sent.every((m) => m.chat_id === '-555'), `4 отдель
 for (const m of sent) console.log(m.text.split('\n').map((l: string) => '    ' + l).join('\n') + '\n');
 const alice = sent.find((m) => m.text.includes('@alice'))!;
 ok(alice.text.split('\n')[0] === '🔔 @alice · NF-1 — 5 дн., 1 порц.', 'формат: 🔔 @ник · NF-… — N дн., M порц.');
-ok(alice.text === `🔔 @alice · NF-1 — 5 дн., 1 порц.\n\n${clientText()}` && !/<code>|🔗/.test(alice.text), 'обычный текст: сводка, пустая строка, текст клиенту; без <code> и без строки «🔗 ninifoodvn.com»');
-ok(sent.every((m) => m.disable_web_page_preview === true) && alice.text.endsWith('https://ninifoodvn.com/#subscription'), 'ссылка https://ninifoodvn.com/#subscription последней строкой, превью выключено');
-ok([['  alice ', '@alice'], ['https://t.me/samuicompany', '@samuicompany'], ['t.me/ab_cde', '@ab_cde'], ['@\u200Bpar2\u200Dpar0', '@par2par0'], ['bob', 'bob'], ['a b c d e f', '@abcdef'], ['x'.repeat(33), 'x'.repeat(33)]].every(([i, o]) => nickText(i) === o), 'нормализация ника: пробелы, t.me/, невидимые символы, @ только у валидного 5–32');
-ok(clientText() === 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nhttps://ninifoodvn.com/#subscription', 'текст совпадает с ТЗ посимвольно');
+ok(alice.text === `🔔 @alice · NF-1 — 5 дн., 1 порц.\n\n${clientText('ua')}` && !/<code>|🔗/.test(alice.text), 'обычный текст: сводка, пустая строка, текст клиенту; без <code> и без строки «🔗 ninifoodvn.com»');
+ok(sent.every((m) => m.disable_web_page_preview === true), 'превью ссылки выключено');
+const linkOf = (nick: string) => sent.find((m) => m.text.includes(nick))!.text.split('\n').pop();
+ok(linkOf('@alice') === 'https://ninifoodvn.com/?lang=uk#subscription', 'язык заказа ua → ?lang=uk');
+ok(linkOf('erin') === 'https://ninifoodvn.com/?lang=en#subscription' && linkOf('hank') === 'https://ninifoodvn.com/?lang=vi#subscription' && linkOf('kim') === 'https://ninifoodvn.com/?lang=ru#subscription', 'en → ?lang=en, vi → ?lang=vi, ru → ?lang=ru');
+ok(renewalLink(null) === 'https://ninifoodvn.com/?lang=ru#subscription' && renewalLink('xx') === 'https://ninifoodvn.com/?lang=ru#subscription', 'нет языка у заказа → ru');
+ok(clientText('ru') === 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nhttps://ninifoodvn.com/?lang=ru#subscription', 'текст совпадает с ТЗ посимвольно (ссылка с ?lang=)');
 ok(sent.every((m) => !/\?r=|📞|\+84|Заканчиваются/.test(m.text)) && store.renewal_links.length === 0, 'нет телефона, нет ссылок ?r=, ссылки в БД не создаются');
 const kim = sent.find((m) => m.text.includes('kim'))!;
 ok(kim.text.startsWith('🔔 kim · NF-15 + NF-16 — 5 дн., 2 порц.'), 'два заказа одного клиента — одно сообщение');

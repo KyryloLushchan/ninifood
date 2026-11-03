@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
   }
   const ids = [...new Set((todays ?? []).map((r: any) => r.order_id as string))];
   if (!ids.length) return json({ ok: true, count: 0 });
-  const { data: orders, error: e2 } = await db.from('orders').select('id, order_number, telegram, phone, customer_id, order_days(delivery_date, qty)').in('id', ids);
+  const { data: orders, error: e2 } = await db.from('orders').select('id, order_number, telegram, phone, customer_id, lang, order_days(delivery_date, qty)').in('id', ids);
   if (e2) {
     console.error('renewal-reminder orders failed:', e2.message);
     return json({ ok: false, code: 'server_error' }, 500);
@@ -60,7 +60,7 @@ Deno.serve(async (req) => {
   const ending: EndingOrder[] = (orders ?? []).map((o: any) => {
     const days: { delivery_date: string; qty: number }[] = o.order_days ?? [];
     const last = days.map((d) => d.delivery_date).sort().pop() ?? '';
-    return { id: o.id, order_number: o.order_number, telegram: o.telegram, phone: o.phone, customer_id: o.customer_id, daysCount: days.length, lastDay: last, lastQty: days.find((d) => d.delivery_date === last)?.qty ?? 1 };
+    return { id: o.id, order_number: o.order_number, telegram: o.telegram, phone: o.phone, customer_id: o.customer_id, lang: o.lang, daysCount: days.length, lastDay: last, lastQty: days.find((d) => d.delivery_date === last)?.qty ?? 1 };
   });
 
   // Заказы с днями после сегодня (new/confirmed/delivered; отменённые не в счёт) — у этих клиентов продление уже есть.

@@ -25,6 +25,8 @@ export interface EndingOrder {
   telegram: string;
   phone: string | null;
   customer_id: string | null;
+  /** Язык заказа (`orders.lang`: ua/ru/en/vi), null — RU. */
+  lang?: string | null;
   /** Дни заказа и порции в последний день (сегодня). */
   daysCount: number;
   lastDay: string;
@@ -43,6 +45,8 @@ export interface Entry {
   portions: number;
   /** Заказ, к которому привязана ссылка продления (первый по номеру). */
   primaryId: string;
+  /** Язык клиента (по первому заказу с языком), null — RU. */
+  lang: string | null;
 }
 
 const byNumber = (a: { order_number: string }, b: { order_number: string }) => a.order_number.localeCompare(b.order_number, 'en', { numeric: true });
@@ -73,14 +77,21 @@ export function selectEntries(today: string, ending: EndingOrder[], future: Futu
         days: Math.max(...sorted.map((o) => o.daysCount)),
         portions: sorted.reduce((s, o) => s + o.lastQty, 0),
         primaryId: sorted[0].id,
+        lang: sorted.find((o) => o.lang)?.lang ?? null,
       };
     })
     .sort((a, b) => byNumber({ order_number: a.orders[0] }, { order_number: b.orders[0] }));
 }
 
-/** Текст клиенту (дословно по ТЗ). Ссылка ведёт к блоку подписки на сайте (якорь #subscription). */
-export const clientText = () =>
-  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\n${SITE_URL}/#subscription`;
+/** Код языка в ссылке: ?lang=ru|uk|en|vi (`ua` в заказах → `uk`); нет языка — ru. */
+export const linkLang = (lang: string | null | undefined) => (lang === 'ua' || lang === 'uk' ? 'uk' : lang === 'en' ? 'en' : lang === 'vi' ? 'vi' : 'ru');
+
+/** Ссылка клиенту: сайт на языке заказа, сразу экран заказа «Подписка». */
+export const renewalLink = (lang?: string | null) => `${SITE_URL}/?lang=${linkLang(lang)}#subscription`;
+
+/** Текст клиенту (дословно по ТЗ) со ссылкой на языке заказа. */
+export const clientText = (lang?: string | null) =>
+  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\n${renewalLink(lang)}`;
 
 /** Ник для вывода: без пробелов, невидимых символов и t.me/; «@» добавляется, если ник валидный (5–32: латиница, цифры, _). В заказах не меняется. */
 export function nickText(raw: string): string {
@@ -95,5 +106,5 @@ const portionsWord = 'порц.';
 
 /** Отдельное сообщение одного клиента — обычный текст (без <code>): строка со сводкой, пустая строка, текст клиенту со ссылкой. Ник и ссылка кликабельны сами; телефона нет. */
 export function entryMessage(e: Entry): string {
-  return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n\n${esc(clientText())}`;
+  return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n\n${esc(clientText(e.lang))}`;
 }

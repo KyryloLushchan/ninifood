@@ -19,6 +19,8 @@ export const LANGS: { id: Lang; flag: string; name: string; short: string }[] = 
 const DICTS: Record<Lang, Record<TKey, string>> = { ua, ru, en, vi };
 const PLURAL_LOCALE: Record<Lang, string> = { ua: 'uk', ru: 'ru', en: 'en', vi: 'vi' };
 const STORAGE_KEY = 'ninifood.lang';
+/** Значения ?lang= → язык сайта (uk — код украинского в ссылках, внутри сайта он `ua`). */
+const URL_LANG: Record<string, Lang> = { ua: 'ua', uk: 'ua', ru: 'ru', en: 'en', vi: 'vi' };
 const DEFAULT_LANG: Lang = 'ua';
 
 type Vars = Record<string, string | number>;
@@ -53,6 +55,22 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [hasChosen, setHasChosen] = useState(false);
 
   useEffect(() => {
+    try {
+      // Ссылка с ?lang=ru|uk|ua|en|vi (напоминание о продлении): выставляем и сохраняем язык, шторку выбора не показываем; параметр убираем из адреса.
+      const u = new URL(window.location.href);
+      const fromUrl = URL_LANG[(u.searchParams.get('lang') ?? '').toLowerCase()];
+      if (fromUrl) {
+        u.searchParams.delete('lang');
+        window.history.replaceState(null, '', u.pathname + u.search + u.hash);
+        setLangState(fromUrl);
+        setHasChosen(true);
+        try {
+          localStorage.setItem(STORAGE_KEY, fromUrl);
+        } catch {}
+        setReady(true);
+        return;
+      }
+    } catch {}
     try {
       const saved = localStorage.getItem(STORAGE_KEY) as Lang | null;
       if (saved && DICTS[saved]) {

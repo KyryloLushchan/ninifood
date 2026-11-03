@@ -15,6 +15,9 @@ const ok = (c, m) => { if (!c) { fails++; console.log('  ❌', m); } else consol
   const cases = [];
   for (const lang of ['ua', 'ru', 'en', 'vi']) for (const [w, mobile] of [[390, true], [360, true], [1280, false]]) cases.push({ lang, w, mobile, firstVisit: false });
   cases.push({ lang: 'ru', w: 390, mobile: true, firstVisit: true }, { lang: 'en', w: 1280, mobile: false, firstVisit: true });
+  // ссылка из напоминания: /?lang=xx#subscription на чистом браузере — язык выставлен и сохранён, шторки языка нет
+  for (const [q, lang] of [['uk', 'ua'], ['ua', 'ua'], ['ru', 'ru'], ['en', 'en'], ['vi', 'vi']]) for (const [w, mobile] of [[390, true], [1280, false]]) cases.push({ lang, q, w, mobile, firstVisit: true, viaUrl: true });
+  cases.push({ lang: 'ua', q: 'xx', w: 390, mobile: true, firstVisit: true, viaUrl: true, invalid: true });
   for (const c of cases) {
     const ctx = await browser.createBrowserContext();
     const page = await ctx.newPage();
@@ -28,9 +31,18 @@ const ok = (c, m) => { if (!c) { fails++; console.log('  ❌', m); } else consol
     }, FIXED, c.lang, c.firstVisit);
     await page.setRequestInterception(true);
     page.on('request', (r) => { const x = mocks.respond(r, {}); x ? r.respond(x) : r.continue(); });
-    await page.goto(`${BASE}/#subscription`, { waitUntil: 'networkidle0' });
+    await page.goto(`${BASE}/${c.viaUrl ? `?lang=${c.q}` : ''}#subscription`, { waitUntil: 'networkidle0' });
     await sleep(1500);
-    if (c.firstVisit) {
+    if (c.viaUrl && !c.invalid) {
+      const v = await page.evaluate(() => ({ dialog: !!document.querySelector('[role=dialog]'), saved: localStorage.getItem('ninifood.lang'), search: location.search, hash: location.hash, html: document.documentElement.lang, tab: (document.querySelector('[role=tab][aria-selected=true]') || {}).textContent }));
+      const rx = { ua: /Підписка/, ru: /Подписка/, en: /subscription/i, vi: /Gói/ }[c.lang];
+      ok(!v.dialog && v.saved === c.lang && v.search === '' && rx.test(v.tab || ''), `?lang=${c.q}/${c.w}: язык ${c.lang} выставлен и сохранён, шторки нет, параметр убран, «Подписка» («${(v.tab || '').trim()}»)`);
+    } else if (c.invalid) {
+      const v = await page.evaluate(() => ({ dialog: !!document.querySelector('[role=dialog]'), saved: localStorage.getItem('ninifood.lang') }));
+      ok(v.dialog && !v.saved, '?lang=xx (неизвестный): как без параметра — шторка языка показана, ничего не сохранено');
+      await ctx.close();
+      continue;
+    } else if (c.firstVisit) {
       // шторка выбора языка поверх экрана заказа: выбираем язык — тип «Подписка» остаётся
       await page.evaluate((lang) => { const flag = { ua: '🇺🇦', ru: '🇷🇺', en: '🇬🇧', vi: '🇻🇳' }[lang]; const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim().startsWith(flag)); b && b.click(); }, c.lang);
       await sleep(300);
