@@ -2,7 +2,7 @@ import { adminDb } from './client';
 import { clientKey, computeDayPay, parsePaySettings, type CourierDayPay, type PayRow, type PaySettings } from './courier-pay';
 import { parseTripSettings, type RouteOverride } from './trips';
 
-const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price'];
+const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price', 'courier_pay_from'];
 
 export interface PayrollData {
   days: CourierDayPay[];
@@ -12,13 +12,15 @@ export interface PayrollData {
 }
 
 /** ЗП курьера по датам (та же логика, что у недельного отчёта на сервере): платим за подтверждённые и доставленные заказы. Нет кухни — null. */
-export async function loadPayrollRange(dates: string[]): Promise<PayrollData | null> {
-  if (!dates.length) return { days: [], pay: parsePaySettings({}), rows: [] };
+export async function loadPayrollRange(datesIn: string[]): Promise<PayrollData | null> {
+  if (!datesIn.length) return { days: [], pay: parsePaySettings({}), rows: [] };
   const { data: st } = await adminDb.from('settings').select('key, value').in('key', KEYS);
   const cfg = Object.fromEntries((st ?? []).map((r) => [r.key, r.value as string]));
   const klat = Number(cfg.kitchen_lat);
   const klng = Number(cfg.kitchen_lng);
   const pay = parsePaySettings(cfg);
+  const dates = datesIn.filter((d) => d >= pay.from); // дни раньше «Учитывать ЗП с даты» не считаются
+  if (!dates.length) return { days: [], pay, rows: [] };
   const { data: payRows } = await adminDb.from('courier_pay_days').select('date, courier, addresses_manual, km_manual, paid_at, paid_addresses, paid_km, paid_amount').in('date', dates);
   const rows = (payRows ?? []) as PayRow[];
   if (!cfg.kitchen_lat || !cfg.kitchen_lng || !Number.isFinite(klat) || !Number.isFinite(klng)) return null;

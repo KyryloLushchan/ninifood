@@ -2,7 +2,7 @@
 import { clientKey, computeDayPay, parsePaySettings, type CourierDayPay, type PayRow, type PaySettings } from './courier-pay.ts';
 import { parseTripSettings, type RouteOverride } from './trips.ts';
 
-const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price'];
+const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price', 'courier_pay_from'];
 
 export interface PayrollResult {
   days: CourierDayPay[];
@@ -10,7 +10,7 @@ export interface PayrollResult {
 }
 
 /** ЗП по датам: платим за подтверждённые и доставленные заказы (новые и отменённые не входят). Нет координат кухни — null. */
-export async function loadPayroll(db: any, dates: string[]): Promise<PayrollResult | null> {
+export async function loadPayroll(db: any, datesIn: string[]): Promise<PayrollResult | null> {
   const { data: st } = await db.from('settings').select('key, value').in('key', KEYS);
   const cfg = Object.fromEntries((st ?? []).map((r: any) => [r.key, r.value]));
   const klat = Number(cfg.kitchen_lat);
@@ -20,6 +20,8 @@ export async function loadPayroll(db: any, dates: string[]): Promise<PayrollResu
   const trip = parseTripSettings(cfg);
   const pay = parsePaySettings(cfg);
   const defCouriers: 1 | 2 = cfg.couriers_count === '2' ? 2 : 1;
+  const dates = datesIn.filter((d) => d >= pay.from); // дни раньше «Учитывать ЗП с даты» не считаются
+  if (!dates.length) return { days: [], pay };
 
   const { data: rows, error } = await db
     .from('order_days')

@@ -94,6 +94,7 @@ for (let i = 0; i < 5; i++) od('2026-11-02', `@c${i}`, 1 + i * 0.4, 1 + i * 0.3)
 od('2026-11-02', '@same', 3, 3, 'confirmed', 'House 1'); od('2026-11-02', '@same', 3, 3, 'confirmed', 'House 1'); od('2026-11-02', '@other', 3, 3, 'delivered', 'House 1'); // 2 заказа одного клиента + другой клиент на том же адресе
 od('2026-11-02', '@cancelled', 2, 2, 'cancelled'); od('2026-11-02', '@pending', 2, 2, 'new'); // не платим
 for (let i = 0; i < 4; i++) od('2026-11-03', `@d${i}`, -1 - i * 0.5, -1 - i * 0.2);
+for (let i = 0; i < 3; i++) od('2026-10-30', `@old${i}`, 1 + i, 1 + i); // до 02.11 — не считается
 void n;
 
 const payroll = await load('courier-payroll');
@@ -113,6 +114,12 @@ ok(/Вт 03\.11 — 4 адр\./.test(rep.body.text), '03.11: 4 адреса');
 const kb = rep.body.reply_markup.inline_keyboard[0];
 ok(kb[0].callback_data === `p:ok:${body1.payout_id}` && kb[0].text.includes('Одобрить') && /admin\?tab=courier&date=2026-11-02/.test(kb[1].url), 'кнопки «✅ Одобрить» и «✏️ Открыть в админке»');
 ok(store.cash_movements.length === 0, 'до «Да» расхода в кассе нет');
+{
+  const nOld = tgCalls.length;
+  const ro = await post({ action: 'weekly', date: '2026-11-01' }, { 'x-cron-secret': 'cron' });
+  const bo: any = await ro.json();
+  ok(bo.ok && bo.skipped === 'no_deliveries' && tgCalls.length === nOld && store.courier_payouts.length === 1, 'неделя 26–31.10 (раньше «Учитывать ЗП с даты» 02.11): отчёта и записи выплаты нет');
+}
 const payoutId = body1.payout_id;
 const total1 = body1.amount;
 

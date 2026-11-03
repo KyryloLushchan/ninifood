@@ -10,8 +10,10 @@ export interface PaySettings {
   fuelPer100: number;
   /** Цена бензина, ₫/л (статичная, правится вручную в настройках). */
   fuelPrice: number;
+  /** Учитывать ЗП с этой даты (включительно, ISO): курьер работает с 02.11.2026, дни раньше в расчёт и отчёт не входят. */
+  from: string;
 }
-export const DEFAULT_PAY: PaySettings = { perAddress: 20_000, fuelPer100: 2.2, fuelPrice: 26_000 };
+export const DEFAULT_PAY: PaySettings = { perAddress: 20_000, fuelPer100: 2.2, fuelPrice: 26_000, from: '2026-11-02' };
 
 const num = (v: string | undefined, d: number, min: number, max: number) => {
   if (v === undefined || v.trim() === '') return d; // нет значения — по умолчанию (а не 0)
@@ -19,12 +21,13 @@ const num = (v: string | undefined, d: number, min: number, max: number) => {
   return Number.isFinite(n) && n >= min && n <= max ? n : d;
 };
 
-/** Ключи settings: courier_pay_per_address, courier_fuel_l100, courier_fuel_price. */
+/** Ключи settings: courier_pay_per_address, courier_fuel_l100, courier_fuel_price, courier_pay_from. */
 export function parsePaySettings(s: Record<string, string | undefined>): PaySettings {
   return {
     perAddress: Math.round(num(s.courier_pay_per_address, DEFAULT_PAY.perAddress, 0, 1_000_000)),
     fuelPer100: num(s.courier_fuel_l100, DEFAULT_PAY.fuelPer100, 0, 50),
     fuelPrice: Math.round(num(s.courier_fuel_price, DEFAULT_PAY.fuelPrice, 0, 200_000)),
+    from: /^\d{4}-\d{2}-\d{2}$/.test((s.courier_pay_from ?? '').trim()) ? s.courier_pay_from!.trim() : DEFAULT_PAY.from,
   };
 }
 
