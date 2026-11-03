@@ -33,7 +33,7 @@ const courierRows = ORDERS.filter((o) => ['confirmed', 'new'].includes(o.status)
   o.order_days.filter((d) => d.delivery_date === '2026-10-29').map((d) => ({ ...d, orders: { ...o, order_days: o.order_days.map((x) => ({ delivery_date: x.delivery_date })) } })),
 );
 
-const SETTINGS_ALL = [...fx('settings.json'), { key: 'kitchen_address', value: '90 Nguyễn Tư Giản, Ngũ Hành Sơn, Đà Nẵng 550000' }, { key: 'kitchen_lat', value: '16.0462726' }, { key: 'kitchen_lng', value: '108.2356202' }, { key: 'couriers_count', value: '1' }];
+const SETTINGS_ALL = [...fx('settings.json'), { key: 'kitchen_address', value: '90 Nguyễn Tư Giản, Ngũ Hành Sơn, Đà Nẵng 550000' }, { key: 'kitchen_lat', value: '16.0462726' }, { key: 'kitchen_lng', value: '108.2356202' }, { key: 'couriers_count', value: '1' }, { key: 'courier_finish_address', value: 'Hoàng Minh Thắng, Khu đô thị FPT City, Ngũ Hành Sơn, Đà Nẵng 550000' }, { key: 'courier_finish_lat', value: '15.9824019' }, { key: 'courier_finish_lng', value: '108.2603871' }];
 const CATS = [{ id: 1, type: 'out', name: 'Продукты', sort: 1, is_active: true }, { id: 2, type: 'out', name: 'Упаковка', sort: 2, is_active: true }, { id: 3, type: 'in', name: 'Наличные из кассы', sort: 1, is_active: true }];
 const CASH = [{ id: 1, date: '2026-10-28', type: 'out', category_id: 1, amount: 450000, comment: 'Рынок' }, { id: 2, date: '2026-10-29', type: 'in', category_id: 3, amount: 1140000, comment: 'Наличные' }];
 const MY_ORDERS = [

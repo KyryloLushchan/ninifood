@@ -15,6 +15,8 @@ export interface TripSettings {
   deadlineMin: number;
   /** Пауза между рейсами (перезагрузка на кухне), мин. */
   gapMin: number;
+  /** Финиш курьера (дом): последний рейс дня заканчивается здесь (кухня → точки → финиш). Нет — последний рейс открытый, до последней точки. При 2 курьерах — только у первого. */
+  finish?: LatLng | null;
 }
 
 export const DEFAULT_TRIP_SETTINGS: TripSettings = { capacity: 9, speedKmh: 25, stopMin: 4, roadFactor: 1.3, departMin: 13 * 60, deadlineMin: 16 * 60, gapMin: 10 };
@@ -40,7 +42,18 @@ export function parseTripSettings(s: Record<string, string | undefined>): TripSe
     departMin: hm(s.depart_time, d.departMin),
     deadlineMin: hm(s.deadline_time, d.deadlineMin),
     gapMin: num(s.trip_gap_min, d.gapMin, 0, 120),
+    finish: parseFinish(s),
   };
+}
+
+/** Финиш из settings (courier_finish_lat/lng): координаты в пределах Дананга, иначе null (финиша нет). */
+export function parseFinish(s: Record<string, string | undefined>): LatLng | null {
+  const a = (s.courier_finish_lat ?? '').trim();
+  const b = (s.courier_finish_lng ?? '').trim();
+  if (!a || !b) return null;
+  const lat = Number(a.replace(',', '.'));
+  const lng = Number(b.replace(',', '.'));
+  return Number.isFinite(lat) && Number.isFinite(lng) && lat >= 15.9 && lat <= 16.2 && lng >= 107.9 && lng <= 108.5 ? { lat, lng } : null;
 }
 
 export const hhmm = (min: number) => {
@@ -61,8 +74,12 @@ export interface Trip<T> {
   km: number;
   startMin: number;
   endMin: number;
-  /** true — кухня → точки → кухня (промежуточные рейсы); последний рейс (и единственный) — открытый, до последней точки. */
+  /** true — кухня → точки → кухня (промежуточные рейсы); последний рейс (и единственный) — открытый, до последней точки (или до финиша). */
   closed: boolean;
+  /** Последний рейс заканчивается в «Финише» курьера. */
+  toFinish: boolean;
+  /** Отрезок «последняя точка → финиш», км (в `km` и ЗП не входит); 0, если финиша нет. */
+  finishKm: number;
   overCapacity: boolean;
   /** Ссылки Google Maps (по LINK_STOPS остановок в части). */
   links: string[];
@@ -73,7 +90,10 @@ export interface CourierTrips<T> {
   onTime: boolean;
   /** Среднее время прибытия по порциям, мин. */
   meanArrivalMin: number;
+  /** Км по заказам (до последней точки; возвраты на кухню между рейсами входят, отрезок до финиша — нет): по нему ЗП курьера. */
   totalKm: number;
+  /** Отрезок «последний заказ → финиш», км (0, если финиша нет). */
+  finishKm: number;
   /** Сколько вариантов деления перебрано. */
   candidates: number;
 }
@@ -106,7 +126,11 @@ interface Tour {
   arr: number[];
   endOff: number;
   weighted: number;
+  /** Отрезок до финиша (только в режиме 'finish'), не входит в km. */
+  finishKm: number;
 }
+
+type Mode = 'closed' | 'open' | 'finish';
 
 class Ctx<T> {
   stops: Stop<T>[];
@@ -127,7 +151,7 @@ class Ctx<T> {
   drive = (a: LatLng, b: LatLng) => (this.km(a, b) / this.st.speedKmh) * 60;
 }
 
-function timeline<T>(c: Ctx<T>, order: number[], closed: boolean) {
+function timeline<T>(c: Ctx<T>, order: number[], closed: boolean, toFinish = false) {
   let t = 0;
   let prev: LatLng = c.kitchen;
   let km = 0;
@@ -142,19 +166,22 @@ function timeline<T>(c: Ctx<T>, order: number[], closed: boolean) {
     t += c.st.stopMin;
     prev = s;
   }
+  let finishKm = 0;
   if (closed) {
     t += c.drive(prev, c.kitchen);
     km += c.km(prev, c.kitchen);
-  }
-  return { arr, endOff: t, km, weighted };
+  } else if (toFinish && c.st.finish) finishKm = c.km(prev, c.st.finish);
+  return { arr, endOff: t, km, weighted, finishKm };
 }
 
 /**
  * Лучший порядок точек в рейсе. closed — кухня → точки → кухня (кратчайший замкнутый обход, затем направление с меньшим средним прибытием);
  * открытый — кратчайший путь от кухни без возврата. До 12 точек — точный (Хелд–Карп), больше — nearest neighbor + 2-opt.
  */
-function bestTour<T>(c: Ctx<T>, idx: number[], closed: boolean): Tour {
-  const key = `${[...idx].sort((a, b) => a - b).join(',')}${closed ? 'c' : 'o'}`;
+function bestTour<T>(c: Ctx<T>, idx: number[], mode: Mode): Tour {
+  const closed = mode === 'closed';
+  const toFinish = mode === 'finish' && !!c.st.finish;
+  const key = `${[...idx].sort((a, b) => a - b).join(',')}${closed ? 'c' : toFinish ? 'f' : 'o'}`;
   const hit = c.tours.get(key);
   if (hit) return hit;
   const m = idx.length;
@@ -163,6 +190,7 @@ function bestTour<T>(c: Ctx<T>, idx: number[], closed: boolean): Tour {
   else if (m <= 12) {
     const D = (i: number, j: number) => c.km(c.stops[idx[i]], c.stops[idx[j]]);
     const K = (i: number) => c.km(c.kitchen, c.stops[idx[i]]);
+    const F = (i: number) => (toFinish ? c.km(c.stops[idx[i]], c.st.finish!) : 0);
     const N = 1 << m;
     const dp = new Float64Array(N * m).fill(Infinity);
     const par = new Int8Array(N * m).fill(-1);
@@ -185,7 +213,7 @@ function bestTour<T>(c: Ctx<T>, idx: number[], closed: boolean): Tour {
     let bj = 0;
     let bv = Infinity;
     for (let j = 0; j < m; j++) {
-      const v = dp[(N - 1) * m + j] + (closed ? K(j) : 0);
+      const v = dp[(N - 1) * m + j] + (closed ? K(j) : F(j));
       if (v < bv - 1e-12) {
         bv = v;
         bj = j;
@@ -219,7 +247,9 @@ function bestTour<T>(c: Ctx<T>, idx: number[], closed: boolean): Tour {
       for (let i = 0; i < order.length - 1; i++) {
         for (let j = i + 1; j < order.length; j++) {
           const cand = [...order.slice(0, i), ...order.slice(i, j + 1).reverse(), ...order.slice(j + 1)];
-          if (timeline(c, cand, closed).km + 1e-9 < timeline(c, order, closed).km) {
+          const a = timeline(c, cand, closed, toFinish);
+          const b = timeline(c, order, closed, toFinish);
+          if (a.km + a.finishKm + 1e-9 < b.km + b.finishKm) {
             order = cand;
             improved = true;
           }
@@ -227,7 +257,7 @@ function bestTour<T>(c: Ctx<T>, idx: number[], closed: boolean): Tour {
       }
     }
   }
-  let tl = timeline(c, order, closed);
+  let tl = timeline(c, order, closed, toFinish);
   if (closed) {
     const rev = [...order].reverse();
     const r = timeline(c, rev, true);
@@ -236,13 +266,18 @@ function bestTour<T>(c: Ctx<T>, idx: number[], closed: boolean): Tour {
       tl = r;
     }
   }
-  const tour: Tour = { order, km: tl.km, arr: tl.arr, endOff: tl.endOff, weighted: tl.weighted };
+  const tour: Tour = { order, km: tl.km, arr: tl.arr, endOff: tl.endOff, weighted: tl.weighted, finishKm: tl.finishKm };
   c.tours.set(key, tour);
   return tour;
 }
 
-const permutations = (n: number): number[][] => {
-  if (n > 5) return [[...Array(n).keys()], [...Array(n).keys()].reverse()];
+const permutations = (n: number, lastChoices = false): number[][] => {
+  // больше 5 рейсов не бывает на практике: два порядка, а при финише — ещё по одному на каждый вариант «последнего» рейса
+  if (n > 5) {
+    const base = [[...Array(n).keys()], [...Array(n).keys()].reverse()];
+    if (lastChoices) for (let l = 0; l < n; l++) base.push([...Array(n).keys()].filter((x) => x !== l).concat(l));
+    return base;
+  }
   const out: number[][] = [];
   const rec = (a: number[], rest: number[]) => {
     if (!rest.length) return void out.push(a);
@@ -255,13 +290,15 @@ const permutations = (n: number): number[][] => {
 interface Eval {
   feasible: boolean;
   mean: number;
+  /** Км по заказам (без отрезка до финиша) и с ним — по второму сравниваем варианты, когда есть финиш. */
   km: number;
+  kmAll: number;
   last: number;
   perm: number[];
   sectors: number[][];
 }
 
-function evaluate<T>(c: Ctx<T>, sectors: number[][], perms: number[][]): Eval {
+function evaluate<T>(c: Ctx<T>, sectors: number[][], perms: number[][], fin: boolean): Eval {
   const P = sectors.reduce((s, sec) => s + sec.reduce((x, i) => x + c.stops[i].portions, 0), 0);
   let best: Eval | null = null;
   for (const perm of perms) {
@@ -269,25 +306,31 @@ function evaluate<T>(c: Ctx<T>, sectors: number[][], perms: number[][]): Eval {
     let w = 0;
     let last = 0;
     let km = 0;
+    let kmAll = 0;
     perm.forEach((p, pi) => {
-      const tr = bestTour(c, sectors[p], pi < perm.length - 1);
+      const tr = bestTour(c, sectors[p], pi < perm.length - 1 ? 'closed' : fin ? 'finish' : 'open');
       tr.order.forEach((i, k) => {
         const a = t + tr.arr[k];
         w += a * c.stops[i].portions;
         last = Math.max(last, a);
       });
       km += tr.km;
+      kmAll += tr.km + tr.finishKm;
       t += tr.endOff + c.st.gapMin;
     });
-    const e: Eval = { feasible: last <= c.st.deadlineMin + 1e-9, mean: w / P, km, last, perm, sectors };
-    if (!best || betterTrips(e, best)) best = e;
+    const e: Eval = { feasible: last <= c.st.deadlineMin + 1e-9, mean: w / P, km, kmAll, last, perm, sectors };
+    if (!best || betterTrips(e, best, fin)) best = e;
   }
   return best!;
 }
 
-/** а) успевают до конца окна; б) меньше среднее время прибытия по порциям; в) меньше км. */
-function betterTrips(a: { feasible: boolean; mean: number; km: number }, b: { feasible: boolean; mean: number; km: number }): boolean {
+/**
+ * а) успевают до конца окна; б) меньше среднее время прибытия по порциям; в) меньше км.
+ * Если задан финиш (fin): после а) — меньше общий путь до финиша (точки возле дома — в последнем рейсе), затем среднее время.
+ */
+function betterTrips(a: { feasible: boolean; mean: number; km: number; kmAll: number }, b: { feasible: boolean; mean: number; km: number; kmAll: number }, fin = false): boolean {
   if (a.feasible !== b.feasible) return a.feasible;
+  if (fin && Math.abs(a.kmAll - b.kmAll) > 1e-6) return a.kmAll < b.kmAll;
   if (Math.abs(a.mean - b.mean) > 1e-6) return a.mean < b.mean;
   return a.km + 1e-9 < b.km;
 }
@@ -330,12 +373,13 @@ function sectorCandidates<T>(c: Ctx<T>, subset: number[], k: number, cap: number
   return out;
 }
 
-function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidates: number): CourierTrips<T> {
+function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidates: number, fin: boolean): CourierTrips<T> {
   const trips: Trip<T>[] = [];
   let t = c.st.departMin;
   perm.forEach((p, pi) => {
     const closed = pi < perm.length - 1;
-    const tr = bestTour(c, sectors[p], closed);
+    const toFinish = !closed && fin && !!c.st.finish;
+    const tr = bestTour(c, sectors[p], closed ? 'closed' : toFinish ? 'finish' : 'open');
     const ordered = tr.order.map((i) => c.stops[i]);
     const portions = ordered.reduce((s, x) => s + x.portions, 0);
     trips.push({
@@ -345,23 +389,25 @@ function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidate
       startMin: t,
       endMin: t + tr.endOff,
       closed,
+      toFinish,
+      finishKm: tr.finishKm,
       overCapacity: portions > c.st.capacity,
-      links: directionsLinks(c.kitchen, closed ? [...ordered, c.kitchen] : ordered),
+      links: directionsLinks(c.kitchen, closed ? [...ordered, c.kitchen] : toFinish ? [...ordered, c.st.finish!] : ordered),
     });
     t += tr.endOff + c.st.gapMin;
   });
   const P = trips.reduce((s, x) => s + x.portions, 0);
   const last = Math.max(...trips.flatMap((x) => x.stops.map((s) => s.arriveMin)));
   const mean = trips.reduce((s, x) => s + x.stops.reduce((a, y) => a + y.arriveMin * y.stop.portions, 0), 0) / P;
-  return { trips, lastArrivalMin: last, onTime: last <= c.st.deadlineMin + 1e-9, meanArrivalMin: mean, totalKm: trips.reduce((s, x) => s + x.km, 0), candidates };
+  return { trips, lastArrivalMin: last, onTime: last <= c.st.deadlineMin + 1e-9, meanArrivalMin: mean, totalKm: trips.reduce((s, x) => s + x.km, 0), finishKm: trips.reduce((s, x) => s + x.finishKm, 0), candidates };
 }
 
 /** Рейсы одного курьера по его точкам (subset — индексы в ctx.stops). Один рейс (порций ≤ вместимости) — открытый маршрут. */
-function planCourier<T>(c: Ctx<T>, subset: number[]): CourierTrips<T> | null {
+function planCourier<T>(c: Ctx<T>, subset: number[], fin: boolean): CourierTrips<T> | null {
   if (!subset.length) return null;
   const P = subset.reduce((s, i) => s + c.stops[i].portions, 0);
   const n0 = Math.ceil(P / c.st.capacity);
-  if (n0 <= 1 || subset.length === 1) return buildTrips(c, [subset], [0], 1);
+  if (n0 <= 1 || subset.length === 1) return buildTrips(c, [subset], [0], 1, fin);
   let cands: number[][][] = [];
   for (let k = n0; k <= Math.min(subset.length, n0 + 2) && !cands.length; k++) cands = sectorCandidates(c, subset, k, c.st.capacity);
   if (!cands.length) {
@@ -372,18 +418,18 @@ function planCourier<T>(c: Ctx<T>, subset: number[]): CourierTrips<T> | null {
   if (!cands.length) cands = [subset.map((i) => [i])];
   let best: Eval | null = null;
   for (const sec of cands) {
-    const e = evaluate(c, sec, permutations(sec.length));
-    if (!best || betterTrips(e, best)) best = e;
+    const e = evaluate(c, sec, permutations(sec.length, fin), fin);
+    if (!best || betterTrips(e, best, fin)) best = e;
   }
-  return buildTrips(c, best!.sectors, best!.perm, cands.length);
+  return buildTrips(c, best!.sectors, best!.perm, cands.length, fin);
 }
 
 /** Ручное распределение: tripOf(i) → номер рейса; рейсы идут по возрастанию номера, порядок точек и время пересчитываются, переполнение разрешено. */
-function planManual<T>(c: Ctx<T>, subset: number[], tripOf: (i: number) => number): CourierTrips<T> | null {
+function planManual<T>(c: Ctx<T>, subset: number[], tripOf: (i: number) => number, fin: boolean): CourierTrips<T> | null {
   if (!subset.length) return null;
   const nums = [...new Set(subset.map(tripOf))].sort((a, b) => a - b);
   const sectors = nums.map((n) => subset.filter((i) => tripOf(i) === n));
-  return buildTrips(c, sectors, sectors.map((_, i) => i), 1);
+  return buildTrips(c, sectors, sectors.map((_, i) => i), 1, fin);
 }
 
 /** Ручное распределение применимо, если число курьеров то же и есть хотя бы одна знакомая точка. */
@@ -422,7 +468,7 @@ function planTwo<T>(c: Ctx<T>): CourierTrips<T>[] {
   const P = c.stops.reduce((s, x) => s + x.portions, 0);
   // доли порций у курьеров не должны различаться больше чем на вместимость рейса (иначе перекос заведомо хуже)
   const maxDiff = Math.max(c.st.capacity, 4);
-  type Pair = { a: CourierTrips<T>; b: CourierTrips<T> };
+  type Pair = { a: CourierTrips<T>; b: CourierTrips<T>; finA?: boolean };
   let best: (Pair & { feasible: boolean; maxLast: number; mean: number; km: number }) | null = null;
   // все дуги (по кругу, любое начало и длина) с приемлемым перекосом порций; самые ровные оцениваем первыми, не больше MAX_SPLITS (предсказуемое время)
   const arcs: { arc: number[]; pA: number }[] = [];
@@ -443,19 +489,32 @@ function planTwo<T>(c: Ctx<T>): CourierTrips<T>[] {
     const inA = new Set(arcA);
     const arcB = c.sorted.filter((i) => !inA.has(i));
     if (!arcB.length) continue;
-    const a = planCourier(c, arcA)!;
-    const b = planCourier(c, arcB)!;
-    const feasible = a.onTime && b.onTime;
-    const maxLast = Math.max(a.lastArrivalMin, b.lastArrivalMin);
-    const mean = (a.meanArrivalMin * pA + b.meanArrivalMin * (P - pA)) / P;
-    const km = a.totalKm + b.totalKm;
-    const better =
-      !best ||
-      (feasible !== best.feasible ? feasible : Math.abs(maxLast - best.maxLast) > 1e-6 ? maxLast < best.maxLast : Math.abs(mean - best.mean) > 1e-6 ? mean < best.mean : km + 1e-9 < best.km);
-    if (better) best = { a, b, feasible, maxLast, mean, km };
+    // финиш — только у первого курьера: пробуем обе дуги в роли «курьера с финишем» (без финиша — одна раскладка)
+    const roles: [boolean, boolean][] = c.st.finish ? [[true, false], [false, true]] : [[false, false]];
+    for (const [finA, finB] of roles) {
+      const a = planCourier(c, arcA, finA)!;
+      const b = planCourier(c, arcB, finB)!;
+      const feasible = a.onTime && b.onTime;
+      const maxLast = Math.max(a.lastArrivalMin, b.lastArrivalMin);
+      const mean = (a.meanArrivalMin * pA + b.meanArrivalMin * (P - pA)) / P;
+      const km = a.totalKm + b.totalKm + a.finishKm + b.finishKm;
+      const better =
+        !best ||
+        (feasible !== best.feasible
+          ? feasible
+          : c.st.finish && Math.abs(km - best.km) > 1e-6
+            ? km < best.km // с финишем: короче общий путь (точки у дома достаются курьеру с финишем)
+            : Math.abs(maxLast - best.maxLast) > 1e-6
+              ? maxLast < best.maxLast
+              : Math.abs(mean - best.mean) > 1e-6
+                ? mean < best.mean
+                : km + 1e-9 < best.km);
+      if (better) best = { a, b, feasible, maxLast, mean, km, finA };
+    }
   }
-  if (!best) return [planCourier(c, c.sorted)!];
-  // Курьер 1 — тот, чья первая точка ближе к кухне
+  if (!best) return [planCourier(c, c.sorted, !!c.st.finish)!];
+  // С финишем Курьер 1 — тот, у кого финиш; иначе — тот, чья первая точка ближе к кухне
+  if (c.st.finish) return best.finA ? [best.a, best.b] : [best.b, best.a];
   const d = (x: CourierTrips<T>) => hav(c.kitchen, x.trips[0].stops[0].stop);
   return d(best.a) <= d(best.b) ? [best.a, best.b] : [best.b, best.a];
 }
@@ -473,12 +532,12 @@ export function planDay<T>(items: T[], a: Access<T>, kitchen: LatLng, couriers: 
     const out: CourierTrips<T>[] = [];
     for (let ci = 1; ci <= couriers; ci++) {
       const sub = stops.map((_, i) => i).filter((i) => Math.min(couriers, Math.max(1, asg[i].c)) === ci);
-      const r = planManual(c, sub, (i) => asg[i].t);
+      const r = planManual(c, sub, (i) => asg[i].t, ci === 1 && !!c.st.finish);
       if (r) out.push(r);
     }
     return { couriers: out, noPoint, manual: true };
   }
-  if (couriers === 1 || stops.length < 2) return { couriers: [planCourier(c, c.sorted)!], noPoint, manual: false };
+  if (couriers === 1 || stops.length < 2) return { couriers: [planCourier(c, c.sorted, !!c.st.finish)!], noPoint, manual: false };
   return { couriers: planTwo(c), noPoint, manual: false };
 }
 

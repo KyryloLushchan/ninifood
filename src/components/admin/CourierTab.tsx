@@ -69,7 +69,7 @@ export function CourierTab() {
 
   // Кухня, число курьеров и параметры рейсов — из Настроек; переключатель ниже действует только на выбранную дату.
   useEffect(() => {
-    adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min']).then(({ data }) => {
+    adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng']).then(({ data }) => {
       const c = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
       setTrip(parseTripSettings(c));
       const lat = Number(c.kitchen_lat);
@@ -407,7 +407,7 @@ export function CourierTab() {
                 <div className="flex flex-wrap gap-2">
                   {t.links.map((u, i) => (
                     <a key={u} href={u} target="_blank" rel="noreferrer" className="flex min-h-11 flex-1 items-center justify-center rounded-md2 border-2 border-accent px-4 text-[15px] font-extrabold text-accent hover:bg-accent-soft/60 hover:no-underline">
-                      🗺 Маршрут рейса {ti + 1}{t.links.length > 1 ? ` · часть ${i + 1}/${t.links.length}` : ''}{t.closed ? ' (с возвратом)' : ''}
+                      🗺 Маршрут рейса {ti + 1}{t.links.length > 1 ? ` · часть ${i + 1}/${t.links.length}` : ''}{t.closed ? ' (с возвратом)' : t.toFinish ? ' · до 🏠 Финиш' : ''}
                     </a>
                   ))}
                 </div>

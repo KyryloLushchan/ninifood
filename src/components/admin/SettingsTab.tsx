@@ -3,8 +3,10 @@
 import { useEffect, useState } from 'react';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
+import { AddressInput } from './AddressEditor';
 import { DiscountCard } from './DiscountCard';
 import { VipCard } from './VipCard';
+import type { PlaceInfo } from '@/lib/places';
 import { Btn, Card, Err, Label, inputCls } from './ui';
 import { useReadOnly } from './role';
 
@@ -23,6 +25,7 @@ const TRIPS = [
   { key: 'deadline_time', label: 'Конец окна доставки (ЧЧ:ММ)', kind: 'time' },
   { key: 'trip_gap_min', label: 'Пауза между рейсами (перезагрузка на кухне), мин', kind: 'num', min: 0, max: 120 },
 ] as const;
+
 const PAY = [
   { key: 'courier_pay_per_address', label: 'Оплата за адрес, ₫', kind: 'int', min: 0, max: 1000000 },
   { key: 'courier_fuel_l100', label: 'Расход бензина, л/100 км', kind: 'num', min: 0, max: 50 },
@@ -93,6 +96,29 @@ export function SettingsTab() {
     else setMsg('Параметры ЗП курьера сохранены. Применятся к расчёту (уже выплаченные дни не меняются).');
   };
 
+  /** «Финиш курьера»: адрес из подсказок Google (координаты берутся из выбранного места) или очистка (тогда последний рейс открытый, как раньше). */
+  const saveFinish = async (clear: boolean) => {
+    if (!values) return;
+    setError('');
+    setMsg('');
+    const lat = clear ? '' : (values.courier_finish_lat ?? '').trim();
+    const lng = clear ? '' : (values.courier_finish_lng ?? '').trim();
+    if (!clear && (!(values.courier_finish_address ?? '').trim() || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng)) || Number(lat) < 15.9 || Number(lat) > 16.2 || Number(lng) < 107.9 || Number(lng) > 108.5 || !lat || !lng)) {
+      return setError('Выберите адрес финиша из подсказок (должен быть в Дананге).');
+    }
+    setBusy(true);
+    const rows = [
+      { key: 'courier_finish_address', value: clear ? '' : values.courier_finish_address.trim(), is_public: false },
+      { key: 'courier_finish_lat', value: lat, is_public: false },
+      { key: 'courier_finish_lng', value: lng, is_public: false },
+    ];
+    const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
+    setBusy(false);
+    if (error) return setError(ruError(error.message));
+    if (clear) setValues({ ...values, courier_finish_address: '', courier_finish_lat: '', courier_finish_lng: '' });
+    setMsg(clear ? 'Финиш убран: последний рейс заканчивается на последней точке.' : 'Финиш сохранён. Со следующего отчёта последний рейс заканчивается здесь.');
+  };
+
   const saveTrips = async () => {
     if (!values) return;
     setError('');
@@ -155,6 +181,10 @@ export function SettingsTab() {
           {row('Курьеров по умолчанию', values.couriers_count)}
         </Card>
         <Card className="divide-y divide-line">
+          <div className="pb-2 text-[17px] font-extrabold">Финиш курьера</div>
+          {row('Адрес финиша (дом курьера)', values.courier_finish_address || '—')}
+        </Card>
+        <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">ЗП курьера</div>
           {PAY.map((f) => row(f.label, values[f.key] ?? PAY_DEFAULTS[f.key]))}
         </Card>
@@ -212,6 +242,30 @@ export function SettingsTab() {
           </div>
         </div>
         <Btn onClick={saveCouriers} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить курьеров'}</Btn>
+      </Card>
+      <Card className="flex flex-col gap-3">
+        <div className="text-[17px] font-extrabold">Финиш курьера</div>
+        <div>
+          <Label>Адрес финиша (дом курьера; последний рейс дня заканчивается здесь; при 2 курьерах — у первого)</Label>
+          <AddressInput
+            value={values.courier_finish_address ?? ''}
+            onText={(v) => setValues({ ...values, courier_finish_address: v, courier_finish_lat: '', courier_finish_lng: '' })}
+            onPlace={(p: PlaceInfo) => setValues({ ...values, courier_finish_address: p.text, courier_finish_lat: String(p.lat), courier_finish_lng: String(p.lng) })}
+          />
+          <div className="mt-1 text-xs text-ink-muted">
+            {values.courier_finish_lat && values.courier_finish_lng ? `Точка: ${values.courier_finish_lat}, ${values.courier_finish_lng}` : 'Выберите адрес из подсказок — без выбора точка не определяется.'}
+          </div>
+        </div>
+        {values.courier_finish_lat && values.courier_finish_lng && (
+          <a href={`https://www.google.com/maps/search/?api=1&query=${values.courier_finish_lat},${values.courier_finish_lng}`} target="_blank" rel="noreferrer" className="text-sm font-bold">
+            Проверить точку на карте →
+          </a>
+        )}
+        <div className="flex gap-2">
+          <Btn className="flex-1" onClick={() => void saveFinish(false)} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить финиш'}</Btn>
+          <Btn kind="ghost" onClick={() => void saveFinish(true)} disabled={busy}>Убрать</Btn>
+        </div>
+        <div className="text-xs text-ink-muted">Бензин в ЗП считается до последнего заказа; отрезок «последний заказ → дом» в ЗП не входит. Нет финиша — последний рейс открытый, как раньше.</div>
       </Card>
       <Card className="flex flex-col gap-3">
         <div className="text-[17px] font-extrabold">ЗП курьера</div>

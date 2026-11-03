@@ -114,7 +114,7 @@ const hrefAmp = (u: string) => u.replace(/&/g, '&amp;');
 
 /** Ссылки Google Maps рейса (по частям, если точек больше лимита ссылки): замкнутый — до кухни, открытый — до последней точки. */
 const tripLinks = (t: CourierTrips<ReportDelivery>['trips'][number]) =>
-  `🗺 ${t.links.length === 1 ? `<a href="${hrefAmp(t.links[0])}">Открыть в Google Maps</a>` : t.links.map((u, i) => `<a href="${hrefAmp(u)}">Часть ${i + 1}/${t.links.length}</a>`).join(' · ')} (${t.closed ? 'кухня → … → кухня' : 'кухня → … → последняя точка'})`;
+  `🗺 ${t.links.length === 1 ? `<a href="${hrefAmp(t.links[0])}">Открыть в Google Maps</a>` : t.links.map((u, i) => `<a href="${hrefAmp(u)}">Часть ${i + 1}/${t.links.length}</a>`).join(' · ')} (${t.closed ? 'кухня → … → кухня' : t.toFinish ? 'кухня → … → 🏠 Финиш' : 'кухня → … → последняя точка'})${t.toFinish ? `\n🏠 Финиш: ≈ ${(Math.round(t.finishKm * 10) / 10).toString().replace('.', ',')} км от последней точки (в ЗП не входит)` : ''}`;
 
 /** Блок курьера: предупреждение, рейсы («🚚 Рейс N — порц. · км · время»), точки со сквозной нумерацией и временем, ссылки рейса в его конце. */
 function courierBlock(cr: CourierTrips<ReportDelivery>, couriers: 1 | 2, index: number): string[] {

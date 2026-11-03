@@ -74,7 +74,7 @@ Deno.serve(async (req) => {
 
   // План рейсов (общий для курьерского отчёта и сообщения кухне): настройки, кухня, число курьеров и ручное распределение дня.
   const loadPlan = async (rows: any[]) => {
-    const { data: st } = await db.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min']);
+    const { data: st } = await db.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng']);
     const cfg = Object.fromEntries((st ?? []).map((r: any) => [r.key, r.value]));
     const klat = Number(cfg.kitchen_lat);
     const klng = Number(cfg.kitchen_lng);

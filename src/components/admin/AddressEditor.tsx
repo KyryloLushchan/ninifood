@@ -31,7 +31,7 @@ const futureDays = (o: { order_days: { delivery_date: string; delivered: boolean
   o.order_days.filter((d) => !d.delivered && d.delivery_date > today).map((d) => d.delivery_date).sort();
 
 /** Поле адреса с подсказками Google Places (те же запросы и ограничения Дананга, что на сайте; язык русский). */
-function AddressInput({ value, onText, onPlace }: { value: string; onText: (v: string) => void; onPlace: (p: PlaceInfo) => void }) {
+export function AddressInput({ value, onText, onPlace }: { value: string; onText: (v: string) => void; onPlace: (p: PlaceInfo) => void }) {
   const [items, setItems] = useState<Suggestion[]>([]);
   const typed = useRef(false);
   const token = useRef(newSessionToken());
