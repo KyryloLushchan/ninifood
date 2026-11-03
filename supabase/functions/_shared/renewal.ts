@@ -78,9 +78,9 @@ export function selectEntries(today: string, ending: EndingOrder[], future: Futu
     .sort((a, b) => byNumber({ order_number: a.orders[0] }, { order_number: b.orders[0] }));
 }
 
-/** Текст клиенту (дословно по ТЗ). Ссылка полная — чтобы у клиента точно стала кликабельной. */
+/** Текст клиенту (дословно по ТЗ). Ссылка ведёт к блоку подписки на сайте (якорь #subscription). */
 export const clientText = () =>
-  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nhttps://ninifoodvn.com`;
+  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\n${SITE_URL}/#subscription`;
 
 /** Ник для вывода: без пробелов, невидимых символов и t.me/; «@» добавляется, если ник валидный (5–32: латиница, цифры, _). В заказах не меняется. */
 export function nickText(raw: string): string {
@@ -93,7 +93,7 @@ export function nickText(raw: string): string {
 }
 const portionsWord = 'порц.';
 
-/** Отдельное сообщение одного клиента: строка со сводкой, текст в <code> (копируется одним нажатием) и кликабельная ссылка вне code. Телефона нет. */
+/** Отдельное сообщение одного клиента — обычный текст (без <code>): строка со сводкой, пустая строка, текст клиенту со ссылкой. Ник и ссылка кликабельны сами; телефона нет. */
 export function entryMessage(e: Entry): string {
-  return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n<code>${esc(clientText())}</code>\n🔗 <a href="${SITE_URL}">ninifoodvn.com</a>`;
+  return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n\n${esc(clientText())}`;
 }
