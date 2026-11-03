@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { nowDanang } from '../_shared/dates.ts';
 import { buildPayrollReport, fmtRub, weekDays } from '../_shared/courier-pay.ts';
+import { statusLabel } from '../_shared/order-i18n.ts';
 import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
 import { safeEqual } from '../_shared/security.ts';
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
       return ok();
     }
     next = 'confirmed';
-    label = '✅ Подтверждён';
+    label = statusLabel('confirmed', order.lang);
   } else {
     if (order.status === 'delivered') {
       await answer('Заказ уже доставлен');
@@ -76,7 +77,7 @@ Deno.serve(async (req) => {
       return ok();
     }
     next = 'cancelled';
-    label = order.status === 'confirmed' ? '❌ Отменён' : '❌ Отклонён';
+    label = statusLabel(order.status === 'confirmed' ? 'cancelled' : 'rejected', order.lang);
   }
 
   const by: string = cb.from.username ?? String(cb.from.id);

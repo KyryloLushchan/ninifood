@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { geocodeAddress } from '../_shared/geocode.ts';
+import { dict } from '../_shared/order-i18n.ts';
 import { esc, tg } from '../_shared/telegram.ts';
 
 /**
@@ -69,8 +70,10 @@ Deno.serve(async (req) => {
   const r = data as { address: string; orders: { id: string; order_number: string; tg_message_id: number | null; old_address: string; days: string[] }[] };
 
   let failed = 0;
+  const { data: langs } = await db.from('orders').select('id, lang').in('id', r.orders.map((o) => o.id));
   for (const o of r.orders) {
-    const text = `📍 Изменён адрес ${esc(o.order_number)}: ${esc(short(o.old_address))} → ${esc(short(r.address))}`;
+    // Уведомление — на языке заказа (нет языка — русский).
+    const text = dict((langs ?? []).find((x: { id: string; lang: string | null }) => x.id === o.id)?.lang).addressChanged(esc(o.order_number), esc(short(o.old_address)), esc(short(r.address)));
     const res = await tg('sendMessage', {
       chat_id: Deno.env.get('ORDERS_CHAT_ID')!,
       text,

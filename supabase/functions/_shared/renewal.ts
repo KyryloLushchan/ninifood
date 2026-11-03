@@ -45,7 +45,7 @@ export interface Entry {
   portions: number;
   /** Заказ, к которому привязана ссылка продления (первый по номеру). */
   primaryId: string;
-  /** Язык клиента (по первому заказу с языком), null — RU. */
+  /** Язык клиента (по ПОСЛЕДНЕМУ заказу, у которого он есть), null — RU. */
   lang: string | null;
 }
 
@@ -77,7 +77,7 @@ export function selectEntries(today: string, ending: EndingOrder[], future: Futu
         days: Math.max(...sorted.map((o) => o.daysCount)),
         portions: sorted.reduce((s, o) => s + o.lastQty, 0),
         primaryId: sorted[0].id,
-        lang: sorted.find((o) => o.lang)?.lang ?? null,
+        lang: [...sorted].reverse().find((o) => o.lang)?.lang ?? null,
       };
     })
     .sort((a, b) => byNumber({ order_number: a.orders[0] }, { order_number: b.orders[0] }));
@@ -89,9 +89,14 @@ export const linkLang = (lang: string | null | undefined) => (lang === 'ua' || l
 /** Ссылка клиенту: сайт на языке заказа, сразу экран заказа «Подписка». */
 export const renewalLink = (lang?: string | null) => `${SITE_URL}/?lang=${linkLang(lang)}#subscription`;
 
-/** Текст клиенту (дословно по ТЗ) со ссылкой на языке заказа. */
-export const clientText = (lang?: string | null) =>
-  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\n${renewalLink(lang)}`;
+/** Текст клиенту (дословно по ТЗ) на языке заказа (ru/ua/en/vi; нет языка — ru) и ссылка с ?lang=. */
+const CLIENT_TEXT: Record<string, string> = {
+  ru: 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇',
+  ua: 'Привіт! Дякуємо, що були з нами цього тижня 💛 Сьогодні останній день вашої підписки NiniFood.\nНе залишайтеся без домашнього обіду — продовжте підписку 👇',
+  en: "Hi! Thanks for being with us this week 💛 Today is the last day of your NiniFood subscription.\nDon't miss out on a home-cooked lunch — renew your subscription 👇",
+  vi: 'Xin chào! Cảm ơn bạn đã đồng hành cùng NiniFood tuần này 💛 Hôm nay là ngày cuối cùng của gói đăng ký.\nĐừng bỏ lỡ bữa trưa nhà làm — hãy gia hạn gói nhé 👇',
+};
+export const clientText = (lang?: string | null) => `${CLIENT_TEXT[lang === 'uk' ? 'ua' : (lang ?? '')] ?? CLIENT_TEXT.ru}\n${renewalLink(lang)}`;
 
 /** Ник для вывода: без пробелов, невидимых символов и t.me/; «@» добавляется, если ник валидный (5–32: латиница, цифры, _). В заказах не меняется. */
 export function nickText(raw: string): string {

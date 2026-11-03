@@ -1,5 +1,5 @@
 import { esc } from './telegram.ts';
-import { labelRu } from './dates.ts';
+import { dayLabel, dict } from './order-i18n.ts';
 
 export const money = (n: number) => `${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ' ')} ₫`;
 
@@ -36,9 +36,9 @@ export function mapUrl(lat: number | null | undefined, lng: number | null | unde
 }
 
 /** HTML-ссылка «📍 Карта» для сообщений Telegram; пустая строка, если координат нет. */
-export const mapLinkHtml = (lat: number | null | undefined, lng: number | null | undefined, placeId?: string | null) => {
+export const mapLinkHtml = (lat: number | null | undefined, lng: number | null | undefined, placeId?: string | null, label = 'Карта') => {
   const u = mapUrl(lat, lng, placeId);
-  return u ? `<a href="${u.replace(/&/g, '&amp;')}">📍 Карта</a>` : '';
+  return u ? `<a href="${u.replace(/&/g, '&amp;')}">📍 ${label}</a>` : '';
 };
 
 /** «+84901234567» → «+84 90 123 45 67» (другой формат — как есть). */
@@ -48,49 +48,38 @@ export function phoneText(stored: string): string {
 }
 
 /** Ник в <code> (копируется одним нажатием; внутри code ссылки невозможны, поэтому рядом — «открыть»). */
-function telegramLink(raw: string): string {
+function telegramLink(raw: string, open = 'открыть'): string {
   const h = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
-  return /^[A-Za-z0-9_]{4,32}$/.test(h) ? `<code>@${h}</code> · <a href="https://t.me/${h}">открыть</a>` : `<code>${esc(raw.trim())}</code>`;
+  return /^[A-Za-z0-9_]{4,32}$/.test(h) ? `<code>@${h}</code> · <a href="https://t.me/${h}">${open}</a>` : `<code>${esc(raw.trim())}</code>`;
 }
 
-/** «Спасибо за заказ» на языке клиента (поле lang заказа); нет языка — русский. */
-const THANKS: Record<string, string> = {
-  ua: 'Дякуємо за замовлення! 🙏',
-  ru: 'Спасибо за заказ! 🙏',
-  en: 'Thank you for your order! 🙏',
-  vi: 'Cảm ơn bạn đã đặt hàng! 🙏',
-};
-
+/** Сообщение о заказе в группе Orders — целиком на языке заказа (`o.lang`: ru/ua/en/vi; нет языка — ru). statusLine — уже готовая строка статуса (✅/❌ — кто, когда). */
 export function buildOrderText(o: OrderRow, days: string[], statusLine?: string): string {
+  const d = dict(o.lang);
   const sorted = [...days].sort();
   const lines = [
-    `🆕 <b>Заказ ${o.order_number}</b>${o.is_vip ? ' ⭐ VIP' : ''}`,
+    `🆕 <b>${d.title} ${o.order_number}</b>${o.is_vip ? ' ⭐ VIP' : ''}`,
     '',
-    `Тип: ${o.type === 'single' ? 'Разовый' : subLabel(days.length)}`,
-    `📅 Дни: ${sorted.map(labelRu).join(' · ')}`,
-    `🍽 Порций: <b>${o.qty} в день</b> (всего ${o.qty * sorted.length})`,
-    ...(o.cutlery ? ['🍴 Приборы: да'] : []),
-    `🍱 Обеды: ${money(o.total - o.delivery_total + (o.discount_amount ?? 0))}`,
-    ...(o.discount_amount ? [`🏷 Скидка ${o.discount_percent}%: −${money(o.discount_amount)}`] : []),
-    `🚚 Доставка: ${money(o.delivery_total)}`,
-    `💰 Итого: <b>${money(o.total)}</b>`,
-    o.payment_method === 'qr'
-      ? '💳 Оплата: QR (скриншот приложен)'
-      : o.payment_method === 'other'
-        ? '💳 Оплата: другой способ (скриншот приложен)'
-        : `💳 Оплата: наличными — к получению: <b>${money(o.total)}</b>`,
+    `${d.type}: ${o.type === 'single' ? d.once : sorted.length <= 5 ? d.sub(sorted.length) : d.subExtra(sorted.length)}`,
+    `📅 ${d.days}: ${sorted.map((x) => dayLabel(x, o.lang)).join(' · ')}`,
+    `🍽 ${d.portions(o.qty, o.qty * sorted.length)}`,
+    ...(o.cutlery ? [`🍴 ${d.cutlery}`] : []),
+    `🍱 ${d.lunches}: ${money(o.total - o.delivery_total + (o.discount_amount ?? 0))}`,
+    ...(o.discount_amount ? [`🏷 ${d.discount(o.discount_percent)}: −${money(o.discount_amount)}`] : []),
+    `🚚 ${d.delivery}: ${money(o.delivery_total)}`,
+    `💰 ${d.total}: <b>${money(o.total)}</b>`,
+    o.payment_method === 'qr' ? `💳 ${d.payQr}` : o.payment_method === 'other' ? `💳 ${d.payOther}` : `💳 ${d.payCash} <b>${money(o.total)}</b>`,
     '',
-    `👤 Telegram: ${telegramLink(o.telegram)}`,
+    `👤 ${d.telegram}: ${telegramLink(o.telegram, d.open)}`,
     ...(o.phone ? [`📞 <code>${esc(phoneText(o.phone))}</code>`] : []),
-    `📍 Адрес: <code>${esc(o.address)}</code>`,
+    `📍 ${d.address}: <code>${esc(o.address)}</code>`,
   ];
-  const map = mapLinkHtml(o.lat, o.lng, o.place_id);
+  const map = mapLinkHtml(o.lat, o.lng, o.place_id, d.map);
   if (map) lines.push(map);
-  if (o.hotel) lines.push(`🏨 Отель: ${esc(o.hotel)}`);
-  if (o.comment) lines.push(`💬 Комментарий: ${esc(o.comment)}`);
-  lines.push(`🌐 Язык: ${(o.lang ?? '—').toUpperCase()}`);
+  if (o.hotel) lines.push(`🏨 ${d.hotel}: ${esc(o.hotel)}`);
+  if (o.comment) lines.push(`💬 ${d.comment}: ${esc(o.comment)}`);
   if (statusLine) lines.push('', statusLine);
-  lines.push('', THANKS[o.lang ?? ''] ?? THANKS.ru);
+  lines.push('', d.thanks);
   return lines.join('\n');
 }
 

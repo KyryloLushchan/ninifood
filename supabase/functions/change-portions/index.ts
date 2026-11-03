@@ -1,5 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
+import { dict, diffLine } from '../_shared/order-i18n.ts';
 import { esc, tg } from '../_shared/telegram.ts';
 
 /**
@@ -50,8 +51,10 @@ Deno.serve(async (req) => {
 
   // Уведомление в группу Orders (ответом на сообщение заказа, если оно есть). Ошибка Telegram изменения не откатывает.
   let telegram: 'sent' | 'failed' = 'sent';
-  const money_line = r.diff > 0 ? `доплата ${money(r.diff)}` : r.diff < 0 ? `возврат ${money(r.diff)}` : 'без доплаты';
-  const text = `✏️ Изменён заказ ${esc(r.order_number)}: ${r.old_portions} → ${r.new_portions} порций, ${money_line}`;
+  // Уведомление — на языке заказа (нет языка — русский).
+  const { data: lg } = await db.from('orders').select('lang').eq('order_number', r.order_number).maybeSingle();
+  const money_line = diffLine(r.diff, money(r.diff), lg?.lang);
+  const text = dict(lg?.lang).portionsChanged(esc(r.order_number), r.old_portions, r.new_portions, money_line);
   const res = await tg('sendMessage', {
     chat_id: Deno.env.get('ORDERS_CHAT_ID')!,
     text,

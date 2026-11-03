@@ -96,7 +96,7 @@ mkOrder(11, '@gina', { days: [-2, -1, 0, 1, 2] });                              
 mkOrder(12, '@hank', { fields: { status: 'delivered', lang: 'vi' } });                                                     // доставлена (все дни) → в списке
 mkOrder(13, '@ivan', { fields: { type: 'single' }, days: [0] });                                               // разовый → нет
 mkOrder(14, '@jane', { fields: { status: 'new' } });                                                           // не подтверждена → нет
-mkOrder(15, '@kim', { dayQty: 1 }); mkOrder(16, '@kim', { dayQty: 1 });                                        // два заказа одного клиента → одна запись
+mkOrder(15, '@kim', { dayQty: 1 }); mkOrder(16, '@kim', { dayQty: 1, fields: { lang: 'en' } }); mkOrder(17, '@kim', { dayQty: 1, fields: { lang: null } });                                        // два заказа одного клиента → одна запись
 for (const k of ['price_single', 'price_subscription', 'delivery_single']) store.settings.push({ key: k, value: k === 'price_single' ? '170000' : k === 'price_subscription' ? '750000' : '20000' });
 
 console.log('\n── отбор клиентов (чистая логика) ──');
@@ -105,7 +105,7 @@ const future = store.order_days.filter((d) => d.delivery_date > TODAY).map((d) =
 const entries = selectEntries(TODAY, ending, future);
 console.log('   в списке:', entries.map((e: any) => `${e.nick} (${e.orders.join('+')})`).join(', '));
 ok(entries.map((e: any) => e.nick).join(',') === '@alice,@erin,@hank,@kim', 'в списке ровно alice, erin (будущая отменена), hank (доставлена), kim');
-ok(entries.find((e: any) => e.nick === '@kim')?.orders.join('+') === 'NF-15+NF-16' && entries.find((e: any) => e.nick === '@kim')?.portions === 2, 'два заказа одного клиента — одна запись (NF-15 + NF-16, 2 порц.)');
+ok(entries.find((e: any) => e.nick === '@kim')?.orders.join('+') === 'NF-15+NF-16+NF-17' && entries.find((e: any) => e.nick === '@kim')?.portions === 3, 'три заказа одного клиента — одна запись (NF-15 + NF-16 + NF-17, 3 порц.)');
 ok(!entries.some((e: any) => ['@bob', '@carol', '@dave', '@frank', '@gina', '@ivan', '@jane'].includes(e.nick)), 'нет: следующий заказ (по нику / телефону / аккаунту), закончилась вчера, заканчивается позже, разовый, неподтверждённая');
 
 console.log('\n── ежедневная функция ──');
@@ -121,17 +121,20 @@ const sent = tgCalls.filter((c) => c.method === 'sendMessage').map((c) => c.body
 ok(sent.length === 4 && sent.every((m) => m.chat_id === '-555'), `4 отдельных сообщения (по одному на клиента) в группу Renewals: ${sent.length}`);
 for (const m of sent) console.log(m.text.split('\n').map((l: string) => '    ' + l).join('\n') + '\n');
 const alice = sent.find((m) => m.text.includes('@alice'))!;
+console.log('   ── по одному примеру на язык ──');
+for (const l of ['ru', 'ua', 'en', 'vi']) console.log(`   [${l}]\n` + `🔔 @nick · NF-1 — 5 дн., 1 порц.\n\n${clientText(l)}`.split('\n').map((x: string) => '     ' + x).join('\n'));
+ok(clientText('ua').startsWith('Привіт! Дякуємо') && clientText('en').startsWith('Hi! Thanks') && clientText('vi').startsWith('Xin chào!') && clientText('ru').startsWith('Привет! Спасибо') && clientText(null) === clientText('ru'), 'тексты 4 языков по ТЗ; нет языка → ru');
 ok(alice.text.split('\n')[0] === '🔔 @alice · NF-1 — 5 дн., 1 порц.', 'формат: 🔔 @ник · NF-… — N дн., M порц.');
 ok(alice.text === `🔔 @alice · NF-1 — 5 дн., 1 порц.\n\n${clientText('ua')}` && !/<code>|🔗/.test(alice.text), 'обычный текст: сводка, пустая строка, текст клиенту; без <code> и без строки «🔗 ninifoodvn.com»');
 ok(sent.every((m) => m.disable_web_page_preview === true), 'превью ссылки выключено');
-const linkOf = (nick: string) => sent.find((m) => m.text.includes(nick))!.text.split('\n').pop();
+const linkOf = (nick: string) => sent.find((m) => m.text.startsWith('🔔 ' + nick))!.text.split('\n').pop();
 ok(linkOf('@alice') === 'https://ninifoodvn.com/?lang=uk#subscription', 'язык заказа ua → ?lang=uk');
-ok(linkOf('erin') === 'https://ninifoodvn.com/?lang=en#subscription' && linkOf('hank') === 'https://ninifoodvn.com/?lang=vi#subscription' && linkOf('kim') === 'https://ninifoodvn.com/?lang=ru#subscription', 'en → ?lang=en, vi → ?lang=vi, ru → ?lang=ru');
+ok(linkOf('erin') === 'https://ninifoodvn.com/?lang=en#subscription' && linkOf('hank') === 'https://ninifoodvn.com/?lang=vi#subscription' && linkOf('kim') === 'https://ninifoodvn.com/?lang=en#subscription', 'en → ?lang=en, vi → ?lang=vi; у клиента с тремя заказами язык берётся из ПОСЛЕДНЕГО заказа, у которого он есть (NF-17 без языка → NF-16 en)');
 ok(renewalLink(null) === 'https://ninifoodvn.com/?lang=ru#subscription' && renewalLink('xx') === 'https://ninifoodvn.com/?lang=ru#subscription', 'нет языка у заказа → ru');
 ok(clientText('ru') === 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nhttps://ninifoodvn.com/?lang=ru#subscription', 'текст совпадает с ТЗ посимвольно (ссылка с ?lang=)');
 ok(sent.every((m) => !/\?r=|📞|\+84|Заканчиваются/.test(m.text)) && store.renewal_links.length === 0, 'нет телефона, нет ссылок ?r=, ссылки в БД не создаются');
 const kim = sent.find((m) => m.text.includes('kim'))!;
-ok(kim.text.startsWith('🔔 kim · NF-15 + NF-16 — 5 дн., 2 порц.'), 'два заказа одного клиента — одно сообщение');
+ok(kim.text.startsWith('🔔 kim · NF-15 + NF-16 + NF-17 — 5 дн., 3 порц.'), 'три заказа одного клиента — одно сообщение');
 // пустой день → ничего не отправляем
 store.order_days.length = 0; store.orders.length = 0;
 const n0 = tgCalls.length;
