@@ -15,6 +15,7 @@ import { PinPoint } from './PinPoint';
 import { AddressEditor } from './AddressEditor';
 import { useReadOnly } from './role';
 import { PortionsEditor } from './PortionsEditor';
+import { RestoreOrder } from './RestoreOrder';
 
 interface Surcharge { id: number; amount: number; status: 'pending' | 'paid' | 'cash'; created_at: string; paid_at: string | null }
 interface Edit { id: number; created_at: string; created_by_email: string | null; kind: 'portions' | 'address'; changes: { address_from?: string; address_to?: string }; old_portions: number; new_portions: number; old_total: number; new_total: number }
@@ -230,6 +231,7 @@ export function OrderCard({
           <div className="mt-2 flex flex-wrap gap-2">
             <PortionsEditor o={o} onChanged={onChanged} onNotice={onNotice} />
             <AddressEditor o={o} onChanged={onChanged} onNotice={onNotice} />
+            <RestoreOrder o={o} onChanged={onChanged} onNotice={onNotice} />
           </div>
           <div className="mt-2">
             <div className="mb-1 text-[13px] font-bold text-ink-muted">Сменить статус вручную</div>

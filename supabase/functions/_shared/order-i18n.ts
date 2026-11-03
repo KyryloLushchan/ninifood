@@ -32,6 +32,8 @@ interface Dict {
   confirmed: string;
   cancelled: string;
   rejected: string;
+  /** Заказ восстановлен из отмены (строка статуса и уведомление). */
+  restored: string;
   thanks: string;
   /** Уведомления по заказу. */
   portionsChanged: (n: string, a: number, b: number, money: string) => string;
@@ -68,6 +70,7 @@ const D: Record<OrderLang, Dict> = {
     confirmed: '✅ Подтверждён',
     cancelled: '❌ Отменён',
     rejected: '❌ Отклонён',
+    restored: '♻️ Восстановлен',
     thanks: 'Спасибо за заказ! 🙏',
     portionsChanged: (n, a, b, m) => `✏️ Изменён заказ ${n}: ${a} → ${b} порций, ${m}`,
     surcharge: 'доплата',
@@ -101,6 +104,7 @@ const D: Record<OrderLang, Dict> = {
     confirmed: '✅ Підтверджено',
     cancelled: '❌ Скасовано',
     rejected: '❌ Відхилено',
+    restored: '♻️ Відновлено',
     thanks: 'Дякуємо за замовлення! 🙏',
     portionsChanged: (n, a, b, m) => `✏️ Змінено замовлення ${n}: ${a} → ${b} порцій, ${m}`,
     surcharge: 'доплата',
@@ -134,6 +138,7 @@ const D: Record<OrderLang, Dict> = {
     confirmed: '✅ Confirmed',
     cancelled: '❌ Cancelled',
     rejected: '❌ Rejected',
+    restored: '♻️ Restored',
     thanks: 'Thank you for your order! 🙏',
     portionsChanged: (n, a, b, m) => `✏️ Order ${n} changed: ${a} → ${b} portions, ${m}`,
     surcharge: 'surcharge',
@@ -167,6 +172,7 @@ const D: Record<OrderLang, Dict> = {
     confirmed: '✅ Đã xác nhận',
     cancelled: '❌ Đã hủy',
     rejected: '❌ Đã từ chối',
+    restored: '♻️ Đã khôi phục',
     thanks: 'Cảm ơn bạn đã đặt hàng! 🙏',
     portionsChanged: (n, a, b, m) => `✏️ Đã đổi đơn ${n}: ${a} → ${b} suất, ${m}`,
     surcharge: 'phụ thu',
@@ -182,7 +188,7 @@ export const dict = (lang: string | null | undefined): Dict => D[orderLang(lang)
 export const dayLabel = (iso: string, lang: string | null | undefined) => `${dict(lang).wd[dayOfWeek(iso)]} ${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
 /** Статус в сообщении заказа: confirmed / cancelled (отмена подтверждённого) / rejected (отказ новому). */
-export const statusLabel = (kind: 'confirmed' | 'cancelled' | 'rejected', lang: string | null | undefined) => dict(lang)[kind];
+export const statusLabel = (kind: 'confirmed' | 'cancelled' | 'rejected' | 'restored', lang: string | null | undefined) => dict(lang)[kind];
 
 /** Часть уведомления об изменении порций: «доплата 20 000 ₫» / «возврат −20 000 ₫» / «без доплаты». */
 export const diffLine = (diff: number, moneyText: string, lang: string | null | undefined) => {
