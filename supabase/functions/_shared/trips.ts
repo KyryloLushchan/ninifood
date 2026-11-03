@@ -17,6 +17,8 @@ export interface TripSettings {
   gapMin: number;
   /** Финиш курьера (дом): последний рейс дня заканчивается здесь (кухня → точки → финиш). Нет — последний рейс открытый, до последней точки. При 2 курьерах — только у первого. */
   finish?: LatLng | null;
+  /** Радиус вокруг финиша, км (по прямой): точки внутри него — всегда отдельный последний рейс кухня → эти точки → финиш, независимо от порций. */
+  finishRadiusKm?: number;
 }
 
 export const DEFAULT_TRIP_SETTINGS: TripSettings = { capacity: 9, speedKmh: 25, stopMin: 4, roadFactor: 1.3, departMin: 13 * 60, deadlineMin: 16 * 60, gapMin: 10 };
@@ -43,6 +45,7 @@ export function parseTripSettings(s: Record<string, string | undefined>): TripSe
     deadlineMin: hm(s.deadline_time, d.deadlineMin),
     gapMin: num(s.trip_gap_min, d.gapMin, 0, 120),
     finish: parseFinish(s),
+    finishRadiusKm: num(s.courier_finish_radius_km, 3, 0.1, 30),
   };
 }
 
@@ -298,7 +301,7 @@ interface Eval {
   sectors: number[][];
 }
 
-function evaluate<T>(c: Ctx<T>, sectors: number[][], perms: number[][], fin: boolean): Eval {
+function evaluate<T>(c: Ctx<T>, sectors: number[][], perms: number[][], fin: boolean, closeAll = false): Eval {
   const P = sectors.reduce((s, sec) => s + sec.reduce((x, i) => x + c.stops[i].portions, 0), 0);
   let best: Eval | null = null;
   for (const perm of perms) {
@@ -308,7 +311,7 @@ function evaluate<T>(c: Ctx<T>, sectors: number[][], perms: number[][], fin: boo
     let km = 0;
     let kmAll = 0;
     perm.forEach((p, pi) => {
-      const tr = bestTour(c, sectors[p], pi < perm.length - 1 ? 'closed' : fin ? 'finish' : 'open');
+      const tr = bestTour(c, sectors[p], closeAll || pi < perm.length - 1 ? 'closed' : fin ? 'finish' : 'open');
       tr.order.forEach((i, k) => {
         const a = t + tr.arr[k];
         w += a * c.stops[i].portions;
@@ -373,11 +376,11 @@ function sectorCandidates<T>(c: Ctx<T>, subset: number[], k: number, cap: number
   return out;
 }
 
-function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidates: number, fin: boolean): CourierTrips<T> {
+function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidates: number, fin: boolean, closeAll = false): CourierTrips<T> {
   const trips: Trip<T>[] = [];
   let t = c.st.departMin;
   perm.forEach((p, pi) => {
-    const closed = pi < perm.length - 1;
+    const closed = closeAll || pi < perm.length - 1;
     const toFinish = !closed && fin && !!c.st.finish;
     const tr = bestTour(c, sectors[p], closed ? 'closed' : toFinish ? 'finish' : 'open');
     const ordered = tr.order.map((i) => c.stops[i]);
@@ -396,6 +399,10 @@ function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidate
     });
     t += tr.endOff + c.st.gapMin;
   });
+  return summarize(c, trips, candidates);
+}
+
+function summarize<T>(c: Ctx<T>, trips: Trip<T>[], candidates: number): CourierTrips<T> {
   const P = trips.reduce((s, x) => s + x.portions, 0);
   const last = Math.max(...trips.flatMap((x) => x.stops.map((s) => s.arriveMin)));
   const mean = trips.reduce((s, x) => s + x.stops.reduce((a, y) => a + y.arriveMin * y.stop.portions, 0), 0) / P;
@@ -405,9 +412,41 @@ function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidate
 /** Рейсы одного курьера по его точкам (subset — индексы в ctx.stops). Один рейс (порций ≤ вместимости) — открытый маршрут. */
 function planCourier<T>(c: Ctx<T>, subset: number[], fin: boolean): CourierTrips<T> | null {
   if (!subset.length) return null;
+  const f = c.st.finish;
+  if (fin && f) {
+    // Точки в радиусе от финиша (дом) — всегда отдельный последний рейс кухня → эти точки → финиш; остальные делятся как обычно, каждый рейс с возвратом на кухню.
+    const R = c.st.finishRadiusKm ?? 3;
+    const home = subset.filter((i) => hav(c.stops[i], f) <= R + 1e-9);
+    if (home.length) {
+      const rest = subset.filter((i) => !home.includes(i));
+      const head = rest.length ? planCore(c, rest, false, true) : null;
+      const trips = head ? [...head.trips] : [];
+      const start = trips.length ? trips[trips.length - 1].endMin + c.st.gapMin : c.st.departMin;
+      const tr = bestTour(c, home, 'finish');
+      const ordered = tr.order.map((i) => c.stops[i]);
+      const portions = ordered.reduce((x, y) => x + y.portions, 0);
+      trips.push({
+        stops: ordered.map((stop, k) => ({ stop, key: stopKey(stop), arriveMin: start + tr.arr[k] })),
+        portions,
+        km: tr.km,
+        startMin: start,
+        endMin: start + tr.endOff,
+        closed: false,
+        toFinish: true,
+        finishKm: tr.finishKm,
+        overCapacity: portions > c.st.capacity,
+        links: directionsLinks(c.kitchen, [...ordered, f]),
+      });
+      return summarize(c, trips, (head?.candidates ?? 1));
+    }
+  }
+  return planCore(c, subset, fin, false);
+}
+
+function planCore<T>(c: Ctx<T>, subset: number[], fin: boolean, closeAll: boolean): CourierTrips<T> {
   const P = subset.reduce((s, i) => s + c.stops[i].portions, 0);
   const n0 = Math.ceil(P / c.st.capacity);
-  if (n0 <= 1 || subset.length === 1) return buildTrips(c, [subset], [0], 1, fin);
+  if (n0 <= 1 || subset.length === 1) return buildTrips(c, [subset], [0], 1, fin, closeAll);
   let cands: number[][][] = [];
   for (let k = n0; k <= Math.min(subset.length, n0 + 2) && !cands.length; k++) cands = sectorCandidates(c, subset, k, c.st.capacity);
   if (!cands.length) {
@@ -418,10 +457,10 @@ function planCourier<T>(c: Ctx<T>, subset: number[], fin: boolean): CourierTrips
   if (!cands.length) cands = [subset.map((i) => [i])];
   let best: Eval | null = null;
   for (const sec of cands) {
-    const e = evaluate(c, sec, permutations(sec.length, fin), fin);
+    const e = evaluate(c, sec, permutations(sec.length, fin), fin, closeAll);
     if (!best || betterTrips(e, best, fin)) best = e;
   }
-  return buildTrips(c, best!.sectors, best!.perm, cands.length, fin);
+  return buildTrips(c, best!.sectors, best!.perm, cands.length, fin, closeAll);
 }
 
 /** Ручное распределение: tripOf(i) → номер рейса; рейсы идут по возрастанию номера, порядок точек и время пересчитываются, переполнение разрешено. */

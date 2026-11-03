@@ -69,7 +69,7 @@ export function CourierTab() {
 
   // Кухня, число курьеров и параметры рейсов — из Настроек; переключатель ниже действует только на выбранную дату.
   useEffect(() => {
-    adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng']).then(({ data }) => {
+    adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km']).then(({ data }) => {
       const c = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
       setTrip(parseTripSettings(c));
       const lat = Number(c.kitchen_lat);

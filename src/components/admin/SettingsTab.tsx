@@ -106,8 +106,11 @@ export function SettingsTab() {
     if (!clear && (!(values.courier_finish_address ?? '').trim() || !Number.isFinite(Number(lat)) || !Number.isFinite(Number(lng)) || Number(lat) < 15.9 || Number(lat) > 16.2 || Number(lng) < 107.9 || Number(lng) > 108.5 || !lat || !lng)) {
       return setError('Выберите адрес финиша из подсказок (должен быть в Дананге).');
     }
+    const radius = (values.courier_finish_radius_km ?? '3').trim().replace(',', '.');
+    if (!clear && (radius === '' || !Number.isFinite(Number(radius)) || Number(radius) < 0.1 || Number(radius) > 30)) return setError('Проверьте поле: Радиус вокруг финиша, км (0,1–30).');
     setBusy(true);
     const rows = [
+      ...(clear ? [] : [{ key: 'courier_finish_radius_km', value: radius, is_public: false }]),
       { key: 'courier_finish_address', value: clear ? '' : values.courier_finish_address.trim(), is_public: false },
       { key: 'courier_finish_lat', value: lat, is_public: false },
       { key: 'courier_finish_lng', value: lng, is_public: false },
@@ -183,6 +186,7 @@ export function SettingsTab() {
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">Финиш курьера</div>
           {row('Адрес финиша (дом курьера)', values.courier_finish_address || '—')}
+          {row('Радиус вокруг финиша, км', values.courier_finish_radius_km ?? '3')}
         </Card>
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">ЗП курьера</div>
@@ -255,6 +259,10 @@ export function SettingsTab() {
           <div className="mt-1 text-xs text-ink-muted">
             {values.courier_finish_lat && values.courier_finish_lng ? `Точка: ${values.courier_finish_lat}, ${values.courier_finish_lng}` : 'Выберите адрес из подсказок — без выбора точка не определяется.'}
           </div>
+        </div>
+        <div>
+          <Label>Радиус вокруг финиша, км (точки внутри него — всегда отдельный последний рейс до дома)</Label>
+          <input className={inputCls} inputMode="decimal" value={values.courier_finish_radius_km ?? '3'} onChange={(e) => setValues({ ...values, courier_finish_radius_km: e.target.value })} />
         </div>
         {values.courier_finish_lat && values.courier_finish_lng && (
           <a href={`https://www.google.com/maps/search/?api=1&query=${values.courier_finish_lat},${values.courier_finish_lng}`} target="_blank" rel="noreferrer" className="text-sm font-bold">

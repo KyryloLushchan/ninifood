@@ -27,12 +27,15 @@ const A = [mk(at(-4, 5), 1, 'Север'), mk(at(3, 4), 1, 'СВ'), mk(at(-5, -2
 const withF = planDay(A, acc, K, 1, ST).couriers[0];
 const noF = planDay(A, acc, K, 1, { ...DEFAULT_TRIP_SETTINGS }).couriers[0];
 show(withF, 'с финишем'); show(noF, 'без финиша');
-ok(withF.trips.length === 1 && withF.trips[0].toFinish && !withF.trips[0].closed, 'единственный рейс идёт до финиша (открытый, toFinish)');
+ok(withF.trips.length === 2 && withF.trips[0].closed && !withF.trips[0].toFinish && withF.trips[1].toFinish && !withF.trips[1].closed, 'точка в радиусе 3 км от дома — отдельный последний рейс до финиша; остальные — рейс с возвратом на кухню');
+ok(withF.trips[1].stops.length === 1 && lastStop(withF) === 'FPT' && withF.trips[0].stops.length === 6, 'в доме-рейсе только FPT, в первом — остальные 6 точек');
 ok(lastStop(withF) === 'FPT', 'точка в FPT City — последняя');
-ok(dest(withF.trips[0].links.at(-1)!) === fmt(F), 'последняя точка ссылки = финиш (дом)');
+ok(dest(withF.trips[1].links.at(-1)!) === fmt(F) && dest(withF.trips[0].links.at(-1)!) === fmt(K), 'ссылки: рейс 1 — до кухни, дом-рейс — последняя точка = финиш (дом)');
 ok(withF.trips[0].links.every((u) => u.includes('origin=' + fmt(K)) || true) && new URL(withF.trips[0].links[0]).searchParams.get('origin') === fmt(K), 'ссылка начинается на кухне');
 ok(withF.finishKm > 0 && withF.finishKm < 3, `отрезок до финиша учтён отдельно: ${withF.finishKm.toFixed(2)} км`);
-ok(Math.abs(withF.totalKm - withF.trips[0].km) < 1e-9, 'totalKm (для ЗП) = км до последнего заказа, без отрезка до дома');
+ok(Math.abs(withF.totalKm - withF.trips.reduce((x, t) => x + t.km, 0)) < 1e-9, 'totalKm (для ЗП) = км рейсов до последнего заказа, без отрезка до дома');
+const tiny = planDay(A, acc, K, 1, { ...ST, finishRadiusKm: 0.1 }).couriers[0];
+ok(tiny.trips.length === 1 && tiny.trips[0].toFinish, 'радиус 0,1 км: FPT вне радиуса — старое поведение (один рейс до финиша)');
 ok(!noF.trips[0].toFinish && noF.finishKm === 0 && dest(noF.trips[0].links.at(-1)!) !== fmt(F), 'без финиша: поведение как раньше (открытый рейс до последней точки)');
 const noFnull = planDay(A, acc, K, 1, { ...DEFAULT_TRIP_SETTINGS, finish: null }).couriers[0];
 ok(JSON.stringify(noFnull) === JSON.stringify(noF), 'finish: null ≡ финиш не задан');
@@ -73,7 +76,22 @@ ok(pl2.couriers[0].trips.at(-1)!.stops.some((s) => s.stop.items[0].id.startsWith
 const pl2no = planDay(C, acc, K, 2, { ...DEFAULT_TRIP_SETTINGS });
 ok(pl2no.couriers.every((cr) => cr.trips.every((t) => !t.toFinish)), 'без финиша — ни у кого');
 
+console.log('\n── схема 04.11: 2 рейса с возвратом + отдельный рейс у дома ──');
+const G = [...Array.from({ length: 9 }, (_, i) => mk(at(-6 + i * 1.5, 4 + (i % 3)), 1, `G${i}`)), ...Array.from({ length: 9 }, (_, i) => mk(at(-3 - i * 1.2, -2 - (i % 3)), 1, `H${i}`)), mk(nearF(0.4, 0.3), 1, 'FPT1'), mk(nearF(-0.5, 0.6), 1, 'FPT2')];
+const sch = planDay(G, acc, K, 1, ST).couriers[0];
+show(sch, 'схема');
+ok(sch.trips.length === 3 && sch.trips[0].closed && sch.trips[1].closed && sch.trips[2].toFinish, '3 рейса: 2 с возвратом на кухню + последний до финиша');
+ok(sch.trips[2].stops.length === 2 && sch.trips[2].stops.every((s) => s.stop.items[0].id.startsWith('FPT')), 'в последнем рейсе ровно 2 точки в FPT City');
+ok(sch.trips[0].portions <= 9 && sch.trips[1].portions <= 9, 'остальные делятся по вместимости 9');
+const bigHome = planDay([...G.slice(0, 9), mk(nearF(0.4, 0.3), 6, 'BIG'), mk(nearF(-0.5, 0.6), 7, 'BIG2')], acc, K, 1, ST).couriers[0];
+ok(bigHome.trips.at(-1)!.stops.length === 2 && bigHome.trips.at(-1)!.portions === 13 && bigHome.trips.at(-1)!.overCapacity, 'точки у дома остаются отдельным рейсом независимо от числа порций (13 > 9 — помечено 🔴)');
+const onlyHome = planDay([mk(nearF(0.4, 0.3), 1, 'A'), mk(nearF(-0.5, 0.6), 1, 'B')], acc, K, 1, ST).couriers[0];
+ok(onlyHome.trips.length === 1 && onlyHome.trips[0].toFinish, 'только точки у дома — один рейс до финиша');
+const pz = computeDayPay('2026-11-04', G.map((a) => ({ ...a, telegram: `@${a.id}` })), payA, (d: any) => d.telegram, K, 1, ST, null, DEFAULT_PAY)[0];
+ok(Math.abs(pz.autoKm - Math.round(sch.totalKm * 10) / 10) < 1e-9 && sch.finishKm > 0, `ЗП: км = до последнего заказа (${pz.autoKm}), отрезок до дома (${sch.finishKm.toFixed(1)} км) не входит`);
+
 console.log('\n── настройки ──');
+ok(parseTripSettings({}).finishRadiusKm === 3 && parseTripSettings({ courier_finish_radius_km: '5' }).finishRadiusKm === 5 && parseTripSettings({ courier_finish_radius_km: 'x' }).finishRadiusKm === 3, 'радиус финиша: по умолчанию 3 км, настраивается');
 ok(parseTripSettings({ courier_finish_lat: '15.9824019', courier_finish_lng: '108.2603871' }).finish?.lat === 15.9824019, 'finish читается из settings');
 ok(parseTripSettings({}).finish === null && parseTripSettings({ courier_finish_lat: '', courier_finish_lng: '' }).finish === null && parseTripSettings({ courier_finish_lat: '50', courier_finish_lng: '10' }).finish === null, 'пусто / вне Дананга — финиша нет');
 

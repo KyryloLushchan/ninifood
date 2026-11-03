@@ -2,7 +2,7 @@ import { adminDb } from './client';
 import { clientKey, computeDayPay, parsePaySettings, type CourierDayPay, type PayRow, type PaySettings } from './courier-pay';
 import { parseTripSettings, type RouteOverride } from './trips';
 
-const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price', 'courier_pay_from'];
+const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price', 'courier_pay_from'];
 
 export interface PayrollData {
   days: CourierDayPay[];
