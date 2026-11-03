@@ -78,17 +78,22 @@ export function selectEntries(today: string, ending: EndingOrder[], future: Futu
     .sort((a, b) => byNumber({ order_number: a.orders[0] }, { order_number: b.orders[0] }));
 }
 
-/** Текст клиенту (дословно по ТЗ). Ссылка — просто адрес сайта, персональных ссылок нет. */
+/** Текст клиенту (дословно по ТЗ). Ссылка полная — чтобы у клиента точно стала кликабельной. */
 export const clientText = () =>
-  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nninifoodvn.com`;
+  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nhttps://ninifoodvn.com`;
 
-const nickText = (raw: string) => {
-  const h = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
-  return /^[A-Za-z0-9_]{4,32}$/.test(h) ? `@${h}` : raw.trim();
-};
+/** Ник для вывода: без пробелов, невидимых символов и t.me/; «@» добавляется, если ник валидный (5–32: латиница, цифры, _). В заказах не меняется. */
+export function nickText(raw: string): string {
+  const clean = raw
+    .replace(/[\s\u00AD\u034F\u061C\u115F\u1160\u17B4\u17B5\u180B-\u180E\u200B-\u200F\u202A-\u202E\u2060-\u206F\u3164\uFE00-\uFE0F\uFEFF]/g, '')
+    .replace(/^(https?:\/\/)?(www\.)?(t|telegram)\.me\//i, '')
+    .replace(/^@+/, '')
+    .replace(/[/?#].*$/, '');
+  return /^[A-Za-z0-9_]{5,32}$/.test(clean) ? `@${clean}` : clean || raw.trim();
+}
 const portionsWord = 'порц.';
 
-/** Отдельное сообщение одного клиента: строка со сводкой и текст в <code> (копируется одним нажатием). Телефона нет. */
+/** Отдельное сообщение одного клиента: строка со сводкой, текст в <code> (копируется одним нажатием) и кликабельная ссылка вне code. Телефона нет. */
 export function entryMessage(e: Entry): string {
-  return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n<code>${esc(clientText())}</code>`;
+  return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n<code>${esc(clientText())}</code>\n🔗 <a href="${SITE_URL}">ninifoodvn.com</a>`;
 }

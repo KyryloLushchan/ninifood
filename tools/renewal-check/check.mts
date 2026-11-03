@@ -74,7 +74,7 @@ async function load(fn: string) {
   return handler;
 }
 const { addDays, todayISO, isSunday } = await import(`${ROOT}/supabase/functions/_shared/dates.ts`);
-const { selectEntries, clientText } = await import(`${ROOT}/supabase/functions/_shared/renewal.ts`);
+const { selectEntries, clientText, nickText } = await import(`${ROOT}/supabase/functions/_shared/renewal.ts`);
 const TODAY = todayISO();
 const D = (n: number) => addDays(TODAY, n);
 
@@ -122,11 +122,12 @@ ok(sent.length === 4 && sent.every((m) => m.chat_id === '-555'), `4 отдель
 for (const m of sent) console.log(m.text.replace(/<\/?code>/g, '').split('\n').map((l: string) => '    ' + l).join('\n') + '\n');
 const alice = sent.find((m) => m.text.includes('@alice'))!;
 ok(alice.text.split('\n')[0] === '🔔 @alice · NF-1 — 5 дн., 1 порц.', 'формат: 🔔 @ник · NF-… — N дн., M порц.');
-ok(alice.text === `🔔 @alice · NF-1 — 5 дн., 1 порц.\n<code>${clientText()}</code>`, 'текст клиенту дословно, в <code>');
-ok(clientText() === 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nninifoodvn.com', 'текст совпадает с ТЗ посимвольно');
+ok(alice.text === `🔔 @alice · NF-1 — 5 дн., 1 порц.\n<code>${clientText()}</code>\n🔗 <a href="https://ninifoodvn.com">ninifoodvn.com</a>`, 'текст клиенту в <code> со ссылкой https://…, ниже кликабельная «🔗 ninifoodvn.com» вне code');
+ok([['  alice ', '@alice'], ['https://t.me/samuicompany', '@samuicompany'], ['t.me/ab_cde', '@ab_cde'], ['@\u200Bpar2\u200Dpar0', '@par2par0'], ['bob', 'bob'], ['a b c d e f', '@abcdef'], ['x'.repeat(33), 'x'.repeat(33)]].every(([i, o]) => nickText(i) === o), 'нормализация ника: пробелы, t.me/, невидимые символы, @ только у валидного 5–32');
+ok(clientText() === 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nhttps://ninifoodvn.com', 'текст совпадает с ТЗ посимвольно');
 ok(sent.every((m) => !/\?r=|📞|\+84|Заканчиваются/.test(m.text)) && store.renewal_links.length === 0, 'нет телефона, нет ссылок ?r=, ссылки в БД не создаются');
-const kim = sent.find((m) => m.text.includes('@kim'))!;
-ok(kim.text.startsWith('🔔 @kim · NF-15 + NF-16 — 5 дн., 2 порц.'), 'два заказа одного клиента — одно сообщение');
+const kim = sent.find((m) => m.text.includes('kim'))!;
+ok(kim.text.startsWith('🔔 kim · NF-15 + NF-16 — 5 дн., 2 порц.'), 'два заказа одного клиента — одно сообщение');
 // пустой день → ничего не отправляем
 store.order_days.length = 0; store.orders.length = 0;
 const n0 = tgCalls.length;
