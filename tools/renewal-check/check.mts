@@ -74,7 +74,7 @@ async function load(fn: string) {
   return handler;
 }
 const { addDays, todayISO, isSunday } = await import(`${ROOT}/supabase/functions/_shared/dates.ts`);
-const { selectEntries, clientText, CODE_RE } = await import(`${ROOT}/supabase/functions/_shared/renewal.ts`);
+const { selectEntries, clientText } = await import(`${ROOT}/supabase/functions/_shared/renewal.ts`);
 const TODAY = todayISO();
 const D = (n: number) => addDays(TODAY, n);
 
@@ -117,22 +117,16 @@ ok(r.status === 403 && tgCalls.length === 0 && store.renewal_links.length === 0,
 r = await post({ 'x-cron-secret': 'cron' });
 const b1: any = await r.json();
 ok(b1.ok && b1.count === 4, `отправлено, клиентов: ${b1.count}`);
-const msg = tgCalls.find((c) => c.method === 'sendMessage')!.body;
-ok(msg.chat_id === '-555' && msg.text.startsWith('🔔 <b>Заканчиваются подписки:</b>'), 'сообщение в группу Renewals с заголовком «🔔 Заканчиваются подписки:»');
-console.log(msg.text.replace(/<\/?(b|code)>/g, '').split('\n').slice(0, 9).map((l: string) => '    ' + l).join('\n'));
-ok(msg.text.includes('• @alice · NF-1 · 📞 +84 32 647 76 71 — 5 дн., 1 порц.'), 'строка: • @ник · NF-… · 📞 телефон — N дн., M порц.');
-const code1 = /\?r=([0-9A-Za-z]{22})/.exec(msg.text)![1];
-const alice = new RegExp('<code>' + clientText('https://ninifoodvn.com/\\?r=' + code1).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\\\?r=/, '\\?r=') + '</code>').test(msg.text) || msg.text.includes(`<code>${clientText('https://ninifoodvn.com/?r=' + code1)}</code>`);
-ok(alice, 'текст клиенту дословно, в <code>, со ссылкой https://ninifoodvn.com/?r=КОД');
-ok(store.renewal_links.length === 4 && store.renewal_links.every((l) => CODE_RE.test(l.code)) && new Set(store.renewal_links.map((l) => l.code)).size === 4, '4 уникальные ссылки по 22 символа, не id заказа');
-ok(!store.renewal_links.some((l) => store.orders.some((o) => o.id === l.code || o.order_number === l.code)), 'код не совпадает с id/номером заказа');
-const exp = (new Date(store.renewal_links[0].expires_at).getTime() - new Date(store.renewal_links[0].created_at).getTime()) / 86400000;
-void exp;
-const before = tgCalls.length;
-r = await post({ 'x-cron-secret': 'cron' });
-const msg2 = tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body;
-ok(store.renewal_links.length === 4 && /\?r=([0-9A-Za-z]{22})/.exec(msg2.text)![1] === code1, 'повторный запуск в тот же день: те же ссылки (дублей нет)');
-void before;
+const sent = tgCalls.filter((c) => c.method === 'sendMessage').map((c) => c.body);
+ok(sent.length === 4 && sent.every((m) => m.chat_id === '-555'), `4 отдельных сообщения (по одному на клиента) в группу Renewals: ${sent.length}`);
+for (const m of sent) console.log(m.text.replace(/<\/?code>/g, '').split('\n').map((l: string) => '    ' + l).join('\n') + '\n');
+const alice = sent.find((m) => m.text.includes('@alice'))!;
+ok(alice.text.split('\n')[0] === '🔔 @alice · NF-1 — 5 дн., 1 порц.', 'формат: 🔔 @ник · NF-… — N дн., M порц.');
+ok(alice.text === `🔔 @alice · NF-1 — 5 дн., 1 порц.\n<code>${clientText()}</code>`, 'текст клиенту дословно, в <code>');
+ok(clientText() === 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nninifoodvn.com', 'текст совпадает с ТЗ посимвольно');
+ok(sent.every((m) => !/\?r=|📞|\+84|Заканчиваются/.test(m.text)) && store.renewal_links.length === 0, 'нет телефона, нет ссылок ?r=, ссылки в БД не создаются');
+const kim = sent.find((m) => m.text.includes('@kim'))!;
+ok(kim.text.startsWith('🔔 @kim · NF-15 + NF-16 — 5 дн., 2 порц.'), 'два заказа одного клиента — одно сообщение');
 // пустой день → ничего не отправляем
 store.order_days.length = 0; store.orders.length = 0;
 const n0 = tgCalls.length;

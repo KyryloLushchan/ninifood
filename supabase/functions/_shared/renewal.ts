@@ -1,6 +1,5 @@
 // Напоминание о продлении подписки: чистая логика отбора и текст сообщения (без БД и сети).
 import { esc } from './telegram.ts';
-import { phoneText } from './order-text.ts';
 
 export const SITE_URL = 'https://ninifoodvn.com';
 const ALPHABET = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz';
@@ -79,9 +78,9 @@ export function selectEntries(today: string, ending: EndingOrder[], future: Futu
     .sort((a, b) => byNumber({ order_number: a.orders[0] }, { order_number: b.orders[0] }));
 }
 
-/** Текст клиенту (дословно по ТЗ) со ссылкой продления. */
-export const clientText = (link: string) =>
-  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\n${link}`;
+/** Текст клиенту (дословно по ТЗ). Ссылка — просто адрес сайта, персональных ссылок нет. */
+export const clientText = () =>
+  `Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nninifoodvn.com`;
 
 const nickText = (raw: string) => {
   const h = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
@@ -89,10 +88,7 @@ const nickText = (raw: string) => {
 };
 const portionsWord = 'порц.';
 
-/** Блок одного клиента: строка со сводкой и текст в <code> (копируется одним нажатием). */
-export function entryBlock(e: Entry, link: string): string {
-  const head = `• ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))}${e.phone ? ` · 📞 ${esc(phoneText(e.phone))}` : ''} — ${e.days} дн., ${e.portions} ${portionsWord}`;
-  return `${head}\n<code>${esc(clientText(link))}</code>`;
+/** Отдельное сообщение одного клиента: строка со сводкой и текст в <code> (копируется одним нажатием). Телефона нет. */
+export function entryMessage(e: Entry): string {
+  return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n<code>${esc(clientText())}</code>`;
 }
-
-export const TITLE = '🔔 <b>Заканчиваются подписки:</b>';

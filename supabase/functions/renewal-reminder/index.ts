@@ -1,15 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { todayISO } from '../_shared/dates.ts';
-import { CODE_RE, entryBlock, newCode, selectEntries, SITE_URL, TITLE, type EndingOrder, type FutureOrder } from '../_shared/renewal.ts';
+import { entryMessage, selectEntries, type EndingOrder, type FutureOrder } from '../_shared/renewal.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
 
-const SAFE = 3900; // запас под теги до лимита Telegram 4096
-
 /**
- * Ежедневно в 18:00 (Дананг, pg_cron): в группу «NiniFood Renewals» (секрет RENEWALS_CHAT_ID) — клиенты, у которых СЕГОДНЯ последний день подписки
- * и нет заказа/подписки на ближайшие дни, с готовым текстом и одноразовой ссылкой продления. Никого нет — ничего не отправляется.
+ * Ежедневно в 19:00 (Дананг, pg_cron): в группу «NiniFood Renewals» (секрет RENEWALS_CHAT_ID) — по отдельному сообщению на клиента, у которого СЕГОДНЯ последний день подписки
+ * и нет заказа/подписки на ближайшие дни, с готовым текстом (персональных ссылок нет). Никого нет — ничего не отправляется.
  * Доступ: x-cron-secret = CRON_SECRET (pg_cron) ИЛИ JWT админа; остальные (в т.ч. viewer) — forbidden. Тело (необязательно): {date}.
  */
 Deno.serve(async (req) => {
@@ -76,47 +74,19 @@ Deno.serve(async (req) => {
   const entries = selectEntries(today, ending, future);
   if (!entries.length) return json({ ok: true, count: 0 });
 
-  // Одноразовые ссылки: на заказ — одна действующая (повторный запуск в тот же день отдаёт ту же ссылку).
-  const blocks: string[] = [];
-  for (const e of entries) {
-    let code: string | null = null;
-    const { data: ex } = await db.from('renewal_links').select('code').eq('order_id', e.primaryId).is('used_at', null).gt('expires_at', new Date().toISOString()).limit(1).maybeSingle();
-    if (ex && CODE_RE.test(ex.code)) code = ex.code;
-    if (!code) {
-      code = newCode();
-      const { error } = await db.from('renewal_links').insert({ code, order_id: e.primaryId, portions: Math.min(99, Math.max(1, e.portions)) });
-      if (error) {
-        console.error('renewal link insert failed:', error.message);
-        await warn(`Напоминания о продлении: не удалось создать ссылку для ${esc(e.orders.join(' + '))}.`);
-        continue;
-      }
-    }
-    blocks.push(entryBlock(e, `${SITE_URL}/?r=${code}`));
-  }
-  if (!blocks.length) return json({ ok: false, code: 'server_error' }, 500);
-
   const chat = Deno.env.get('RENEWALS_CHAT_ID') ?? '';
   if (!chat) {
     await warn('Напоминания о продлении не отправлены: не задан RENEWALS_CHAT_ID.');
     return json({ ok: false, code: 'chat_missing' }, 409);
   }
-  // Режем на сообщения до лимита Telegram, не разрывая блок клиента.
-  const messages: string[] = [];
-  let cur = TITLE;
-  for (const b of blocks) {
-    if (cur.length + 2 + b.length > SAFE) {
-      messages.push(cur);
-      cur = b;
-    } else cur = `${cur}\n\n${b}`;
-  }
-  messages.push(cur);
-  for (const text of messages) {
-    const r = await tg('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true });
+  // Одно сообщение на клиента (несколько заказов одного клиента — уже одна запись).
+  for (const e of entries) {
+    const r = await tg('sendMessage', { chat_id: chat, text: entryMessage(e), parse_mode: 'HTML', disable_web_page_preview: true });
     if (!r.ok) {
       console.error('renewal-reminder telegram failed:', r.description);
       await warn(`Не удалось отправить напоминания о продлении (${esc(String(r.description ?? 'ошибка Telegram'))}). Если группа стала супергруппой, обновите RENEWALS_CHAT_ID.`);
       return json({ ok: false, code: 'telegram_failed' }, 502);
     }
   }
-  return json({ ok: true, count: blocks.length, messages: messages.length });
+  return json({ ok: true, count: entries.length });
 });
