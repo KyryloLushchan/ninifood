@@ -53,14 +53,6 @@ export function Home() {
   const [tab, setTab] = useState<string | null>(null);
   const wide = useWide();
 
-  // Ссылка …/#subscription (напоминание о продлении): блок подписки рендерится после гидрации и сдвигается, когда приходит меню, — доскролливаем сами (вёрстка не меняется).
-  const hashScrolls = useRef(0);
-  useEffect(() => {
-    if (window.location.hash !== '#subscription' || hashScrolls.current >= 2) return;
-    hashScrolls.current += 1;
-    document.getElementById('subscription')?.scrollIntoView();
-  }, [menuLoaded]);
-
   // Сегодня (если есть меню, неактивно) + ближайшие доступные дни.
   const menuDays = today ? [...(!isSunday(today) && !isVip ? [today] : []), ...bookableDays] : [];
   const active = tab && menuDays.includes(tab) ? tab : nearestDay;

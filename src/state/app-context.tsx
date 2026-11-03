@@ -408,6 +408,16 @@ export function AppProvider({ children }: { children: ReactNode }) {
     go('order');
   }, [go]);
 
+  // Ссылка …/#subscription (напоминание о продлении): сразу экран заказа с типом «Подписка». Ссылки ?r= (продление по коду) и ?d= (черновик) имеют свой разбор и приоритет.
+  useEffect(() => {
+    if (window.location.hash !== '#subscription') return;
+    const q = new URLSearchParams(window.location.search);
+    if (q.has('r') || q.has('d')) return;
+    window.history.replaceState(null, '', window.location.pathname + window.location.search);
+    startSub();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const reset = useCallback(() => {
     setAutoSub(false);
     setOrderType('once');
