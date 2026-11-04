@@ -292,6 +292,29 @@ const re = tgCalls.filter((c) => c.method === 'editMessageText').slice(before);
 ok(rr.ok && re.length > 10 && re.every((e) => /^❌ Неактуально — маршрут отправлен заново/.test(e.body.text)), 'republish: все старые сообщения — «❌ Неактуально — маршрут отправлен заново»');
 ok(store.courier_route_msgs.filter((r) => r.status === 'active' && r.kind === 'stop').length === store.order_days.filter((d) => d.orders.status !== 'cancelled').length - 0 || true, 'новая версия маршрута активна');
 
+console.log('\n── отчёт кухне: доп. порции ──');
+{
+  env.KITCHEN_CHAT_ID = '-777';
+  env.COURIER_CHAT_ID = '-5242567129';
+  const dr = await load('daily-report');
+  const total = store.order_days.filter((d) => ['new', 'confirmed', 'delivered'].includes(d.orders.status)).reduce((n, d) => n + d.qty, 0);
+  const runKitchen = async () => {
+    const n = tgCalls.length;
+    const res = await dr(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', 'x-cron-secret': 'cron' }, body: JSON.stringify({ date: DATE, parts: 'kitchen' }) }));
+    const sent = tgCalls.slice(n).find((c) => c.method === 'sendMessage' && c.body.chat_id === '-777');
+    return { res: await res.json(), text: sent?.body.text as string };
+  };
+  const k0 = await runKitchen();
+  console.log('   ' + k0.text.split('\n')[0].replace(/<[^>]+>/g, ''));
+  ok(k0.res.kitchen.extra === 3 && k0.res.kitchen.total === total + 3 && new RegExp(`${total} \\+ 3 = ${total + 3}`).test(k0.text), `настройки нет → по умолчанию 3: «${total} + 3 = ${total + 3}»`);
+  store.settings.push({ key: 'extra_portions', value: '5' });
+  const k5 = await runKitchen();
+  ok(k5.res.kitchen.extra === 5 && new RegExp(`${total} \\+ 5 = ${total + 5}`).test(k5.text), 'настройка «Доп. порции в день» = 5 → «+ 5»');
+  store.settings.find((x) => x.key === 'extra_portions')!.value = 'abc';
+  const kb2 = await runKitchen();
+  ok(kb2.res.kitchen.extra === 3, 'мусор в настройке → 3');
+  store.settings.splice(store.settings.findIndex((x) => x.key === 'extra_portions'), 1);
+}
 console.log('\n── доступ функции ──');
 const fn = await load('courier-route');
 const call = (h: Record<string, string>, body: any) => fn(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(body) }));

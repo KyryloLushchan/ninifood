@@ -94,6 +94,9 @@ for (let i = 0; i < 5; i++) od('2026-11-02', `@c${i}`, 1 + i * 0.4, 1 + i * 0.3)
 od('2026-11-02', '@same', 3, 3, 'confirmed', 'House 1'); od('2026-11-02', '@same', 3, 3, 'confirmed', 'House 1'); od('2026-11-02', '@other', 3, 3, 'delivered', 'House 1'); // 2 заказа одного клиента + другой клиент на том же адресе
 od('2026-11-02', '@cancelled', 2, 2, 'cancelled'); od('2026-11-02', '@pending', 2, 2, 'new'); // не платим
 for (let i = 0; i < 4; i++) od('2026-11-03', `@d${i}`, -1 - i * 0.5, -1 - i * 0.2);
+for (let i = 0; i < 3; i++) od('2026-11-05', `@e${i}`, 1 + i * 0.5, -1 - i * 0.3); // 05.11 — с этого дня вычитается обед
+for (let i = 0; i < 2; i++) od('2026-11-06', `@f${i}`, -2 - i * 0.5, 1 + i * 0.3); // 06.11 — админ уберёт вычет
+store.courier_pay_days.push({ date: '2026-11-06', courier: 1, addresses_manual: null, km_manual: null, lunch_skip: true });
 for (let i = 0; i < 3; i++) od('2026-10-30', `@old${i}`, 1 + i, 1 + i); // до 02.11 — не считается
 void n;
 
@@ -111,6 +114,9 @@ const rep = tgCalls.find((c) => c.method === 'sendMessage')!;
 console.log(rep.body.text.replace(/<[^>]+>/g, '').split('\n').map((l: string) => '    ' + l).join('\n'));
 ok(/Пн 02\.11 — 7 адр\./.test(rep.body.text), '02.11: 7 адресов (5 + @same×2→1 + @other; отменённый и новый не считаются)');
 ok(/Вт 03\.11 — 4 адр\./.test(rep.body.text), '03.11: 4 адреса');
+ok(/Пн 02\.11 — 7 адр\./.test(rep.body.text) && !/Пн 02\.11[^\n]*без вычета/.test(rep.body.text), '02.11 и 03.11 — без вычета обеда (считаем с 05.11)');
+ok(/🍲 Обеды: −50 000 ₫ × 1 дн\./.test(rep.body.text), 'в отчёте строка «Обеды: −50 000 × 1 дн.» (05.11; на 06.11 админ убрал вычет)');
+ok(/Пт 06\.11 — 2 адр\.[^\n]*\(без вычета обеда\)/.test(rep.body.text), '06.11: «(без вычета обеда)»');
 const kb = rep.body.reply_markup.inline_keyboard[0];
 ok(kb[0].callback_data === `p:ok:${body1.payout_id}` && kb[0].text.includes('Одобрить') && /admin\?tab=courier&date=2026-11-02/.test(kb[1].url), 'кнопки «✅ Одобрить» и «✏️ Открыть в админке»');
 ok(store.cash_movements.length === 0, 'до «Да» расхода в кассе нет');
@@ -123,6 +129,29 @@ ok(store.cash_movements.length === 0, 'до «Да» расхода в касс�
 const payoutId = body1.payout_id;
 const total1 = body1.amount;
 
+console.log('\n── ЗП: вычет обеда (чистые функции) ──');
+{
+  const { computeDayPay, DEFAULT_PAY, payLine, buildPayrollReport } = await import(`${ROOT}/supabase/functions/_shared/courier-pay.ts`);
+  const { DEFAULT_TRIP_SETTINGS } = await import(`${ROOT}/supabase/functions/_shared/trips.ts`);
+  const K = { lat: 16.0462726, lng: 108.2356202 };
+  const items = [1, 2, 3, 4].map((i) => ({ telegram: `@x${i}`, address: `A${i}`, lat: K.lat + i / 111, lng: K.lng + 2 / 107, qty: 1 }));
+  const acc = { lat: (d: any) => d.lat, lng: (d: any) => d.lng, address: (d: any) => d.address, qty: (d: any) => d.qty };
+  const calc = (date: string, rows: any[] = []) => computeDayPay(date, items, acc, (d: any) => d.telegram, K, 1, DEFAULT_TRIP_SETTINGS, null, DEFAULT_PAY, rows)[0];
+  const d4 = calc('2026-11-04'), d5 = calc('2026-11-05');
+  ok(d4.lunch === 0 && d5.lunch === 50000 && d4.total - d5.total === 50000, `04.11 без вычета (${d4.total} ₫), 05.11 — минус 50 000 (${d5.total} ₫)`);
+  ok(d5.total === d5.addresses * 20000 + d5.fuel - 50000, 'итог = адреса × 20 000 + бензин − обед');
+  console.log('   ' + payLine(d5, DEFAULT_PAY));
+  ok(/ − обед 50 000 ₫ = /.test(payLine(d5, DEFAULT_PAY)) && !/обед/.test(payLine(d4, DEFAULT_PAY)), 'строка расчёта: «N адресов × 20 000 ₫ + бензин X км − обед 50 000 ₫ = Y ₫»');
+  const skip = calc('2026-11-05', [{ date: '2026-11-05', courier: 1, addresses_manual: null, km_manual: null, lunch_skip: true, paid_at: null }]);
+  ok(skip.lunch === 0 && skip.lunchSkip && skip.total === d5.total + 50000, 'галочка «без вычета»: обед не вычитается');
+  const paid = calc('2026-11-05', [{ date: '2026-11-05', courier: 1, addresses_manual: null, km_manual: null, paid_at: 'x', paid_addresses: d5.addresses, paid_km: d5.km, paid_amount: d5.total }]);
+  ok(paid.paid && paid.total === d5.total && paid.lunch === 50000, 'выплаченный день не пересчитывается (вычет восстанавливается из выплаченной суммы)');
+  const none = computeDayPay('2026-11-05', items, acc, (d: any) => d.telegram, K, 1, DEFAULT_TRIP_SETTINGS, null, { ...DEFAULT_PAY, lunch: 0 }, [])[0];
+  ok(none.lunch === 0, 'обед = 0 в настройках — не вычитаем');
+  const rp = buildPayrollReport('2026-11-02', '2026-11-07', [d5, calc('2026-11-06')], DEFAULT_PAY);
+  console.log(rp.text.split('\n').map((l: string) => '   ' + l.replace(/<[^>]+>/g, '')).join('\n'));
+  ok(/🍲 Обеды: −50 000 ₫ × 2 дн\./.test(rp.text) && rp.total === d5.total + calc('2026-11-06').total, 'отчёт: «Обеды: −50 000 × 2 дн.», итог уже с вычетом');
+}
 console.log('\n── кнопки ──');
 const hook = await load('tg-webhook');
 const cb = (data: string, from = 11) => hook(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wh' }, body: JSON.stringify({ callback_query: { id: 'q' + ++seq, from: { id: from, username: from === 11 ? 'boss' : 'rando' }, data, message: { chat: { id: -100 }, message_id: 777 } } }) }));
@@ -151,7 +180,7 @@ await cb(`p:yes:${payoutId}:${newTotal}`);
 ok(store.cash_movements.length === 1 && store.cash_movements[0].amount === newTotal && store.cash_movements[0].category === 'ЗП курьера', 'подтверждённая новая сумма: ровно один расход «ЗП курьера» на эту сумму');
 const po = store.courier_payouts[0];
 ok(po.status === 'paid' && po.paid_amount === newTotal, 'выплата помечена выплаченной');
-ok(store.courier_pay_days.filter((d) => d.paid_at).length === 2 && store.courier_pay_days.find((d) => d.date === '2026-11-02')!.paid_km === 40, 'дни помечены «выплачено», зафиксированы правленые км (40)');
+ok(store.courier_pay_days.filter((d) => d.paid_at).length === 4 && store.courier_pay_days.find((d) => d.date === '2026-11-02')!.paid_km === 40, 'дни помечены «выплачено», зафиксированы правленые км (40)');
 ok(tgCalls.filter((c) => c.method === 'editMessageText').some((c) => /Выплачено/.test(c.body.text) && /@boss/.test(c.body.text)), 'сообщение стало «✅ Выплачено Y ₫ · кто · когда»');
 
 console.log('\n── повторы и гонки ──');
@@ -160,7 +189,7 @@ ok(store.cash_movements.length === 1 && answers().pop() === 'Уже выплач
 await cb(`p:ok:${payoutId}`);
 ok(store.cash_movements.length === 1 && answers().pop() === 'Уже выплачено', 'повторное «Одобрить» после выплаты: тоже «Уже выплачено»');
 // гонка: две выплаты параллельно на новой неделе
-od('2026-11-09', '@w0', 1, 1); od('2026-11-09', '@w1', 2, 2);
+for (let i = 0; i < 5; i++) od('2026-11-09', `@w${i}`, 1 + i, 1 + i);
 r = await post({ action: 'weekly', date: '2026-11-15' }, { 'x-cron-secret': 'cron' });
 const b2: any = await r.json();
 ok(b2.ok && b2.payout_id !== payoutId, `следующая неделя: новый отчёт (${b2.amount} ₫)`);

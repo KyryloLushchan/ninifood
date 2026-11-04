@@ -32,8 +32,9 @@ const PAY = [
   { key: 'courier_pay_per_address', label: 'Оплата за адрес, ₫', kind: 'int', min: 0, max: 1000000 },
   { key: 'courier_fuel_l100', label: 'Расход бензина, л/100 км', kind: 'num', min: 0, max: 50 },
   { key: 'courier_fuel_price', label: 'Цена бензина, ₫/л (меняется вручную)', kind: 'int', min: 0, max: 200000 },
+  { key: 'courier_lunch', label: 'Обед курьера, ₫/день (вычитается из ЗП за каждый рабочий день; 0 — не вычитать)', kind: 'int', min: 0, max: 1000000 },
 ] as const;
-const PAY_DEFAULTS: Record<string, string> = { courier_pay_from: '2026-11-02', courier_pay_per_address: '20000', courier_fuel_l100: '2.2', courier_fuel_price: '26000' };
+const PAY_DEFAULTS: Record<string, string> = { courier_lunch: '50000', courier_lunch_from: '2026-11-05', extra_portions: '3', courier_pay_from: '2026-11-02', courier_pay_per_address: '20000', courier_fuel_l100: '2.2', courier_fuel_price: '26000' };
 const TRIP_DEFAULTS: Record<string, string> = { trip_capacity: '9', courier_speed_kmh: '25', stop_minutes: '4', road_factor: '1.3', depart_time: '13:00', deadline_time: '16:00', trip_gap_min: '10' };
 
 const FIELDS = [
@@ -73,6 +74,7 @@ export function SettingsTab() {
       ...KITCHEN.map((f) => ({ key: f.key, value: values[f.key].trim(), is_public: false })),
       { key: 'couriers_count', value: values.couriers_count === '2' ? '2' : '1', is_public: false },
       { key: COURIER_IDS_KEY, value: ids.join(','), is_public: false },
+      { key: 'extra_portions', value: String(Math.min(50, Number((values.extra_portions ?? '3') || 0))), is_public: false },
     ];
     const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
     setBusy(false);
@@ -94,6 +96,9 @@ export function SettingsTab() {
     const from = (values.courier_pay_from ?? PAY_DEFAULTS.courier_pay_from).trim();
     if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || Number.isNaN(Date.parse(from))) return setError('Проверьте поле: Учитывать ЗП с даты');
     rows.push({ key: 'courier_pay_from', value: from, is_public: false });
+    const lunchFrom = (values.courier_lunch_from ?? PAY_DEFAULTS.courier_lunch_from).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(lunchFrom) || Number.isNaN(Date.parse(lunchFrom))) return setError('Проверьте поле: Вычитать обед с даты');
+    rows.push({ key: 'courier_lunch_from', value: lunchFrom, is_public: false });
     setBusy(true);
     const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
     setBusy(false);
@@ -188,6 +193,7 @@ export function SettingsTab() {
           {KITCHEN.map((f) => row(f.label, values[f.key]))}
           {row('Курьеров по умолчанию', values.couriers_count)}
           {row('Курьер: Telegram id', values[COURIER_IDS_KEY] || '—')}
+          {row('Доп. порции в день (кухня)', values.extra_portions ?? '3')}
         </Card>
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">Финиш курьера</div>
@@ -197,6 +203,7 @@ export function SettingsTab() {
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">ЗП курьера</div>
           {PAY.map((f) => row(f.label, values[f.key] ?? PAY_DEFAULTS[f.key]))}
+          {row('Вычитать обед с даты', values.courier_lunch_from ?? PAY_DEFAULTS.courier_lunch_from)}
         </Card>
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">Рейсы курьера</div>
@@ -241,6 +248,10 @@ export function SettingsTab() {
             Проверить точку на карте →
           </a>
         )}
+        <div>
+          <Label>Доп. порции в день (отчёт кухне: заказанные + эти порции)</Label>
+          <input className={inputCls} inputMode="numeric" value={values.extra_portions ?? PAY_DEFAULTS.extra_portions} onChange={(e) => setValues({ ...values, extra_portions: e.target.value.replace(/\D/g, '') })} />
+        </div>
         <div>
           <Label>Курьер: Telegram id (кнопка «Доставлено» в группе курьера; несколько — через запятую; админы из ADMIN_TG_IDS тоже могут)</Label>
           <input className={inputCls} inputMode="numeric" placeholder="например 524375262" value={values[COURIER_IDS_KEY] ?? ''} onChange={(e) => setValues({ ...values, [COURIER_IDS_KEY]: e.target.value })} />
@@ -296,6 +307,10 @@ export function SettingsTab() {
         <div>
           <Label>Учитывать ЗП с даты</Label>
           <input className={inputCls} type="date" value={values.courier_pay_from ?? PAY_DEFAULTS.courier_pay_from} onChange={(e) => setValues({ ...values, courier_pay_from: e.target.value })} />
+        </div>
+        <div>
+          <Label>Вычитать обед с даты</Label>
+          <input className={inputCls} type="date" value={values.courier_lunch_from ?? PAY_DEFAULTS.courier_lunch_from} onChange={(e) => setValues({ ...values, courier_lunch_from: e.target.value })} />
         </div>
         <div className="text-xs text-ink-muted">Дни раньше этой даты не входят ни в расчёт, ни в еженедельный отчёт. ЗП = адреса × оплата за адрес + бензин (км × расход / 100 × цена, округлено до 500 ₫). Адрес = клиент в точке доставки.</div>
         <Btn onClick={savePay} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить ЗП курьера'}</Btn>

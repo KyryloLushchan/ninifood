@@ -10,7 +10,7 @@ import { useReadOnly } from './role';
 import { Btn, Card, Err, inputCls } from './ui';
 
 const dm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
-const FIELD_LABEL: Record<string, string> = { addresses: 'адреса', km: 'км' };
+const FIELD_LABEL: Record<string, string> = { addresses: 'адреса', km: 'км', lunch: 'обед' };
 
 interface LogRow {
   id: number;
@@ -62,10 +62,20 @@ export function CourierPayBlock({ date, refreshKey }: { date: string; refreshKey
     setEdit(null);
     void load();
   };
+  // Вычет обеда на день и курьера: галочка снимает/возвращает (запись в журнале правок; выплаченный день не меняется).
+  const toggleLunch = async (d: CourierDayPay, skip: boolean) => {
+    setBusy(true);
+    setError('');
+    const { error } = await adminDb.from('courier_pay_days').upsert({ date, courier: d.courier, lunch_skip: skip }, { onConflict: 'date,courier' });
+    setBusy(false);
+    if (error) return setError(ruError(error.message));
+    void load();
+  };
   const reset = async (d: CourierDayPay) => {
     setBusy(true);
     setError('');
-    const { error } = await adminDb.from('courier_pay_days').delete().eq('date', date).eq('courier', d.courier);
+    // «К расчёту» сбрасывает только ручные адреса и км (отметка «без вычета обеда» остаётся)
+    const { error } = await adminDb.from('courier_pay_days').update({ addresses_manual: null, km_manual: null }).eq('date', date).eq('courier', d.courier);
     setBusy(false);
     if (error) return setError(ruError(error.message));
     setEdit(null);
@@ -82,6 +92,12 @@ export function CourierPayBlock({ date, refreshKey }: { date: string; refreshKey
           <div className="text-xs text-ink-muted">
             {d.paid ? '✅ выплачено' : d.manual ? `✏️ правка вручную (расчёт: ${d.autoAddresses} адр., ${d.autoKm} км)` : 'расчёт по маршруту; не выплачено'}
           </div>
+          {(d.date >= data.pay.lunchFrom && data.pay.lunch > 0 || d.lunch > 0) && !d.paid && (
+            <label className={`flex items-center gap-2 text-sm font-bold ${readOnly ? 'opacity-70' : ''}`}>
+              <input type="checkbox" className="h-4 w-4" checked={!d.lunchSkip} disabled={readOnly || busy} onChange={(e) => void toggleLunch(d, !e.target.checked)} />
+              Вычесть обед ({fmtRub(data.pay.lunch)})
+            </label>
+          )}
           {!readOnly && !d.paid &&
             (edit?.courier === d.courier ? (
               <div className="mt-1 flex flex-col gap-2">

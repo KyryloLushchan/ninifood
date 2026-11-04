@@ -2,7 +2,7 @@ import { adminDb } from './client';
 import { clientKey, computeDayPay, parsePaySettings, type CourierDayPay, type PayRow, type PaySettings } from './courier-pay';
 import { parseTripSettings, type RouteOverride } from './trips';
 
-const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price', 'courier_pay_from'];
+const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price', 'courier_pay_from', 'courier_lunch', 'courier_lunch_from'];
 
 export interface PayrollData {
   days: CourierDayPay[];
@@ -21,7 +21,7 @@ export async function loadPayrollRange(datesIn: string[]): Promise<PayrollData |
   const pay = parsePaySettings(cfg);
   const dates = datesIn.filter((d) => d >= pay.from); // дни раньше «Учитывать ЗП с даты» не считаются
   if (!dates.length) return { days: [], pay, rows: [] };
-  const { data: payRows } = await adminDb.from('courier_pay_days').select('date, courier, addresses_manual, km_manual, paid_at, paid_addresses, paid_km, paid_amount').in('date', dates);
+  const { data: payRows } = await adminDb.from('courier_pay_days').select('date, courier, addresses_manual, km_manual, paid_at, paid_addresses, paid_km, paid_amount, lunch_skip').in('date', dates);
   const rows = (payRows ?? []) as PayRow[];
   if (!cfg.kitchen_lat || !cfg.kitchen_lng || !Number.isFinite(klat) || !Number.isFinite(klng)) return null;
   const trip = parseTripSettings(cfg);

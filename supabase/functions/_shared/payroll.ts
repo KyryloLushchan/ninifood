@@ -2,7 +2,7 @@
 import { clientKey, computeDayPay, parsePaySettings, type CourierDayPay, type PayRow, type PaySettings } from './courier-pay.ts';
 import { parseTripSettings, type RouteOverride } from './trips.ts';
 
-const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price', 'courier_pay_from'];
+const KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km', 'courier_pay_per_address', 'courier_fuel_l100', 'courier_fuel_price', 'courier_pay_from', 'courier_lunch', 'courier_lunch_from'];
 
 export interface PayrollResult {
   days: CourierDayPay[];
@@ -30,7 +30,7 @@ export async function loadPayroll(db: any, datesIn: string[]): Promise<PayrollRe
     .in('orders.status', ['confirmed', 'delivered']);
   if (error) throw new Error(error.message);
   const { data: ovs } = await db.from('route_overrides').select('date, couriers, assign').in('date', dates);
-  const { data: payRows } = await db.from('courier_pay_days').select('date, courier, addresses_manual, km_manual, paid_at, paid_addresses, paid_km, paid_amount').in('date', dates);
+  const { data: payRows } = await db.from('courier_pay_days').select('date, courier, addresses_manual, km_manual, paid_at, paid_addresses, paid_km, paid_amount, lunch_skip').in('date', dates);
 
   const days: CourierDayPay[] = [];
   for (const date of dates) {

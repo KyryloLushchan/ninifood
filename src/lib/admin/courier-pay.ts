@@ -12,8 +12,11 @@ export interface PaySettings {
   fuelPrice: number;
   /** Учитывать ЗП с этой даты (включительно, ISO): курьер работает с 02.11.2026, дни раньше в расчёт и отчёт не входят. */
   from: string;
+  /** Обед курьера, ₫ за каждый рабочий день (был хотя бы один адрес): вычитается из ЗП дня, с даты lunchFrom. */
+  lunch: number;
+  lunchFrom: string;
 }
-export const DEFAULT_PAY: PaySettings = { perAddress: 20_000, fuelPer100: 2.2, fuelPrice: 26_000, from: '2026-11-02' };
+export const DEFAULT_PAY: PaySettings = { perAddress: 20_000, fuelPer100: 2.2, fuelPrice: 26_000, from: '2026-11-02', lunch: 50_000, lunchFrom: '2026-11-05' };
 
 const num = (v: string | undefined, d: number, min: number, max: number) => {
   if (v === undefined || v.trim() === '') return d; // нет значения — по умолчанию (а не 0)
@@ -28,6 +31,8 @@ export function parsePaySettings(s: Record<string, string | undefined>): PaySett
     fuelPer100: num(s.courier_fuel_l100, DEFAULT_PAY.fuelPer100, 0, 50),
     fuelPrice: Math.round(num(s.courier_fuel_price, DEFAULT_PAY.fuelPrice, 0, 200_000)),
     from: /^\d{4}-\d{2}-\d{2}$/.test((s.courier_pay_from ?? '').trim()) ? s.courier_pay_from!.trim() : DEFAULT_PAY.from,
+    lunch: Math.round(num(s.courier_lunch, DEFAULT_PAY.lunch, 0, 1_000_000)),
+    lunchFrom: /^\d{4}-\d{2}-\d{2}$/.test((s.courier_lunch_from ?? '').trim()) ? s.courier_lunch_from!.trim() : DEFAULT_PAY.lunchFrom,
   };
 }
 
@@ -48,6 +53,8 @@ export interface PayRow {
   paid_addresses: number | null;
   paid_km: number | null;
   paid_amount: number | null;
+  /** Админ убрал вычет обеда на этот день. */
+  lunch_skip?: boolean | null;
 }
 
 export interface CourierDayPay {
@@ -63,6 +70,9 @@ export interface CourierDayPay {
   total: number;
   manual: boolean;
   paid: boolean;
+  /** Вычет обеда, применённый к дню (0 — не вычитаем), и признак «вычет убран админом». */
+  lunch: number;
+  lunchSkip: boolean;
 }
 
 /** Клиент по нику Telegram (регистр и @ не важны). */
@@ -110,8 +120,12 @@ export function computeDayPay<T>(
     const addresses = paid ? (row!.paid_addresses ?? autoAddresses) : (row?.addresses_manual ?? autoAddresses);
     const km = paid ? Number(row!.paid_km ?? autoKm) : Number(row?.km_manual ?? autoKm);
     const fuel = fuelCost(km, pay);
-    const total = paid && row!.paid_amount != null ? Number(row!.paid_amount) : addresses * pay.perAddress + fuel;
-    out.push({ date, courier, autoAddresses, autoKm, addresses, km, fuel, total, manual: !paid && (row?.addresses_manual != null || row?.km_manual != null), paid });
+    const base = addresses * pay.perAddress + fuel;
+    const lunchSkip = !!row?.lunch_skip;
+    // обед вычитается за каждый день, когда курьер работал (есть доставки), с lunchFrom; у выплаченного дня вычет восстанавливается из выплаченной суммы
+    const lunch = paid && row!.paid_amount != null ? Math.max(0, base - Number(row!.paid_amount)) : date >= pay.lunchFrom && pay.lunch > 0 && !lunchSkip ? pay.lunch : 0;
+    const total = paid && row!.paid_amount != null ? Number(row!.paid_amount) : base - lunch;
+    out.push({ date, courier, autoAddresses, autoKm, addresses, km, fuel, total, manual: !paid && (row?.addresses_manual != null || row?.km_manual != null), paid, lunch, lunchSkip });
   });
   return out;
 }
@@ -120,8 +134,8 @@ export const fmtRub = (n: number) => `${Math.round(n).toLocaleString('ru-RU').re
 const kmTxt = (km: number) => `${(Math.round(km * 10) / 10).toString().replace('.', ',')} км`;
 
 /** «12 адресов × 20 000 + бензин 27 км = 255 500 ₫» */
-export function payLine(p: { addresses: number; km: number; total: number }, s: PaySettings): string {
-  return `${p.addresses} ${plural(p.addresses)} × ${fmtRub(s.perAddress)} + бензин ${kmTxt(p.km)} = ${fmtRub(p.total)}`;
+export function payLine(p: { addresses: number; km: number; total: number; lunch?: number }, s: PaySettings): string {
+  return `${p.addresses} ${plural(p.addresses)} × ${fmtRub(s.perAddress)} + бензин ${kmTxt(p.km)}${p.lunch ? ` − обед ${fmtRub(p.lunch)}` : ''} = ${fmtRub(p.total)}`;
 }
 const plural = (n: number) => (n % 10 === 1 && n % 100 !== 11 ? 'адрес' : n % 10 >= 2 && n % 10 <= 4 && (n % 100 < 12 || n % 100 > 14) ? 'адреса' : 'адресов');
 
@@ -139,12 +153,14 @@ export function buildPayrollReport(weekStart: string, weekEnd: string, days: Cou
     lines.push('', couriers.length > 1 ? `<b>Курьер ${c}</b>` : '');
     let sum = 0;
     for (const d of mine) {
-      lines.push(`${wdOf(d.date)} ${dm(d.date)} — ${d.addresses} адр. · ${kmTxt(d.km)} · ${fmtRub(d.total)}${d.paid ? ' ✅ выплачено' : d.manual ? ' ✏️' : ''}`);
+      lines.push(`${wdOf(d.date)} ${dm(d.date)} — ${d.addresses} адр. · ${kmTxt(d.km)} · ${fmtRub(d.total)}${d.paid ? ' ✅ выплачено' : d.manual ? ' ✏️' : ''}${!d.paid && d.lunchSkip && d.date >= s.lunchFrom ? ' (без вычета обеда)' : ''}`);
       if (!d.paid) sum += d.total;
     }
     if (couriers.length > 1) lines.push(`Итого курьер ${c}: ${fmtRub(sum)}`);
     total += sum;
   }
+  const lunchDays = days.filter((d) => !d.paid && d.lunch > 0);
+  if (lunchDays.length) lines.push('', `🍲 Обеды: −${fmtRub(lunchDays[0].lunch)} × ${lunchDays.length} дн.`);
   lines.push('', `💰 <b>К выплате: ${fmtRub(total)}</b>`);
   return { text: lines.filter((l, i, a) => !(l === '' && (a[i - 1] === '' || i === 0))).join('\n'), total };
 }

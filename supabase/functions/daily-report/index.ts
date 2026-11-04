@@ -9,8 +9,8 @@ import { isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
 
-/** Запас порций сверх заказов (повар готовит заказанное + это количество). Постоянная, не настройка. */
-const EXTRA_PORTIONS = 2;
+/** Запас порций сверх заказов по умолчанию (повар готовит заказанное + это количество); настройка `extra_portions` (Настройки → Курьеры) важнее. */
+const DEFAULT_EXTRA_PORTIONS = 3;
 
 /**
  * Два сообщения: (1) курьеру в группу Orders, (2) порции для кухни в группу NiNi Ops (KITCHEN_CHAT_ID). Тело запроса `parts`: 'courier' | 'kitchen' (по умолчанию — оба, как у cron).
@@ -76,6 +76,9 @@ Deno.serve(async (req) => {
       if (r.orders?.cutlery === true && !seenOrders.has(r.orders.id)) cutlery += 1;
       seenOrders.add(r.orders.id);
     }
+    const { data: exs } = await db.from('settings').select('value').eq('key', 'extra_portions').maybeSingle();
+    const exn = Number(String(exs?.value ?? '').trim());
+    const EXTRA_PORTIONS = String(exs?.value ?? '').trim() !== '' && Number.isInteger(exn) && exn >= 0 && exn <= 50 ? exn : DEFAULT_EXTRA_PORTIONS;
     const kitchenChat = Deno.env.get('KITCHEN_CHAT_ID') ?? '';
     if (!kitchenChat) {
       await warnOrders('Порции для NiniFood Ops не отправлены: не задан KITCHEN_CHAT_ID.');
