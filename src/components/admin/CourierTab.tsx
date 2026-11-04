@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, labelFull, todayISO } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
@@ -68,16 +68,17 @@ export function CourierTab() {
   const [savingMove, setSavingMove] = useState(false);
 
   // Кухня, число курьеров и параметры рейсов — из Настроек; переключатель ниже действует только на выбранную дату.
-  useEffect(() => {
+  const loadSettings = useCallback((initial: boolean) => {
     adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km']).then(({ data }) => {
       const c = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
       setTrip(parseTripSettings(c));
       const lat = Number(c.kitchen_lat);
       const lng = Number(c.kitchen_lng);
       if (c.kitchen_lat && c.kitchen_lng && Number.isFinite(lat) && Number.isFinite(lng)) setKitchen({ lat, lng });
-      setCouriers(c.couriers_count === '2' ? 2 : 1);
+      if (initial) setCouriers(c.couriers_count === '2' ? 2 : 1); // при обновлении переключатель «Курьеров на этот день» не сбрасываем
     });
   }, []);
+  useEffect(() => loadSettings(true), [loadSettings]);
 
   const load = useCallback(async () => {
     setError('');
@@ -100,12 +101,38 @@ export function CourierTab() {
   }, [load]);
 
   // Ручное распределение точек по рейсам на выбранную дату (если есть).
-  useEffect(() => {
-    setOverride(null);
+  const loadOverride = useCallback(() => {
     adminDb.from('route_overrides').select('couriers, assign').eq('date', date).maybeSingle().then(({ data }) => {
-      if (data) setOverride({ couriers: data.couriers === 2 ? 2 : 1, assign: (data.assign ?? {}) as RouteOverride['assign'] });
+      setOverride(data ? { couriers: data.couriers === 2 ? 2 : 1, assign: (data.assign ?? {}) as RouteOverride['assign'] } : null);
     });
   }, [date]);
+  useEffect(() => {
+    setOverride(null);
+    loadOverride();
+  }, [loadOverride]);
+
+  // Вкладка может стоять открытой часами: перечитываем заказы, ручное распределение и настройки рейсов при возврате на вкладку/окно и раз в минуту, пока она видна
+  // (пока идёт сохранение переноса точки — пропускаем, чтобы не затереть его).
+  const movingRef = useRef(false);
+  useEffect(() => {
+    movingRef.current = savingMove;
+  }, [savingMove]);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState !== 'visible' || movingRef.current) return;
+      load();
+      loadOverride();
+      loadSettings(false);
+    };
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
+    };
+  }, [load, loadOverride, loadSettings]);
 
   const toggle = async (r: Row) => {
     const { error } = await adminDb.from('order_days').update({ delivered: !r.delivered }).eq('id', r.id);
