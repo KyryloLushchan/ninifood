@@ -25,6 +25,7 @@ interface Row {
   courier_marked_at: string | null;
   eta_minutes: number | null;
   eta_at: string | null;
+  courier_note: string | null;
   orders: {
     id: string;
     order_number: string;
@@ -89,7 +90,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, courier_marked_at, eta_minutes, eta_at, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date))',
+        'id, delivery_date, qty, delivered, courier_marked_at, eta_minutes, eta_at, courier_note, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed', 'delivered']) // доставленные остаются в плане (серыми), чтобы рейсы не «плыли» в течение дня
@@ -318,6 +319,7 @@ export function CourierTab() {
                 <div className="text-sm text-ink-2">🔁 {subLabel(r.orders.order_days.length)} · день {dayNo(r)} из {r.orders.order_days.length}</div>
               )}
               {r.orders.comment && <div className="text-sm text-ink-muted">💬 {r.orders.comment}</div>}
+              {r.courier_note && <div className="text-sm font-bold text-accent">📝 Комментарий курьеру: {r.courier_note}</div>}
             </div>
           </div>
           <div className="flex-none text-right">

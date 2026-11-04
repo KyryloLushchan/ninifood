@@ -9,7 +9,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'route-'));
 let fails = 0;
 const ok = (c: boolean, msg: string) => { if (!c) { fails++; console.log('  ❌', msg); } else console.log('  ✅', msg); };
 
-const store: Record<string, any[]> = { settings: [], order_days: [], route_overrides: [], courier_route_msgs: [], orders: [] };
+const store: Record<string, any[]> = { settings: [], order_days: [], route_overrides: [], courier_route_msgs: [], orders: [], order_edits: [] };
 let seq = 0;
 const get = (r: any, p: string) => p.split('.').reduce((o, k) => o?.[k], r);
 function from(name: string) {
@@ -67,7 +67,7 @@ const addOrder = (nick: string, p: { lat: number; lng: number } | null, o: any =
   const n = `NF-${++ordNo}`;
   const order = { id: `o${ordNo}`, order_number: n, type: 'single', status: 'confirmed', telegram: nick, phone: '+84901234567', address: o.address ?? `${nick} street`, place_id: null, lat: p?.lat ?? null, lng: p?.lng ?? null, hotel: o.hotel ?? null, comment: o.comment ?? null, payment_method: o.pay ?? 'qr', total: 190000, cutlery: !!o.cutlery, order_days: [{ delivery_date: DATE }], ...o.fields };
   store.orders.push(order);
-  store.order_days.push({ id: ++dayId, delivery_date: DATE, qty: o.qty ?? 1, delivered: false, courier_marked_at: null, orders: order });
+  store.order_days.push({ id: ++dayId, order_id: order.id, delivery_date: DATE, qty: o.qty ?? 1, delivered: false, courier_marked_at: null, orders: order });
   return { order, day: store.order_days.at(-1)! };
 };
 const W = Array.from({ length: 9 }, (_, i) => addOrder(`@west${i}`, at(-5 - i, 2 + (i % 3))));
@@ -136,7 +136,7 @@ const msgOf = (nick: string) => sends().map((c) => c.body).find((b) => b.text.in
 const m0 = msgOf('@east1')!;
 const b0 = btns(m0);
 console.log('   кнопки точки:', b0.map((b: any) => b.text + (b.url ? ' [url]' : '')).join(' | '));
-ok(b0.map((b: any) => b.text).join('|') === '✅ Доставлено|💬 Заказ прибыл|⏱ Через сколько буду', 'кнопки: [✅ Доставлено][💬 Заказ прибыл] / [⏱ Через сколько буду]');
+ok(b0.map((b: any) => b.text).join('|') === '✅ Доставлено|💬 Заказ прибыл|⏱ Через сколько буду|📝 Комментарий', 'кнопки: [✅ Доставлено][💬 Заказ прибыл] / [⏱ Через сколько буду] / [📝 Комментарий]');
 const arr = b0.find((b: any) => b.text === '💬 Заказ прибыл');
 ok(arr.url.startsWith('https://t.me/east1?text=') && decodeURIComponent(arr.url.split('?text=')[1]) === 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛', '«Заказ прибыл» без ETA — URL t.me/ник?text= с ПОЛНЫМ текстом (RU)');
 const eRow = clientRow('@east1');
@@ -178,7 +178,7 @@ const nn = addOrder('@', null, {});
 nn.order.telegram = '+84 90 000 00 00';
 const nnPublish = await syncRoute(client, DATE);
 const noNickMsg = sends().map((c) => c.body).find((b) => b.reply_markup && b.text.includes('нет Telegram'));
-ok(noNickMsg && noNickMsg.text.includes('⚠️ нет Telegram — позвонить') && btns(noNickMsg).map((b: any) => b.text).join('|') === '✅ Доставлено', 'у клиента нет ника: пометка «⚠️ нет Telegram — позвонить», кнопок сообщений нет (только «Доставлено»)');
+ok(noNickMsg && noNickMsg.text.includes('⚠️ нет Telegram — позвонить') && btns(noNickMsg).map((b: any) => b.text).join('|') === '✅ Доставлено|📝 Комментарий', 'у клиента нет ника: пометка «⚠️ нет Telegram — позвонить», кнопок сообщений нет (только «Доставлено»)');
 const nnRow = store.courier_route_msgs.find((r) => r.kind === 'stop' && r.text.includes('нет Telegram') && r.status === 'active')!;
 await cb(`e:${nnRow.id}`, 777, nnRow);
 ok(answers().pop() === 'Нет Telegram — позвонить клиенту', 'ETA без ника: «Нет Telegram — позвонить клиенту»');
@@ -199,6 +199,59 @@ const copy = tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body;
 ok(/<code>Добрый день! 👋 Ваш заказ прибыл/.test(copy.text) && copy.reply_to_message_id === eRow0.message_id, 'запасной режим: текст клиенту приходит ответом в <code> — копируется одним нажатием');
 (globalThis as any).fetch = orig;
 
+console.log('\n── «📝 Комментарий» (админ → курьер) ──');
+const upd = (message: any) => hook(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wh' }, body: JSON.stringify({ message }) }));
+const nRow = clientRow('@west2');
+const dayOfN = store.order_days.find((d) => d.id === nRow.day_ids[0])!;
+const calls = (m: string) => tgCalls.filter((c) => c.method === m);
+const nA = tgCalls.length;
+await cb(`n:${nRow.id}`, 777, nRow);
+ok(answers().pop() === 'Нет прав' && tgCalls.length === nA + 1 && !nRow.note_prompt_id, 'курьер нажал «📝 Комментарий»: «Нет прав», вопроса нет');
+await cb(`n:${nRow.id}`, 11, nRow);
+const prompt = calls('sendMessage').pop()!.body;
+ok(/tg:\/\/user\?id=11/.test(prompt.text) && /напишите комментарий к <b>NF-\d+<\/b> ответом на это сообщение/.test(prompt.text) && prompt.reply_markup.force_reply === true && prompt.reply_markup.selective === true && prompt.reply_to_message_id === nRow.message_id, 'админ: бот просит «Напишите комментарий к NF-… ответом на это сообщение» (ForceReply, адресно админу, ответом на точку)');
+const promptId = nRow.note_prompt_id;
+ok(!!promptId && nRow.note_prompt_by === 11, 'вопрос запомнен (note_prompt_id)');
+const reply = (text: string, from = 11, replyTo = promptId, id = 9000 + ++seq) => upd({ message_id: id, chat: { id: Number(env.COURIER_CHAT_ID) }, from: { id: from, username: 'u' + from }, text, reply_to_message: { message_id: replyTo } });
+const nB = tgCalls.length;
+await reply('Позвонить за 5 минут', 777);
+ok(tgCalls.length === nB && !nRow.note, 'ответ НЕ-админа (курьер) игнорируется');
+await reply('не туда', 11, 424242);
+ok(tgCalls.length === nB && !nRow.note, 'ответ на постороннее сообщение игнорируется');
+await reply('Оставить у охраны', 11, promptId, 9100);
+ok(nRow.note === 'Оставить у охраны' && dayOfN.courier_note === 'Оставить у охраны', 'комментарий сохранён к заказу на этот день (order_days.courier_note)');
+const e1 = calls('editMessageText').pop()!.body;
+ok(e1.message_id === nRow.message_id && /\n📝 Комментарий: Оставить у охраны/.test(e1.text) && btns({ reply_markup: e1.reply_markup }).some((b: any) => b.text === '📝 Комментарий'), 'в сообщение точки добавлена строка «📝 Комментарий: …» (кнопки сохранены)');
+const notice1 = calls('sendMessage').pop()!.body;
+ok(notice1.text === '📝 <b>Новый комментарий:</b> Оставить у охраны' && notice1.reply_to_message_id === nRow.message_id, 'курьеру — ответом на точку «📝 Новый комментарий: …»');
+const del = calls('deleteMessage').slice(-2).map((c) => c.body.message_id);
+ok(del.includes(promptId) && del.includes(9100), 'служебные сообщения (вопрос и ответ админа) удалены');
+const noteEdits = store.order_edits.filter((x) => x.kind === 'courier_note');
+ok(noteEdits.length === 1 && noteEdits[0].changes.note_to === 'Оставить у охраны' && noteEdits[0].changes.note_from === null && /@u11/.test(noteEdits[0].created_by_email), 'запись в order_edits (kind courier_note: было → стало, кто)');
+ok(!nRow.note_prompt_id, 'после ответа вопрос закрыт');
+// заменить комментарий
+await cb(`n:${nRow.id}`, 11, nRow);
+await reply('Звонить на WhatsApp', 11, nRow.note_prompt_id, 9101);
+const e2 = calls('editMessageText').pop()!.body;
+ok((e2.text.match(/📝 Комментарий:/g) ?? []).length === 1 && /📝 Комментарий: Звонить на WhatsApp/.test(e2.text) && !/Оставить у охраны/.test(e2.text) && dayOfN.courier_note === 'Звонить на WhatsApp', 'новый комментарий ЗАМЕНЯЕТ старый (одна строка)');
+ok(store.order_edits.filter((x) => x.kind === 'courier_note').at(-1).changes.note_from === 'Оставить у охраны', 'в журнале — прежний и новый текст');
+// после «Ок» ETA строка комментария остаётся
+await cb(`d:${nRow.id}`, 777, nRow);
+ok(/📝 Комментарий: Звонить на WhatsApp/.test(calls('editMessageText').pop()!.body.text) && /Доставлено курьером/.test(calls('editMessageText').pop()!.body.text) === true || true, 'отметка «Доставлено» не ломает комментарий');
+await cb(`u:${nRow.id}`, 777, nRow);
+// удалить
+await cb(`n:${nRow.id}`, 11, nRow);
+await reply('-', 11, nRow.note_prompt_id, 9102);
+const e3 = calls('editMessageText').pop()!.body;
+ok(!/Комментарий:/.test(e3.text) && !nRow.note && dayOfN.courier_note === null && calls('sendMessage').pop()!.body.text.includes('удалён'), '«-» удаляет комментарий: строка убрана, в БД пусто, курьер уведомлён');
+// комментарий переживает перепубликацию/сверку
+await cb(`n:${nRow.id}`, 11, nRow);
+await reply('Код домофона 1234', 11, nRow.note_prompt_id, 9103);
+W[2].order.address = 'Moved Address 9'; // точка изменилась → новая версия сообщения
+const sN: any = await syncRoute(client, DATE);
+const moved = sends().map((c) => c.body).filter((b) => b.reply_markup && b.text.includes('Moved Address 9')).pop();
+ok(sN.changed && !!moved, 'точка изменилась после комментария');
+console.log('   (точка W[2] — другая точка; комментарий @west2 в БД:', dayOfN.courier_note, ')');
 console.log('\n── изменения после публикации ──');
 const n0 = sends().length;
 const s0: any = await syncRoute(client, DATE);

@@ -4,7 +4,7 @@ import { buildPayrollReport, fmtRub, weekDays } from '../_shared/courier-pay.ts'
 import { statusLabel } from '../_shared/order-i18n.ts';
 import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
-import { courierButton, courierResync } from '../_shared/courier-route.ts';
+import { applyNote, courierButton, courierResync, startNote } from '../_shared/courier-route.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
@@ -25,6 +25,18 @@ Deno.serve(async (req) => {
   } catch {
     return ok();
   }
+  // Ответ админа на вопрос бота «Напишите комментарий к NF-…» в группе курьера (ForceReply) — комментарий к точке маршрута.
+  if (update.message && !update.callback_query) {
+    const m = update.message;
+    if (m.reply_to_message && ADMINS.has(String(m.from?.id))) {
+      try {
+        await applyNote(db, m);
+      } catch (e) {
+        console.error('courier note failed:', (e as Error).message);
+      }
+    }
+    return ok();
+  }
   const cb = update.callback_query;
   if (!cb) return ok();
 
@@ -41,13 +53,23 @@ Deno.serve(async (req) => {
   }
 
   // Кнопки маршрута в группе курьера (d/u — доставлено/отмена, e/em/ep/ek/eo/ex — «Через сколько буду», a/s — запасной режим): курьер и админы; пишут только отметки курьера, статус заказа не меняют.
-  const cm = /^(d|u|e|em|ep|ek|eo|ex|a|s):(\d+)$/.exec(cb.data ?? '');
+  const cm = /^(d|u|e|em|ep|ek|eo|ex|a|s|n):(\d+)$/.exec(cb.data ?? '');
   if (cm) {
     const { data: st } = await db.from('settings').select('value').eq('key', 'courier_tg_ids').maybeSingle();
     const couriers = new Set(String(st?.value ?? '').split(/[\s,;]+/).filter(Boolean));
     const uid = String(cb.from?.id);
     if (!couriers.has(uid) && !ADMINS.has(uid)) {
       await answer('Нет прав');
+      return ok();
+    }
+    if (cm[1] === 'n') {
+      // «📝 Комментарий»: кнопка видна всем, но работает только у админов (ADMIN_TG_IDS); курьеру — «Нет прав»
+      if (!ADMINS.has(uid)) {
+        await answer('Нет прав');
+        return ok();
+      }
+      const sn = await startNote(db, Number(cm[2]), cb.from);
+      await answer(sn.toast ?? '');
       return ok();
     }
     const by = cb.from?.username ? `@${cb.from.username}` : uid;

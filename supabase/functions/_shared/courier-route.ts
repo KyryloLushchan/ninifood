@@ -142,7 +142,8 @@ type KRow = Pick<Row, 'id' | 'nick' | 'lang' | 'eta_minutes' | 'marked_at'>;
 
 /** Кнопки точки: [✅ Доставлено][💬 Заказ прибыл] / [⏱ Через сколько буду] либо [💬 Отправить клиенту (N мин)][⏱ Изменить]. Нет ника — только «Доставлено». Отмеченная — «↩️ Отменить». */
 export function rowKeyboard(r: KRow, mode: KMode = 'url') {
-  if (r.marked_at) return { inline_keyboard: [[{ text: '↩️ Отменить', callback_data: `u:${r.id}` }]] };
+  const noteRow = [{ text: '📝 Комментарий', callback_data: `n:${r.id}` }]; // видна всем, работает только у админов
+  if (r.marked_at) return { inline_keyboard: [[{ text: '↩️ Отменить', callback_data: `u:${r.id}` }], noteRow] };
   const first: any[] = [{ text: '✅ Доставлено', callback_data: `d:${r.id}` }];
   const rows: any[][] = [first];
   if (r.nick) {
@@ -151,6 +152,7 @@ export function rowKeyboard(r: KRow, mode: KMode = 'url') {
     if (had) rows.push([mode === 'url' ? { text: `💬 Отправить клиенту (${r.eta_minutes} мин)`, url: chatUrl(r.nick, etaText(r.lang, r.eta_minutes!)) } : { text: `💬 Отправить клиенту (${r.eta_minutes} мин)`, callback_data: `s:${r.id}` }, { text: '⏱ Изменить', callback_data: `e:${r.id}` }]);
     else rows.push([{ text: '⏱ Через сколько буду', callback_data: `e:${r.id}` }]);
   }
+  rows.push(noteRow);
   return { inline_keyboard: rows };
 }
 const pickerKeyboard = (id: number, n: number) => ({
@@ -161,8 +163,8 @@ const pickerKeyboard = (id: number, n: number) => ({
 });
 const hmOf = (iso: string, plusMin = 0) => new Intl.DateTimeFormat('ru-RU', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(new Date(iso).getTime() + plusMin * 60_000));
 /** Текст сообщения точки: основной + строка «обещал клиенту», если курьер выбрал ETA. */
-export const renderText = (r: { text: string; eta_minutes: number | null; eta_at: string | null }) =>
-  r.eta_minutes && r.eta_at ? `${r.text}\n⏱ Обещал клиенту: через ${r.eta_minutes} мин (${hmOf(r.eta_at, r.eta_minutes)})` : r.text;
+export const renderText = (r: { text: string; eta_minutes: number | null; eta_at: string | null; note?: string | null }) =>
+  `${r.text}${r.note ? `\n📝 Комментарий: ${esc(r.note)}` : ''}${r.eta_minutes && r.eta_at ? `\n⏱ Обещал клиенту: через ${r.eta_minutes} мин (${hmOf(r.eta_at, r.eta_minutes)})` : ''}`;
 
 /** Отправка с паузой между сообщениями и повтором при лимите Telegram (группа — не больше ~20 сообщений в минуту). */
 async function send(chat: string, method: string, body: Record<string, unknown>): Promise<any> {
@@ -194,6 +196,9 @@ interface Row {
   eta_at: string | null;
   eta_draft: number | null;
   chat_id: number;
+  note: string | null;
+  note_prompt_id: number | null;
+  note_prompt_by: number | null;
 }
 
 const plainDelivery = async (db: any, date: string) => {
@@ -212,10 +217,17 @@ async function insertRow(db: any, v: Record<string, unknown>): Promise<number> {
 }
 
 async function post(db: any, chat: string, date: string, kind: Row['kind'], text: string, extra: { trip_no?: number; label?: string; sig?: string; day_ids?: number[]; lang?: string; nick?: string | null }, withButton: boolean): Promise<boolean> {
-  const id = await insertRow(db, { date, kind, trip_no: extra.trip_no ?? null, label: extra.label ?? null, sig: extra.sig ?? null, text, day_ids: extra.day_ids ?? [], status: 'active', chat_id: Number(chat), lang: extra.lang ?? null, nick: extra.nick ?? null });
+  // Комментарий админа к точке (order_days.courier_note) переживает перепубликацию и новые версии точки.
+  let note: string | null = null;
+  if (withButton && (extra.day_ids ?? []).length) {
+    const { data: nd } = await db.from('order_days').select('courier_note').in('id', extra.day_ids);
+    note = (nd ?? []).map((x: any) => x.courier_note).find(Boolean) ?? null;
+  }
+  const id = await insertRow(db, { date, kind, trip_no: extra.trip_no ?? null, label: extra.label ?? null, sig: extra.sig ?? null, text, day_ids: extra.day_ids ?? [], status: 'active', chat_id: Number(chat), lang: extra.lang ?? null, nick: extra.nick ?? null, note });
   const kb = (mode: KMode) => rowKeyboard({ id, nick: extra.nick ?? null, lang: extra.lang ?? null, eta_minutes: null, marked_at: null }, mode);
-  let r = await send(chat, 'sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true, ...(withButton ? { reply_markup: kb('url') } : {}) });
-  if (!r.ok && withButton && /BUTTON_URL_INVALID|URL_INVALID/i.test(r.description ?? '')) r = await send(chat, 'sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: kb('copy') });
+  const shown = renderText({ text, eta_minutes: null, eta_at: null, note });
+  let r = await send(chat, 'sendMessage', { text: shown, parse_mode: 'HTML', disable_web_page_preview: true, ...(withButton ? { reply_markup: kb('url') } : {}) });
+  if (!r.ok && withButton && /BUTTON_URL_INVALID|URL_INVALID/i.test(r.description ?? '')) r = await send(chat, 'sendMessage', { text: shown, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: kb('copy') });
   if (!r.ok) {
     console.error(`courier-route send failed (${kind} ${extra.label ?? ''}):`, r.description);
     await db.from('courier_route_msgs').update({ status: 'obsolete' }).eq('id', id);
@@ -418,4 +430,75 @@ export async function courierResync(db: any, rowId: number, mode: KMode): Promis
   const { data: row } = await db.from('courier_route_msgs').select('*').eq('id', rowId).maybeSingle();
   if (!row?.message_id) return null;
   return { method: 'editMessageReplyMarkup', params: { chat_id: row.chat_id, message_id: row.message_id, reply_markup: rowKeyboard(row, mode) } };
+}
+
+const orderNos = (text: string) => /NF-\d+(?: \+ NF-\d+)*/.exec(text.replace(/<[^>]+>/g, ''))?.[0] ?? 'заказу';
+
+/** «📝 Комментарий» (только админы — проверяет вызывающий): бот просит написать комментарий ответом (ForceReply, адресно тому, кто нажал). */
+export async function startNote(db: any, rowId: number, from: { id: number; first_name?: string; username?: string }): Promise<{ ok: boolean; toast?: string }> {
+  const { data: row } = await db.from('courier_route_msgs').select('*').eq('id', rowId).maybeSingle();
+  if (!row || row.kind !== 'stop' || row.status !== 'active') return { ok: false, toast: 'Точка неактуальна' };
+  const chat = String(row.chat_id);
+  if (row.note_prompt_id) await tg('deleteMessage', { chat_id: chat, message_id: row.note_prompt_id }); // прежний незавершённый вопрос убираем
+  const name = esc(from.first_name || from.username || 'Админ');
+  const r: any = await tg('sendMessage', {
+    chat_id: chat,
+    text: `<a href="tg://user?id=${from.id}">${name}</a>, напишите комментарий к <b>${esc(orderNos(row.text))}</b> ответом на это сообщение${row.note ? ' (заменит прежний; «-» — удалить)' : ' («-» — без комментария)'}.`,
+    parse_mode: 'HTML',
+    reply_to_message_id: row.message_id,
+    allow_sending_without_reply: true,
+    reply_markup: { force_reply: true, selective: true, input_field_placeholder: 'Комментарий для курьера' },
+  });
+  if (!r.ok) return { ok: false, toast: 'Не удалось отправить вопрос' };
+  await db.from('courier_route_msgs').update({ note_prompt_id: r.result.message_id, note_prompt_by: from.id }).eq('id', rowId);
+  return { ok: true, toast: '' };
+}
+
+/**
+ * Ответ админа на вопрос бота: комментарий сохраняется (order_days.courier_note по всем дням точки + запись в order_edits), сообщение точки редактируется строкой «📝 Комментарий: …»,
+ * курьеру — ответом «📝 Новый комментарий: …» (уведомление), служебные сообщения (вопрос и ответ) удаляются. «-» удаляет комментарий. true — сообщение обработано.
+ */
+export async function applyNote(db: any, msg: any): Promise<boolean> {
+  const chatEnv = Deno.env.get('COURIER_CHAT_ID') ?? '';
+  if (!chatEnv || String(msg.chat?.id) !== chatEnv || !msg.reply_to_message?.message_id) return false;
+  const { data: row } = await db.from('courier_route_msgs').select('*').eq('note_prompt_id', msg.reply_to_message.message_id).maybeSingle();
+  if (!row || row.status !== 'active') return false;
+  const raw = typeof msg.text === 'string' ? msg.text.trim() : '';
+  if (!raw) return false;
+  const note: string | null = raw === '-' ? null : raw.slice(0, 500);
+  const prevNote: string | null = row.note ?? null;
+  const chat = String(row.chat_id);
+  const ids: number[] = row.day_ids ?? [];
+
+  if (ids.length) await db.from('order_days').update({ courier_note: note }).in('id', ids);
+  await db.from('courier_route_msgs').update({ note, note_prompt_id: null, note_prompt_by: null }).eq('id', row.id);
+  // журнал: запись в order_edits по каждому заказу точки
+  const who = `${msg.from?.username ? `@${msg.from.username}` : msg.from?.id} (Telegram, группа курьера)`;
+  if (ids.length) {
+    const { data: days } = await db.from('order_days').select('id, order_id, delivery_date').in('id', ids);
+    const orderIds = [...new Set((days ?? []).map((d: any) => d.order_id))];
+    for (const oid of orderIds) {
+      const { data: o } = await db.from('orders').select('total').eq('id', oid).maybeSingle();
+      const { data: all } = await db.from('order_days').select('qty').eq('order_id', oid);
+      const q = (all ?? []).reduce((n: number, x: any) => n + (Number(x.qty) || 0), 0);
+      await db.from('order_edits').insert({ order_id: oid, created_by_email: who, old_total: o?.total ?? 0, new_total: o?.total ?? 0, old_portions: q, new_portions: q, kind: 'courier_note', changes: { note_from: prevNote, note_to: note, date: (days ?? []).find((d: any) => d.order_id === oid)?.delivery_date ?? null } });
+    }
+  }
+  // сообщение точки: строка комментария (и прежние отметки/кнопки)
+  const next = { ...row, note };
+  const text = row.marked_at ? doneText(renderText(next), nowHM()) : renderText(next);
+  const e = await tg('editMessageText', { chat_id: chat, message_id: row.message_id, text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: rowKeyboard(next) });
+  if (!e.ok && /BUTTON_URL_INVALID|URL_INVALID/i.test(e.description ?? '')) await tg('editMessageText', { chat_id: chat, message_id: row.message_id, text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: rowKeyboard(next, 'copy') });
+  // уведомление курьеру (ответ на сообщение точки)
+  await tg('sendMessage', {
+    chat_id: chat,
+    text: note ? `📝 <b>Новый комментарий:</b> ${esc(note)}` : `📝 Комментарий к ${esc(orderNos(row.text))} удалён`,
+    parse_mode: 'HTML',
+    reply_to_message_id: row.message_id,
+    allow_sending_without_reply: true,
+  });
+  // группа остаётся чистой: вопрос бота и ответ админа удаляются
+  await tg('deleteMessage', { chat_id: chat, message_id: msg.reply_to_message.message_id });
+  await tg('deleteMessage', { chat_id: chat, message_id: msg.message_id });
+  return true;
 }
