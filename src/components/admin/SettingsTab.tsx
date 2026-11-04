@@ -15,6 +15,8 @@ const KITCHEN = [
   { key: 'kitchen_lat', label: 'Широта кухни' },
   { key: 'kitchen_lng', label: 'Долгота кухни' },
 ] as const;
+/** Telegram user id курьера и админов, которым разрешена кнопка «Доставлено» в группе курьера (через запятую; свой id можно узнать у @userinfobot). */
+const COURIER_IDS_KEY = 'courier_tg_ids';
 
 const TRIPS = [
   { key: 'trip_capacity', label: 'Порций за рейс', kind: 'int', min: 1, max: 50 },
@@ -64,10 +66,13 @@ export function SettingsTab() {
     if (!(values.kitchen_address ?? '').trim() || !Number.isFinite(lat) || !Number.isFinite(lng) || lat < 15.9 || lat > 16.2 || lng < 107.9 || lng > 108.5) {
       return setError('Проверьте адрес и координаты кухни (должны быть в Дананге).');
     }
+    const ids = (values[COURIER_IDS_KEY] ?? '').split(/[\s,;]+/).filter(Boolean);
+    if (ids.some((x) => !/^\d{5,15}$/.test(x))) return setError('Проверьте «Курьер: Telegram id» — только цифры, через запятую.');
     setBusy(true);
     const rows = [
       ...KITCHEN.map((f) => ({ key: f.key, value: values[f.key].trim(), is_public: false })),
       { key: 'couriers_count', value: values.couriers_count === '2' ? '2' : '1', is_public: false },
+      { key: COURIER_IDS_KEY, value: ids.join(','), is_public: false },
     ];
     const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
     setBusy(false);
@@ -182,6 +187,7 @@ export function SettingsTab() {
           <div className="pb-2 text-[17px] font-extrabold">Курьеры</div>
           {KITCHEN.map((f) => row(f.label, values[f.key]))}
           {row('Курьеров по умолчанию', values.couriers_count)}
+          {row('Курьер: Telegram id', values[COURIER_IDS_KEY] || '—')}
         </Card>
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">Финиш курьера</div>
@@ -235,6 +241,10 @@ export function SettingsTab() {
             Проверить точку на карте →
           </a>
         )}
+        <div>
+          <Label>Курьер: Telegram id (кнопка «Доставлено» в группе курьера; несколько — через запятую; админы из ADMIN_TG_IDS тоже могут)</Label>
+          <input className={inputCls} inputMode="numeric" placeholder="например 524375262" value={values[COURIER_IDS_KEY] ?? ''} onChange={(e) => setValues({ ...values, [COURIER_IDS_KEY]: e.target.value })} />
+        </div>
         <div>
           <Label>Курьеров по умолчанию (для отчёта в 00:00; на конкретный день — переключатель во вкладке «Курьер»)</Label>
           <div className="grid grid-cols-2 gap-2">

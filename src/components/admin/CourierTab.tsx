@@ -12,6 +12,7 @@ import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
 import { Btn, Card, Err, Note, inputCls } from './ui';
+import { CourierRouteActions, markTime } from './CourierRouteActions';
 import { PinPoint } from './PinPoint';
 import { CourierPayBlock } from './PayrollParts';
 import { useReadOnly } from './role';
@@ -21,6 +22,7 @@ interface Row {
   delivery_date: string;
   qty: number;
   delivered: boolean;
+  courier_marked_at: string | null;
   orders: {
     id: string;
     order_number: string;
@@ -85,7 +87,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date))',
+        'id, delivery_date, qty, delivered, courier_marked_at, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed', 'delivered']) // доставленные остаются в плане (серыми), чтобы рейсы не «плыли» в течение дня
@@ -320,6 +322,7 @@ export function CourierTab() {
             <div className="text-[24px] font-extrabold leading-none">{r.qty} <span className="text-[15px]">{plural(r.qty)}</span></div>
             {r.orders.cutlery && <div className="mt-1.5 inline-block rounded-full bg-accent px-2.5 py-1 text-[13px] font-extrabold text-white">🍴 Приборы</div>}
             <div className={`text-sm font-bold ${due && !r.delivered ? 'text-accent' : 'text-success'}`}>{r.delivered ? 'доставлено' : due ? `к получению: ${fmtMoney(due)}` : 'оплачено'}</div>
+            {r.courier_marked_at && !r.delivered && <div className="text-sm font-extrabold text-accent">🚴 Курьер отметил {markTime(r.courier_marked_at)}</div>}
           </div>
         </div>
         {r.orders.lat == null && onSaved && !readOnly && <PinPoint orderId={r.orders.id} onSaved={onSaved} />}
@@ -464,6 +467,9 @@ export function CourierTab() {
       <Btn kind="outline" className="lg:col-start-2 lg:row-start-3 lg:!px-3 lg:!text-sm" onClick={sendKitchen} disabled={sendingKitchen}>
         {sendingKitchen ? 'Отправляем…' : 'Отправить порции повару'}
       </Btn>
+      <div className="lg:col-start-2 lg:row-start-4">
+        <CourierRouteActions date={date} markedIds={(rows ?? []).filter((r) => r.courier_marked_at && !r.delivered).map((r) => r.id)} onChanged={load} onNotice={setNotice} onError={setError} />
+      </div>
         </>
       )}
     </div>

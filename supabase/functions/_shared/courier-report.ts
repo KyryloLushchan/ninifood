@@ -26,24 +26,27 @@ export interface ReportDelivery {
   /** Объединённая запись (несколько заказов одного клиента на один адрес): сумма наличных и пометки по подпискам. */
   cashOverride?: number;
   subNotes?: string[];
+  /** id строк order_days (для кнопки «Доставлено» курьера) и время отметки курьера. */
+  dayIds?: number[];
+  markedAt?: string | null;
 }
 
 const TG_LIMIT = 4096;
 const SAFE = 3900; // запас под заголовок и теги
 
-const handle = (raw: string) => {
+export const handle = (raw: string) => {
   const h = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
   return /^[A-Za-z0-9_]{4,32}$/.test(h) ? `@${h}` : raw.trim();
 };
 
-const portions = (n: number) => {
+export const portions = (n: number) => {
   const m10 = n % 10;
   const m100 = n % 100;
   const w = m10 === 1 && m100 !== 11 ? 'порция' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'порции' : 'порций';
   return `${n} ${w}`;
 };
 
-const cashDue = (d: ReportDelivery) => (d.status === 'delivered' ? 0 : d.cashOverride ?? (d.payment_method === 'cash' && d.firstDay ? d.total : 0));
+export const cashDue = (d: ReportDelivery) => (d.status === 'delivered' ? 0 : d.cashOverride ?? (d.payment_method === 'cash' && d.firstDay ? d.total : 0));
 
 const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.map((x) => (x ?? '').trim()).filter(Boolean))];
 
@@ -70,6 +73,8 @@ export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
       cashOverride: g.reduce((n, d) => n + cashDue(d), 0),
       subNotes: g.filter((d) => d.sub).map((d) => `${d.order_number}: день ${d.sub!.dayNo} из ${d.sub!.total}`),
       sub: null,
+      dayIds: g.flatMap((d) => d.dayIds ?? []),
+      markedAt: g.every((d) => d.markedAt) ? (g[0].markedAt ?? null) : null,
     };
   });
 }
@@ -92,7 +97,7 @@ function entry(d: ReportDelivery, label: string, eta?: number): string {
   return lines.join('\n');
 }
 
-const kmText = (km: number) => `≈ ${Math.round(km)} км`;
+export const kmText = (km: number) => `≈ ${Math.round(km)} км`;
 const totals = (list: ReportDelivery[], addresses: number) =>
   `Адресов: ${addresses} · Порций: ${list.reduce((s, d) => s + d.qty, 0)} · Приборов: ${list.filter((d) => d.cutlery).length} · Наличными: ${money(list.reduce((s, d) => s + cashDue(d), 0))}`;
 
@@ -110,10 +115,10 @@ function pack(pieces: string[]): string[] {
   return chunks.map((c) => (c.length > TG_LIMIT ? c.slice(0, TG_LIMIT) : c));
 }
 
-const hrefAmp = (u: string) => u.replace(/&/g, '&amp;');
+export const hrefAmp = (u: string) => u.replace(/&/g, '&amp;');
 
 /** Ссылки Google Maps рейса (по частям, если точек больше лимита ссылки): замкнутый — до кухни, открытый — до последней точки. */
-const tripLinks = (t: CourierTrips<ReportDelivery>['trips'][number]) =>
+export const tripLinks = (t: CourierTrips<ReportDelivery>['trips'][number]) =>
   `🗺 ${t.links.length === 1 ? `<a href="${hrefAmp(t.links[0])}">Открыть в Google Maps</a>` : t.links.map((u, i) => `<a href="${hrefAmp(u)}">Часть ${i + 1}/${t.links.length}</a>`).join(' · ')} (${t.closed ? 'кухня → … → кухня' : t.toFinish ? 'кухня → … → 🏠 Финиш' : 'кухня → … → последняя точка'})${t.toFinish ? `\n🏠 Финиш: ≈ ${(Math.round(t.finishKm * 10) / 10).toString().replace('.', ',')} км от последней точки (в ЗП не входит)` : ''}`;
 
 /** Блок курьера: предупреждение, рейсы («🚚 Рейс N — порц. · км · время»), точки со сквозной нумерацией и временем, ссылки рейса в его конце. */

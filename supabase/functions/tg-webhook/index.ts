@@ -4,6 +4,7 @@ import { buildPayrollReport, fmtRub, weekDays } from '../_shared/courier-pay.ts'
 import { statusLabel } from '../_shared/order-i18n.ts';
 import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
+import { courierButton } from '../_shared/courier-route.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
@@ -37,6 +38,28 @@ Deno.serve(async (req) => {
       return ok();
     }
     return handlePayroll(cb, pm[1] as 'ok' | 'yes' | 'no', Number(pm[2]), pm[3] ? Number(pm[3]) : null, answer);
+  }
+
+  // Кнопки маршрута в группе курьера (d:<id> — «✅ Доставлено», u:<id> — «↩️ Отменить»): курьер и админы; пишут только отметку курьера, статус заказа не меняют.
+  const cm = /^([du]):(\d+)$/.exec(cb.data ?? '');
+  if (cm) {
+    const { data: st } = await db.from('settings').select('value').eq('key', 'courier_tg_ids').maybeSingle();
+    const couriers = new Set(String(st?.value ?? '').split(/[\s,;]+/).filter(Boolean));
+    const uid = String(cb.from?.id);
+    if (!couriers.has(uid) && !ADMINS.has(uid)) {
+      await answer('Нет прав');
+      return ok();
+    }
+    const by = cb.from?.username ? `@${cb.from.username}` : uid;
+    const r = await courierButton(db, cm[1] as 'd' | 'u', Number(cm[2]), by);
+    if (!r.ok || !r.edit) {
+      await answer(r.text ?? 'Ошибка');
+      return ok();
+    }
+    const e = await tg('editMessageText', { ...r.edit, parse_mode: 'HTML', disable_web_page_preview: true });
+    if (!e.ok && !/not modified/i.test(e.description ?? '')) console.error('courier button edit failed:', e.description);
+    await answer(cm[1] === 'd' ? 'Отмечено ✅' : 'Отметка снята');
+    return ok();
   }
 
   if (!ADMINS.has(String(cb.from?.id))) {

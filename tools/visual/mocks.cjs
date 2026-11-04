@@ -30,7 +30,7 @@ const ORDERS = [
   ord(27, { type: 'single', tg_message_id: null }, days(70, ['2026-10-30'])),
 ];
 const courierRows = ORDERS.filter((o) => ['confirmed', 'new'].includes(o.status)).flatMap((o) =>
-  o.order_days.filter((d) => d.delivery_date === '2026-10-29').map((d) => ({ ...d, orders: { ...o, order_days: o.order_days.map((x) => ({ delivery_date: x.delivery_date })) } })),
+  o.order_days.filter((d) => d.delivery_date === '2026-10-29').map((d) => ({ ...d, courier_marked_at: d.id === 1 ? '2026-10-29T06:42:00Z' : null, orders: { ...o, order_days: o.order_days.map((x) => ({ delivery_date: x.delivery_date })) } })),
 );
 
 const SETTINGS_ALL = [...fx('settings.json'), { key: 'kitchen_address', value: '90 Nguyễn Tư Giản, Ngũ Hành Sơn, Đà Nẵng 550000' }, { key: 'kitchen_lat', value: '16.0462726' }, { key: 'kitchen_lng', value: '108.2356202' }, { key: 'couriers_count', value: '1' }, { key: 'courier_finish_address', value: 'Hoàng Minh Thắng, Khu đô thị FPT City, Ngũ Hành Sơn, Đà Nẵng 550000' }, { key: 'courier_finish_lat', value: '15.9824019' }, { key: 'courier_finish_lng', value: '108.2603871' }];
