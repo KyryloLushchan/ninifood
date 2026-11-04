@@ -29,6 +29,8 @@ export interface ReportDelivery {
   /** id строк order_days (для кнопки «Доставлено» курьера) и время отметки курьера. */
   dayIds?: number[];
   markedAt?: string | null;
+  /** Язык заказа (ru/ua/en/vi) — сообщения клиенту из группы курьера идут на нём. */
+  lang?: string | null;
 }
 
 const TG_LIMIT = 4096;
@@ -75,6 +77,7 @@ export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
       sub: null,
       dayIds: g.flatMap((d) => d.dayIds ?? []),
       markedAt: g.every((d) => d.markedAt) ? (g[0].markedAt ?? null) : null,
+      lang: g.find((d) => d.lang)?.lang ?? null,
     };
   });
 }

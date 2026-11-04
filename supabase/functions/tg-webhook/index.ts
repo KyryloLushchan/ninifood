@@ -4,7 +4,7 @@ import { buildPayrollReport, fmtRub, weekDays } from '../_shared/courier-pay.ts'
 import { statusLabel } from '../_shared/order-i18n.ts';
 import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
-import { courierButton } from '../_shared/courier-route.ts';
+import { courierButton, courierResync } from '../_shared/courier-route.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
@@ -40,8 +40,8 @@ Deno.serve(async (req) => {
     return handlePayroll(cb, pm[1] as 'ok' | 'yes' | 'no', Number(pm[2]), pm[3] ? Number(pm[3]) : null, answer);
   }
 
-  // Кнопки маршрута в группе курьера (d:<id> — «✅ Доставлено», u:<id> — «↩️ Отменить»): курьер и админы; пишут только отметку курьера, статус заказа не меняют.
-  const cm = /^([du]):(\d+)$/.exec(cb.data ?? '');
+  // Кнопки маршрута в группе курьера (d/u — доставлено/отмена, e/em/ep/ek/eo/ex — «Через сколько буду», a/s — запасной режим): курьер и админы; пишут только отметки курьера, статус заказа не меняют.
+  const cm = /^(d|u|e|em|ep|ek|eo|ex|a|s):(\d+)$/.exec(cb.data ?? '');
   if (cm) {
     const { data: st } = await db.from('settings').select('value').eq('key', 'courier_tg_ids').maybeSingle();
     const couriers = new Set(String(st?.value ?? '').split(/[\s,;]+/).filter(Boolean));
@@ -51,14 +51,21 @@ Deno.serve(async (req) => {
       return ok();
     }
     const by = cb.from?.username ? `@${cb.from.username}` : uid;
-    const r = await courierButton(db, cm[1] as 'd' | 'u', Number(cm[2]), by);
-    if (!r.ok || !r.edit) {
-      await answer(r.text ?? 'Ошибка');
+    let r = await courierButton(db, cm[1], Number(cm[2]), by);
+    if (!r.ok || !r.edits?.length) {
+      await answer(r.toast ?? (r.ok ? '' : 'Ошибка'));
       return ok();
     }
-    const e = await tg('editMessageText', { ...r.edit, parse_mode: 'HTML', disable_web_page_preview: true });
-    if (!e.ok && !/not modified/i.test(e.description ?? '')) console.error('courier button edit failed:', e.description);
-    await answer(cm[1] === 'd' ? 'Отмечено ✅' : 'Отметка снята');
+    const run = (edits: typeof r.edits) => Promise.all(edits!.map((e) => tg(e.method, { parse_mode: 'HTML', disable_web_page_preview: true, ...e.params })));
+    let res = await run(r.edits);
+    // Telegram не принял URL-кнопку — перерисовываем в запасном режиме (текст клиенту приходит ответом для копирования)
+    if (res.some((x) => !x.ok && /BUTTON_URL_INVALID|URL_INVALID/i.test(x.description ?? ''))) {
+      const e = await courierResync(db, Number(cm[2]), 'copy');
+      if (e) res = await run([e]);
+    }
+    const bad = res.find((x) => !x.ok && !/not modified/i.test(x.description ?? ''));
+    if (bad) console.error('courier button edit failed:', bad.description);
+    await answer(r.toast ?? '');
     return ok();
   }
 
