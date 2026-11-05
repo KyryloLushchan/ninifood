@@ -29,6 +29,8 @@ export interface ReportDelivery {
   /** id строк order_days (для кнопки «Доставлено» курьера) и время отметки курьера. */
   dayIds?: number[];
   markedAt?: string | null;
+  /** Наличные по этому заказу уже были взяты в первый день доставки (оплата наличными, сегодня не первый день). */
+  cashEarlier?: boolean;
   /** Язык заказа (ru/ua/en/vi) — сообщения клиенту из группы курьера идут на нём. */
   lang?: string | null;
 }
@@ -47,6 +49,11 @@ export const portions = (n: number) => {
   const w = m10 === 1 && m100 !== 11 ? 'порция' : m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14) ? 'порции' : 'порций';
   return `${n} ${w}`;
 };
+
+/** Строка оплаты точки: наличные берём ТОЛЬКО в первый день доставки (даже если он не отмечен «Доставлено»); дальше — «Оплачено (наличные взяты в 1-й день)». */
+export const cashTaken = (d: ReportDelivery) => d.cashEarlier ?? (d.payment_method === 'cash' && !d.firstDay);
+export const PAID_EARLIER = ' (наличные взяты в 1-й день)';
+export const paidLine = (d: ReportDelivery, due: number, money: (n: number) => string) => (due ? `💵 Взять наличными: <b>${money(due)}</b>` : cashTaken(d) ? `✅ Оплачено${PAID_EARLIER}` : '✅ Оплачено');
 
 export const cashDue = (d: ReportDelivery) => (d.status === 'delivered' ? 0 : d.cashOverride ?? (d.payment_method === 'cash' && d.firstDay ? d.total : 0));
 
@@ -77,6 +84,7 @@ export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
       sub: null,
       dayIds: g.flatMap((d) => d.dayIds ?? []),
       markedAt: g.every((d) => d.markedAt) ? (g[0].markedAt ?? null) : null,
+      cashEarlier: g.some((d) => cashTaken(d)),
       lang: g.find((d) => d.lang)?.lang ?? null,
     };
   });
@@ -95,7 +103,7 @@ function entry(d: ReportDelivery, label: string, eta?: number): string {
   if (d.subNotes?.length) lines.push(`🔁 ${d.subNotes.map(esc).join(' · ')}`);
   lines.push(`🍽 <b>${portions(d.qty).toUpperCase()}</b>`);
   if (d.cutlery) lines.push('🍴 <b>ПРИБОРЫ: ДА</b>');
-  lines.push(d.status === 'delivered' ? '✅ Доставлено' : due ? `💵 Взять наличными: <b>${money(due)}</b>` : '✅ Оплачено');
+  lines.push(d.status === 'delivered' ? '✅ Доставлено' : paidLine(d, due, money));
   if (d.comment) lines.push(`💬 ${esc(d.comment)}`);
   return lines.join('\n');
 }
