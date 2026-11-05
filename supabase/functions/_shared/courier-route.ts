@@ -1,7 +1,7 @@
 // Маршрут дня в группе курьера («NiniFood Courier», секрет COURIER_CHAT_ID): заголовки рейсов со ссылками и каждая точка — отдельным сообщением с кнопкой «✅ Доставлено».
 // Тот же план, что у ночного отчёта (`planDay` по данным `day-plan.ts`). Кнопка курьера пишет только отметку (order_days.courier_marked_at) — статус заказа меняет админ.
 // Сообщения без цен и сумм заказа; «Взять наличными» — сумма к получению у курьера. Язык русский.
-import { nowDanang } from './dates.ts';
+import { nowDanang, todayISO as todayISOLocal } from './dates.ts';
 import { cashDue, handle, hrefAmp, kmText, mergeSameClient, paidLine, portions, tripLinks, type ReportDelivery } from './courier-report.ts';
 import { loadDayPlan, loadDayRows } from './day-plan.ts';
 import { mapUrl, money, phoneText } from './order-text.ts';
@@ -199,6 +199,8 @@ interface Row {
   note: string | null;
   note_prompt_id: number | null;
   note_prompt_by: number | null;
+  is_test?: boolean;
+  extra_msg_ids?: number[];
 }
 
 const plainDelivery = async (db: any, date: string) => {
@@ -257,7 +259,7 @@ export async function publishRoute(db: any, date: string, mode: 'publish' | 'rep
     await warn?.('Маршрут не отправлен в группу курьера: не задан COURIER_CHAT_ID.');
     return { ok: false, code: 'chat_missing' };
   }
-  const { data: existing } = await db.from('courier_route_msgs').select('*').eq('date', date).eq('status', 'active');
+  const { data: existing } = await db.from('courier_route_msgs').select('*').eq('date', date).eq('status', 'active').eq('is_test', false);
   if ((existing ?? []).length && mode === 'publish') return { ok: true, skipped: 'already_published' };
   const rp = await plainDelivery(db, date);
   if (!rp) return { ok: false, code: 'kitchen_missing' };
@@ -295,7 +297,7 @@ export interface SyncResult {
 export async function syncRoute(db: any, date: string): Promise<SyncResult> {
   const chat = Deno.env.get('COURIER_CHAT_ID') ?? '';
   if (!chat) return { ok: false, skipped: 'chat_missing' };
-  const { data } = await db.from('courier_route_msgs').select('*').eq('date', date).eq('status', 'active').order('id');
+  const { data } = await db.from('courier_route_msgs').select('*').eq('date', date).eq('status', 'active').eq('is_test', false).order('id');
   const rows = (data ?? []) as Row[];
   if (!rows.length) return { ok: true, skipped: 'not_published' };
   const rp = await plainDelivery(db, date);
@@ -432,6 +434,15 @@ export async function courierResync(db: any, rowId: number, mode: KMode): Promis
   return { method: 'editMessageReplyMarkup', params: { chat_id: row.chat_id, message_id: row.message_id, reply_markup: rowKeyboard(row, mode) } };
 }
 
+/** Запомнить служебные сообщения точки (вопрос про комментарий, уведомления, ответы админа, копируемые тексты) — для тестовых точек их удаляют при очистке. */
+export async function addExtra(db: any, rowId: number, ids: number[]): Promise<void> {
+  const clean = ids.filter((x) => Number.isFinite(x));
+  if (!clean.length) return;
+  const { data } = await db.from('courier_route_msgs').select('extra_msg_ids').eq('id', rowId).maybeSingle();
+  const cur: number[] = data?.extra_msg_ids ?? [];
+  await db.from('courier_route_msgs').update({ extra_msg_ids: [...new Set([...cur, ...clean])] }).eq('id', rowId);
+}
+
 const orderNos = (text: string) => /NF-\d+(?: \+ NF-\d+)*/.exec(text.replace(/<[^>]+>/g, ''))?.[0] ?? 'заказу';
 
 /** «📝 Комментарий» (только админы — проверяет вызывающий): бот просит написать комментарий ответом (ForceReply, адресно тому, кто нажал). */
@@ -451,6 +462,7 @@ export async function startNote(db: any, rowId: number, from: { id: number; firs
   });
   if (!r.ok) return { ok: false, toast: 'Не удалось отправить вопрос' };
   await db.from('courier_route_msgs').update({ note_prompt_id: r.result.message_id, note_prompt_by: from.id }).eq('id', rowId);
+  await addExtra(db, rowId, [r.result.message_id]);
   return { ok: true, toast: '' };
 }
 
@@ -490,15 +502,58 @@ export async function applyNote(db: any, msg: any): Promise<boolean> {
   const e = await tg('editMessageText', { chat_id: chat, message_id: row.message_id, text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: rowKeyboard(next) });
   if (!e.ok && /BUTTON_URL_INVALID|URL_INVALID/i.test(e.description ?? '')) await tg('editMessageText', { chat_id: chat, message_id: row.message_id, text, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: rowKeyboard(next, 'copy') });
   // уведомление курьеру (ответ на сообщение точки)
-  await tg('sendMessage', {
+  const notice: any = await tg('sendMessage', {
     chat_id: chat,
     text: note ? `📝 <b>Новый комментарий:</b> ${esc(note)}` : `📝 Комментарий к ${esc(orderNos(row.text))} удалён`,
     parse_mode: 'HTML',
     reply_to_message_id: row.message_id,
     allow_sending_without_reply: true,
   });
+  await addExtra(db, row.id, [msg.message_id, notice?.result?.message_id]);
   // группа остаётся чистой: вопрос бота и ответ админа удаляются
   await tg('deleteMessage', { chat_id: chat, message_id: msg.reply_to_message.message_id });
   await tg('deleteMessage', { chat_id: chat, message_id: msg.message_id });
   return true;
+}
+
+/** ТЕСТ в самой группе: две выдуманные точки (получатель — тот, чей ник передан), без реальных заказов: day_ids пусты, is_test = true, сверка маршрута и отчёты их не видят. */
+export async function sendTestPoints(db: any, nick: string): Promise<{ ids: number[] }> {
+  const chat = Deno.env.get('COURIER_CHAT_ID') ?? '';
+  if (!chat) throw new Error('chat_missing');
+  const date = todayISOLocal();
+  const ids: number[] = [];
+  const insert = async (kind: Row['kind'], text: string, lang: string | null, withButtons: boolean, label: string | null) => {
+    const row = await insertRow(db, { date, kind, label, text, day_ids: [], chat_id: Number(chat), status: 'active', lang, nick: withButtons ? nick : null, is_test: true });
+    const r: any = await send(chat, 'sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true, ...(withButtons ? { reply_markup: rowKeyboard({ id: row, nick, lang, eta_minutes: null, marked_at: null }) } : {}) });
+    if (!r.ok) throw new Error(`send failed: ${r.description}`);
+    await db.from('courier_route_msgs').update({ message_id: r.result.message_id }).eq('id', row);
+    ids.push(row);
+    await sleep(pace());
+    return row;
+  };
+  await insert('day', '🧪 <b>ТЕСТ кнопок маршрута</b> — выдуманные точки, реальные заказы, касса и отчёты не затрагиваются. Нажмите кнопки под точками.', null, false, null);
+  const note = (extra: string) => `<b>🧪 ТЕСТ ${extra}</b>\n🧪 <i>выдуманные данные</i>`;
+  await insert('stop', `${note('1.')} · @${nick} · NF-TEST1\n📍 Test Street 1, Đà Nẵng (тест)\n🏨 Test Hotel · 💬 тестовый комментарий клиента\n📞 +84 90 000 00 01\n🍽 2 порции · 🍴 приборы: да\n💵 Взять наличными: <b>190 000 ₫</b>\n🕒 ≈ 13:25`, 'ru', true, '1');
+  await insert('stop', `${note('2.')} · @${nick} · NF-TEST2\n📍 Test Street 2, Đà Nẵng (тест)\n📞 +84 90 000 00 02\n🍽 1 порция\n✅ Оплачено\n🕒 ≈ 13:40`, 'vi', true, '2');
+  return { ids };
+}
+
+/** Удалить тестовые сообщения из группы и тестовые записи (точки, их служебные сообщения, журнал нажатий). */
+export async function cleanupTest(db: any): Promise<{ rows: number; messages: number; failed: number }> {
+  const chat = Deno.env.get('COURIER_CHAT_ID') ?? '';
+  const { data } = await db.from('courier_route_msgs').select('*').eq('is_test', true);
+  const rows = (data ?? []) as Row[];
+  let messages = 0;
+  let failed = 0;
+  for (const r of rows) {
+    const ids = [...new Set([r.message_id, r.note_prompt_id, ...(r.extra_msg_ids ?? [])].filter((x): x is number => !!x))];
+    for (const id of ids) {
+      const res: any = await tg('deleteMessage', { chat_id: chat, message_id: id });
+      if (res.ok) messages++;
+      else if (!/message to delete not found/i.test(res.description ?? '')) failed++;
+    }
+    await db.from('courier_button_log').delete().eq('row_id', r.id);
+    await db.from('courier_route_msgs').delete().eq('id', r.id);
+  }
+  return { rows: rows.length, messages, failed };
 }

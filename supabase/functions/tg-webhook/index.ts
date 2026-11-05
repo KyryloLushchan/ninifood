@@ -4,7 +4,7 @@ import { buildPayrollReport, fmtRub, weekDays } from '../_shared/courier-pay.ts'
 import { statusLabel } from '../_shared/order-i18n.ts';
 import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
-import { applyNote, courierButton, courierResync, startNote } from '../_shared/courier-route.ts';
+import { addExtra, applyNote, courierButton, courierResync, startNote } from '../_shared/courier-route.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
@@ -14,6 +14,21 @@ const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SE
 const ADMINS = new Set((Deno.env.get('ADMIN_TG_IDS') ?? '').split(',').map((s) => s.trim()).filter(Boolean));
 
 const ok = () => new Response('ok');
+
+/**
+ * Доступ в группе курьера по Telegram user id (не по нику): courier_tg_ids — кнопки маршрута; courier_note_ids — ещё и «📝 Комментарий»; админы (ADMIN_TG_IDS) — всё.
+ * Списки лежат в settings (Настройки → Курьеры), не в коде. На права в других группах не влияет.
+ */
+async function courierAccess() {
+  const { data: st } = await db.from('settings').select('key, value').in('key', ['courier_tg_ids', 'courier_note_ids']);
+  const list = (k: string) => new Set(String((st ?? []).find((x: any) => x.key === k)?.value ?? '').split(/[\s,;]+/).filter(Boolean));
+  const buttons = list('courier_tg_ids');
+  const notes = list('courier_note_ids');
+  return {
+    canButtons: (uid: string) => buttons.has(uid) || notes.has(uid) || ADMINS.has(uid),
+    canNote: (uid: string) => notes.has(uid) || ADMINS.has(uid),
+  };
+}
 
 Deno.serve(async (req) => {
   if (!(await safeEqual(req.headers.get('x-telegram-bot-api-secret-token') ?? '', Deno.env.get('TG_WEBHOOK_SECRET') ?? ''))) {
@@ -25,12 +40,13 @@ Deno.serve(async (req) => {
   } catch {
     return ok();
   }
-  // Ответ админа на вопрос бота «Напишите комментарий к NF-…» в группе курьера (ForceReply) — комментарий к точке маршрута.
+  // Ответ на вопрос бота «Напишите комментарий к NF-…» в группе курьера (ForceReply) — комментарий к точке маршрута (админы и id из courier_note_ids).
   if (update.message && !update.callback_query) {
     const m = update.message;
-    if (m.reply_to_message && ADMINS.has(String(m.from?.id))) {
+    if (m.reply_to_message) {
       try {
-        await applyNote(db, m);
+        const acc = await courierAccess();
+        if (acc.canNote(String(m.from?.id))) await applyNote(db, m);
       } catch (e) {
         console.error('courier note failed:', (e as Error).message);
       }
@@ -52,29 +68,34 @@ Deno.serve(async (req) => {
     return handlePayroll(cb, pm[1] as 'ok' | 'yes' | 'no', Number(pm[2]), pm[3] ? Number(pm[3]) : null, answer);
   }
 
-  // Кнопки маршрута в группе курьера (d/u — доставлено/отмена, e/em/ep/ek/eo/ex — «Через сколько буду», a/s — запасной режим): курьер и админы; пишут только отметки курьера, статус заказа не меняют.
+  // Кнопки маршрута в группе курьера (d/u — доставлено/отмена, e/em/ep/ek/eo/ex — «Через сколько буду», a/s — запасной режим, n — комментарий): по Telegram id; пишут только отметки курьера, статус заказа не меняют.
   const cm = /^(d|u|e|em|ep|ek|eo|ex|a|s|n):(\d+)$/.exec(cb.data ?? '');
   if (cm) {
-    const { data: st } = await db.from('settings').select('value').eq('key', 'courier_tg_ids').maybeSingle();
-    const couriers = new Set(String(st?.value ?? '').split(/[\s,;]+/).filter(Boolean));
     const uid = String(cb.from?.id);
-    if (!couriers.has(uid) && !ADMINS.has(uid)) {
+    const rowId = Number(cm[2]);
+    const log = (allowed: boolean, result: string) => db.from('courier_button_log').insert({ row_id: rowId, action: cm[1], user_id: cb.from?.id ?? null, username: cb.from?.username ?? null, allowed, result });
+    const acc = await courierAccess();
+    if (!acc.canButtons(uid)) {
+      await log(false, 'Нет прав');
       await answer('Нет прав');
       return ok();
     }
     if (cm[1] === 'n') {
-      // «📝 Комментарий»: кнопка видна всем, но работает только у админов (ADMIN_TG_IDS); курьеру — «Нет прав»
-      if (!ADMINS.has(uid)) {
+      // «📝 Комментарий»: кнопка видна всем, работает у админов и у id из courier_note_ids; остальным — «Нет прав»
+      if (!acc.canNote(uid)) {
+        await log(false, 'Нет прав');
         await answer('Нет прав');
         return ok();
       }
-      const sn = await startNote(db, Number(cm[2]), cb.from);
+      const sn = await startNote(db, rowId, cb.from);
+      await log(sn.ok, sn.ok ? 'вопрос отправлен' : (sn.toast ?? 'ошибка'));
       await answer(sn.toast ?? '');
       return ok();
     }
     const by = cb.from?.username ? `@${cb.from.username}` : uid;
-    let r = await courierButton(db, cm[1], Number(cm[2]), by);
+    let r = await courierButton(db, cm[1], rowId, by);
     if (!r.ok || !r.edits?.length) {
+      await log(r.ok, r.toast || (r.ok ? 'без изменений' : 'ошибка'));
       await answer(r.toast ?? (r.ok ? '' : 'Ошибка'));
       return ok();
     }
@@ -82,11 +103,15 @@ Deno.serve(async (req) => {
     let res = await run(r.edits);
     // Telegram не принял URL-кнопку — перерисовываем в запасном режиме (текст клиенту приходит ответом для копирования)
     if (res.some((x) => !x.ok && /BUTTON_URL_INVALID|URL_INVALID/i.test(x.description ?? ''))) {
-      const e = await courierResync(db, Number(cm[2]), 'copy');
+      const e = await courierResync(db, rowId, 'copy');
       if (e) res = await run([e]);
     }
+    // служебные сообщения (копируемый текст клиенту) запоминаем: у тестовых точек их удаляют при очистке
+    const sentIds = res.map((x, i) => (r.edits![i]?.method === 'sendMessage' && x.ok ? Number(x.result?.message_id) : NaN)).filter((x) => Number.isFinite(x));
+    if (sentIds.length) await addExtra(db, rowId, sentIds);
     const bad = res.find((x) => !x.ok && !/not modified/i.test(x.description ?? ''));
     if (bad) console.error('courier button edit failed:', bad.description);
+    await log(!bad, bad ? `ошибка Telegram: ${bad.description}` : (r.toast || 'ok'));
     await answer(r.toast ?? '');
     return ok();
   }

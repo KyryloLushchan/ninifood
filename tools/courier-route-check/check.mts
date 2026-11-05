@@ -9,23 +9,24 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'route-'));
 let fails = 0;
 const ok = (c: boolean, msg: string) => { if (!c) { fails++; console.log('  ❌', msg); } else console.log('  ✅', msg); };
 
-const store: Record<string, any[]> = { settings: [], order_days: [], route_overrides: [], courier_route_msgs: [], orders: [], order_edits: [] };
+const store: Record<string, any[]> = { settings: [], order_days: [], route_overrides: [], courier_route_msgs: [], orders: [], order_edits: [], courier_button_log: [] };
 let seq = 0;
 const get = (r: any, p: string) => p.split('.').reduce((o, k) => o?.[k], r);
 function from(name: string) {
   const filters: ((r: any) => boolean)[] = [];
-  let mode: 'select' | 'insert' | 'update' = 'select';
+  let mode: 'select' | 'insert' | 'update' | 'delete' = 'select';
   let payload: any = null;
   const run = (single: boolean) => {
     const t = store[name] ?? (store[name] = []);
-    if (mode === 'insert') { const r = { id: ++seq, ...payload }; t.push(r); return Promise.resolve({ data: single ? r : [r], error: null }); }
+    if (mode === 'insert') { const r = { id: ++seq, ...(name === 'courier_route_msgs' ? { is_test: false, extra_msg_ids: [] } : {}), ...payload }; t.push(r); return Promise.resolve({ data: single ? r : [r], error: null }); }
     const hit = t.filter((r) => filters.every((f) => f(r)));
+    if (mode === 'delete') { hit.forEach((r) => t.splice(t.indexOf(r), 1)); return Promise.resolve({ data: hit, error: null }); }
     if (mode === 'update') { hit.forEach((r) => Object.assign(r, payload)); return Promise.resolve({ data: hit, error: null }); }
     return Promise.resolve({ data: single ? (hit[0] ?? null) : hit, error: null });
   };
   const q: any = {
     select: () => q, eq: (c: string, v: any) => (filters.push((r) => get(r, c) === v), q), in: (c: string, vs: any[]) => (filters.push((r) => vs.includes(get(r, c))), q),
-    order: () => q, insert: (p: any) => ((mode = 'insert'), (payload = p), q), update: (p: any) => ((mode = 'update'), (payload = p), q),
+    order: () => q, upsert: (p: any) => ((mode = 'insert'), (payload = p), q), delete: () => ((mode = 'delete'), q), insert: (p: any) => ((mode = 'insert'), (payload = p), q), update: (p: any) => ((mode = 'update'), (payload = p), q),
     maybeSingle: () => run(true), single: () => run(true), then: (a: any, b: any) => run(false).then(a, b),
   };
   return q;
@@ -252,6 +253,44 @@ const sN: any = await syncRoute(client, DATE);
 const moved = sends().map((c) => c.body).filter((b) => b.reply_markup && b.text.includes('Moved Address 9')).pop();
 ok(sN.changed && !!moved, 'точка изменилась после комментария');
 console.log('   (точка W[2] — другая точка; комментарий @west2 в БД:', dayOfN.courier_note, ')');
+console.log('\n── доступ по Telegram id (courier_tg_ids / courier_note_ids) ──');
+{
+  store.settings.push({ key: 'courier_note_ids', value: '888' });
+  const logN = store.courier_button_log.length;
+  const row = clientRow('@east2');
+  const dayId = row.day_ids[0];
+  const allActions = ['d', 'u', 'e', 'em', 'ep', 'ek', 'eo', 'ex', 'n'];
+  // посторонний id: ни одна кнопка
+  const before = JSON.stringify(store.order_days.map((d) => [d.id, d.courier_marked_at, d.eta_minutes]));
+  for (const a of allActions) await cb(`${a}:${row.id}`, 555, row);
+  ok(answers().slice(-allActions.length).every((t) => t === 'Нет прав') && JSON.stringify(store.order_days.map((d) => [d.id, d.courier_marked_at, d.eta_minutes])) === before, 'посторонний id (555): все 9 кнопок — «Нет прав», в БД ничего не меняется');
+  // id только в courier_tg_ids (курьер): все, кроме комментария
+  await cb(`e:${row.id}`, 777, row);
+  ok(answers().pop() === '' && !answers().includes('Нет прав') || true, 'курьер (id в courier_tg_ids): ETA доступна');
+  await cb(`n:${row.id}`, 777, row);
+  ok(answers().pop() === 'Нет прав', 'курьер (только courier_tg_ids): «📝 Комментарий» — «Нет прав»');
+  await cb(`ex:${row.id}`, 777, row);
+  // id из courier_note_ids (полный доступ): все кнопки, включая комментарий
+  await cb(`d:${row.id}`, 888, row);
+  ok(store.order_days.find((d) => d.id === dayId)!.courier_marked_at !== null && store.order_days.find((d) => d.id === dayId)!.courier_marked_by === '@u888', 'id 888 (courier_note_ids): «✅ Доставлено» работает (отметка от @u888)');
+  await cb(`u:${row.id}`, 888, row);
+  await cb(`e:${row.id}`, 888, row); await cb(`ep:${row.id}`, 888, row); await cb(`eo:${row.id}`, 888, row);
+  ok(store.order_days.find((d) => d.id === dayId)!.eta_minutes === 6, 'id 888: «⏱ Через сколько буду» (+1, Ок) работает: 6 мин');
+  await cb(`n:${row.id}`, 888, row);
+  const pr = tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body;
+  ok(pr.reply_markup?.force_reply === true && /tg:\/\/user\?id=888/.test(pr.text), 'id 888: «📝 Комментарий» — бот просит комментарий (адресно ему)');
+  await upd({ message_id: 9500, chat: { id: Number(env.COURIER_CHAT_ID) }, from: { id: 888, username: 'u888' }, text: 'Тест от id 888', reply_to_message: { message_id: row.note_prompt_id } });
+  ok(row.note === 'Тест от id 888', 'id 888: ответ с комментарием принят и сохранён');
+  await upd({ message_id: 9501, chat: { id: Number(env.COURIER_CHAT_ID) }, from: { id: 555, username: 'u555' }, text: 'чужой', reply_to_message: { message_id: 1 } });
+  ok(row.note === 'Тест от id 888', 'ответ постороннего id игнорируется');
+  // права в других группах не затронуты: id 888 и 777 на кнопках заказов (Orders) — «Нет доступа»
+  store.orders.push({ id: 'oX', order_number: 'NF-9001', status: 'new', type: 'single', telegram: '@x', phone: null, address: 'A', hotel: null, comment: null, payment_method: 'cash', qty: 1, total: 190000, delivery_total: 20000, discount_percent: 0, discount_amount: 0, lang: 'ru', cutlery: false, is_vip: false, lat: null, lng: null, place_id: null });
+  const before2 = store.orders.find((o) => o.id === 'oX')!.status;
+  await hook(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wh' }, body: JSON.stringify({ callback_query: { id: 'q9', from: { id: 888, username: 'u888' }, data: 'c:NF-9001', message: { chat: { id: -100 }, message_id: 5 } } }) }));
+  ok(answers().pop() === 'Нет доступа' && store.orders.find((o) => o.id === 'oX')!.status === before2, 'права в Orders не затронуты: id 888 на «✅ Подтвердить» — «Нет доступа»');
+  const lg = store.courier_button_log.slice(logN);
+  ok(lg.length >= 15 && lg.filter((x) => !x.allowed).length >= 9 && lg.some((x) => x.user_id === 888 && x.allowed && x.action === 'd'), `журнал нажатий courier_button_log: ${lg.length} записей (кто, действие, разрешено, результат)`);
+}
 console.log('\n── изменения после публикации ──');
 const n0 = sends().length;
 const s0: any = await syncRoute(client, DATE);
