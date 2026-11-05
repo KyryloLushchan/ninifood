@@ -141,14 +141,14 @@ ok(b0.map((b: any) => b.text).join('|') === '✅ Доставлено|💬 За�
 const arr = b0.find((b: any) => b.text === '💬 Заказ прибыл');
 const etaB = b0.find((b: any) => b.text === '⏱ Через сколько буду');
 ok(arr.url.startsWith('https://t.me/east1?text=') && decodeURIComponent(arr.url.split('?text=')[1]) === 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛', '«Заказ прибыл» — URL t.me/ник?text= с ПОЛНЫМ текстом (RU)');
-ok(etaB.url.startsWith('https://t.me/east1?text=') && !etaB.callback_data && decodeURIComponent(etaB.url.split('?text=')[1]) === 'Добрый день! 👋 Курьер NiniFood будет у вас через  мин 🛵💨', '«⏱ Через сколько буду» — одна URL-кнопка (не callback) с шаблоном «через  мин» (место для минут)');
+ok(etaB.url.startsWith('https://t.me/east1?text=') && !etaB.callback_data && decodeURIComponent(etaB.url.split('?text=')[1]) === 'Добрый день! 👋 Курьер NiniFood будет у вас через     мин 🛵💨', '«⏱ Через сколько буду» — одна URL-кнопка (не callback) с шаблоном «через     мин» (5 пробелов) (место для минут)');
 ok(!b0.some((b: any) => /^(e|em|ep|ek|eo|ex):/.test(b.callback_data ?? '')), 'выбора минут (−1/+1/Ок/Отмена) больше нет');
 const { etaText, arrivedText, rowKeyboard, nickOf } = await import(`${ROOT}/supabase/functions/_shared/courier-route.ts`);
 const langs = [
-  ['ru', 'Добрый день! 👋 Курьер NiniFood будет у вас через  мин 🛵💨', 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛'],
-  ['ua', "Добрий день! 👋 Кур'єр NiniFood буде у вас через  хв 🛵💨", 'Добрий день! 👋 Ваше замовлення прибуло 🛵🍲 NiniFood бажає вам смачного! 😋💛'],
-  ['en', 'Good afternoon! 👋 Your NiniFood courier will be there in  min 🛵💨', 'Good afternoon! 👋 Your order has arrived 🛵🍲 NiniFood wishes you a delicious meal! 😋💛'],
-  ['vi', 'Xin chào! 👋 Shipper NiniFood sẽ đến trong  phút nữa 🛵💨', 'Xin chào! 👋 Đơn hàng của bạn đã đến 🛵🍲 NiniFood chúc bạn ngon miệng! 😋💛'],
+  ['ru', 'Добрый день! 👋 Курьер NiniFood будет у вас через     мин 🛵💨', 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛'],
+  ['ua', "Добрий день! 👋 Кур'єр NiniFood буде у вас через     хв 🛵💨", 'Добрий день! 👋 Ваше замовлення прибуло 🛵🍲 NiniFood бажає вам смачного! 😋💛'],
+  ['en', 'Good afternoon! 👋 Your NiniFood courier will be there in     min 🛵💨', 'Good afternoon! 👋 Your order has arrived 🛵🍲 NiniFood wishes you a delicious meal! 😋💛'],
+  ['vi', 'Xin chào! 👋 Shipper NiniFood sẽ đến trong     phút nữa 🛵💨', 'Xin chào! 👋 Đơn hàng của bạn đã đến 🛵🍲 NiniFood chúc bạn ngon miệng! 😋💛'],
 ] as const;
 ok(langs.every(([l, e, f]) => etaText(l) === e && arrivedText(l) === f) && etaText(null) === langs[0][1] && arrivedText(null) === langs[0][2], 'тексты ETA-шаблона и «прибыл» (всегда полный) на RU, UA, EN, VI совпадают с ТЗ; нет языка — RU');
 for (const [l] of langs) { const k = rowKeyboard({ id: 1, nick: 'client_x', lang: l, marked_at: null }).inline_keyboard; console.log(`    ${l}: ${decodeURIComponent(k[1][0].url.split('?text=')[1])}`); }
@@ -183,7 +183,7 @@ ok(fbm.some((d: string) => /^a:\d+$/.test(d)) && !failOnce, 'Telegram откло
 await cb(`a:${eRow0.id}`, 777, eRow0);
 ok(/<code>Добрый день! 👋 Ваш заказ прибыл/.test(tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body.text), 'запасной режим «Заказ прибыл»: полный текст ответом в <code>');
 await cb(`s:${eRow0.id}`, 777, eRow0);
-ok(/<code>Добрый день! 👋 Курьер NiniFood будет у вас через  мин 🛵💨<\/code>/.test(tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body.text), 'запасной режим «Через сколько буду»: шаблон ответом в <code>');
+ok(/<code>Добрый день! 👋 Курьер NiniFood будет у вас через     мин 🛵💨<\/code>/.test(tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body.text), 'запасной режим «Через сколько буду»: шаблон ответом в <code>');
 
 console.log('\n── обновление уже опубликованных сообщений ──');
 {

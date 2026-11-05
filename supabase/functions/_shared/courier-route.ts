@@ -46,14 +46,14 @@ export function nickOf(raw: string): string | null {
 type L = 'ru' | 'ua' | 'en' | 'vi';
 const ln = (l?: string | null): L => (l === 'ua' || l === 'en' || l === 'vi' ? l : 'ru');
 /**
- * Тексты клиенту (на языке заказа, нет языка — RU): «Через сколько буду» — шаблон с пустым местом для минут (курьер вписывает сам, два пробела «через  мин»);
+ * Тексты клиенту (на языке заказа, нет языка — RU): «Через сколько буду» — шаблон с пустым местом для минут (курьер вписывает сам, пять пробелов «через     мин»);
  * «Заказ прибыл» — всегда полный текст с приветствием.
  */
 const ETA_TXT: Record<L, string> = {
-  ru: 'Добрый день! 👋 Курьер NiniFood будет у вас через  мин 🛵💨',
-  ua: "Добрий день! 👋 Кур'єр NiniFood буде у вас через  хв 🛵💨",
-  en: 'Good afternoon! 👋 Your NiniFood courier will be there in  min 🛵💨',
-  vi: 'Xin chào! 👋 Shipper NiniFood sẽ đến trong  phút nữa 🛵💨',
+  ru: 'Добрый день! 👋 Курьер NiniFood будет у вас через     мин 🛵💨',
+  ua: "Добрий день! 👋 Кур'єр NiniFood буде у вас через     хв 🛵💨",
+  en: 'Good afternoon! 👋 Your NiniFood courier will be there in     min 🛵💨',
+  vi: 'Xin chào! 👋 Shipper NiniFood sẽ đến trong     phút nữa 🛵💨',
 };
 const ARRIVED_FULL: Record<L, string> = {
   ru: 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛',
