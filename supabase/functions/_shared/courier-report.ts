@@ -29,8 +29,10 @@ export interface ReportDelivery {
   /** id строк order_days (для кнопки «Доставлено» курьера) и время отметки курьера. */
   dayIds?: number[];
   markedAt?: string | null;
-  /** Наличные по этому заказу уже были взяты в первый день доставки (оплата наличными, сегодня не первый день). */
-  cashEarlier?: boolean;
+  /** Наличные по заказу ещё НЕ получены: заказ наличный, а первый день доставки не отмечен «Доставлено» админом. Нет поля — как раньше (наличные только в первый день). */
+  cashPending?: boolean;
+  /** Первый день заказа (ISO), если сегодня не он, а наличные всё ещё не получены — «(не оплачено с ДД.ММ)». */
+  cashSince?: string | null;
   /** Язык заказа (ru/ua/en/vi) — сообщения клиенту из группы курьера идут на нём. */
   lang?: string | null;
 }
@@ -50,12 +52,16 @@ export const portions = (n: number) => {
   return `${n} ${w}`;
 };
 
-/** Строка оплаты точки: наличные берём ТОЛЬКО в первый день доставки (даже если он не отмечен «Доставлено»); дальше — «Оплачено (наличные взяты в 1-й день)». */
-export const cashTaken = (d: ReportDelivery) => d.cashEarlier ?? (d.payment_method === 'cash' && !d.firstDay);
-export const PAID_EARLIER = ' (наличные взяты в 1-й день)';
-export const paidLine = (d: ReportDelivery, due: number, money: (n: number) => string) => (due ? `💵 Взять наличными: <b>${money(due)}</b>` : cashTaken(d) ? `✅ Оплачено${PAID_EARLIER}` : '✅ Оплачено');
+const ddmm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+/** Наличные по заказу ещё не получены (первый день не отмечен «Доставлено»). */
+export const cashPendingOf = (d: ReportDelivery) => d.cashPending ?? (d.payment_method === 'cash' && d.firstDay);
+/**
+ * Строка оплаты точки. Наличные берём, пока первый день заказа не отмечен «Доставлено» (деньги не получены): в первый день — «💵 Взять наличными: N ₫»,
+ * в следующие дни, если первый так и не отмечен, — «💵 Взять наличными: N ₫ (не оплачено с ДД.ММ)». После отметки первого дня — «✅ Оплачено».
+ */
+export const paidLine = (d: ReportDelivery, due: number, money: (n: number) => string) => (due ? `💵 Взять наличными: <b>${money(due)}</b>${d.cashSince ? ` (не оплачено с ${ddmm(d.cashSince)})` : ''}` : '✅ Оплачено');
 
-export const cashDue = (d: ReportDelivery) => (d.status === 'delivered' ? 0 : d.cashOverride ?? (d.payment_method === 'cash' && d.firstDay ? d.total : 0));
+export const cashDue = (d: ReportDelivery) => (d.status === 'delivered' ? 0 : d.cashOverride ?? (cashPendingOf(d) ? d.total : 0));
 
 const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.map((x) => (x ?? '').trim()).filter(Boolean))];
 
@@ -84,7 +90,8 @@ export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
       sub: null,
       dayIds: g.flatMap((d) => d.dayIds ?? []),
       markedAt: g.every((d) => d.markedAt) ? (g[0].markedAt ?? null) : null,
-      cashEarlier: g.some((d) => cashTaken(d)),
+      cashPending: g.some((d) => cashPendingOf(d)),
+      cashSince: g.map((d) => (cashDue(d) > 0 ? d.cashSince : null)).filter(Boolean).sort()[0] ?? null,
       lang: g.find((d) => d.lang)?.lang ?? null,
     };
   });

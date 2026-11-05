@@ -9,7 +9,7 @@ const SETTING_KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capa
 export async function loadDayRows(db: any, date: string): Promise<{ error: string | null; rows: any[] }> {
   const { data, error } = await db
     .from('order_days')
-    .select('id, qty, delivered, courier_marked_at, orders!inner(id, order_number, type, status, telegram, phone, address, place_id, lat, lng, hotel, comment, payment_method, total, cutlery, lang, order_days(delivery_date))')
+    .select('id, qty, delivered, courier_marked_at, orders!inner(id, order_number, type, status, telegram, phone, address, place_id, lat, lng, hotel, comment, payment_method, total, cutlery, lang, order_days(delivery_date, delivered))')
     .eq('delivery_date', date)
     .in('orders.status', ['new', 'confirmed', 'delivered']);
   if (error) return { error: error.message as string, rows: [] };
@@ -37,7 +37,10 @@ export async function loadDayPlan(db: any, date: string, rows: any[], couriersOv
   const override: RouteOverride | null = ov ? { couriers: ov.couriers === 2 ? 2 : 1, assign: ov.assign ?? {} } : null;
   const deliveries: ReportDelivery[] = rows.map((r: any) => {
     const o = r.orders;
-    const all: string[] = [...o.order_days].map((d: any) => d.delivery_date).sort();
+    const sortedDays = [...o.order_days].sort((a: any, b: any) => String(a.delivery_date).localeCompare(String(b.delivery_date)));
+    const all: string[] = sortedDays.map((d: any) => d.delivery_date);
+    // наличные не получены, пока первый день заказа не отмечен «Доставлено» админом
+    const cashPending = o.payment_method === 'cash' && !sortedDays[0]?.delivered;
     return {
       order_number: o.order_number,
       telegram: o.telegram,
@@ -55,6 +58,8 @@ export async function loadDayPlan(db: any, date: string, rows: any[], couriersOv
       status: r.delivered || o.status === 'delivered' ? 'delivered' : o.status === 'new' ? 'new' : 'confirmed',
       sub: o.type === 'subscription' ? { total: all.length, dayNo: all.indexOf(date) + 1 } : null,
       firstDay: all[0] === date,
+      cashPending,
+      cashSince: cashPending && all[0] !== date ? all[0] : null,
       dayIds: r.id != null ? [Number(r.id)] : [],
       markedAt: r.courier_marked_at ?? null,
       lang: o.lang ?? null,

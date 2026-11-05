@@ -41,18 +41,21 @@ interface Row {
     payment_method: 'qr' | 'cash' | 'other';
     total: number;
     cutlery: boolean;
-    order_days: { delivery_date: string }[];
+    order_days: { delivery_date: string; delivered?: boolean }[];
   };
 }
 
-/** Наличные берём в ПЕРВЫЙ день доставки заказа, дальше — «оплачено». */
-const cashDue = (r: Row) =>
-  r.orders.payment_method === 'cash' && r.delivery_date === [...r.orders.order_days].map((d) => d.delivery_date).sort()[0]
-    ? r.orders.total
-    : 0;
-
-/** Наличные уже взяты в первый день заказа: сегодня «оплачено (наличные взяты в 1-й день)». */
-const cashTakenEarlier = (r: Row) => r.orders.payment_method === 'cash' && r.delivery_date !== [...r.orders.order_days].map((d) => d.delivery_date).sort()[0];
+/** Первый день заказа (по датам дней). */
+const firstDayOf = (r: Row) => [...r.orders.order_days].sort((a, b) => a.delivery_date.localeCompare(b.delivery_date))[0];
+/**
+ * Наличные берём, пока первый день заказа не отмечен «Доставлено» (деньги не получены): в первый день — «Взять наличными», в следующие, если первый не отмечен,
+ * — то же с пометкой «(не оплачено с ДД.ММ)»; после отметки первого дня — «оплачено».
+ */
+const cashDue = (r: Row) => (r.orders.payment_method === 'cash' && !firstDayOf(r)?.delivered ? r.orders.total : 0);
+const cashSinceLabel = (r: Row) => {
+  const f = firstDayOf(r);
+  return r.orders.payment_method === 'cash' && f && !f.delivered && f.delivery_date !== r.delivery_date ? ` (не оплачено с ${f.delivery_date.slice(8, 10)}.${f.delivery_date.slice(5, 7)})` : '';
+};
 
 /** Номер этого дня среди дней заказа. */
 const dayNo = (r: Row) => [...r.orders.order_days].map((d) => d.delivery_date).sort().indexOf(r.delivery_date) + 1;
@@ -93,7 +96,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, courier_marked_at, eta_minutes, eta_at, courier_note, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date))',
+        'id, delivery_date, qty, delivered, courier_marked_at, eta_minutes, eta_at, courier_note, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date, delivered))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed', 'delivered']) // доставленные остаются в плане (серыми), чтобы рейсы не «плыли» в течение дня
@@ -197,7 +200,7 @@ export function CourierTab() {
       ...(r.orders.type === 'subscription' ? [`   ${subLabel(r.orders.order_days.length)}, день ${dayNo(r)} из ${r.orders.order_days.length}`] : []),
       `   ПОРЦИЙ: ${r.qty}`,
       ...(r.orders.cutlery ? ['   ПРИБОРЫ: ДА'] : []),
-      `   ${r.delivered ? 'Доставлено' : due ? `Взять наличными: ${fmtMoney(due)}` : cashTakenEarlier(r) ? 'Оплачено (наличные взяты в 1-й день)' : 'Оплачено'}`,
+      `   ${r.delivered ? 'Доставлено' : due ? `Взять наличными: ${fmtMoney(due)}${cashSinceLabel(r)}` : 'Оплачено'}`,
       ...(r.orders.comment ? [`   Комментарий: ${r.orders.comment}`] : []),
       '',
     ];
@@ -328,7 +331,7 @@ export function CourierTab() {
           <div className="flex-none text-right">
             <div className="text-[24px] font-extrabold leading-none">{r.qty} <span className="text-[15px]">{plural(r.qty)}</span></div>
             {r.orders.cutlery && <div className="mt-1.5 inline-block rounded-full bg-accent px-2.5 py-1 text-[13px] font-extrabold text-white">🍴 Приборы</div>}
-            <div className={`text-sm font-bold ${due && !r.delivered ? 'text-accent' : 'text-success'}`}>{r.delivered ? 'доставлено' : due ? `к получению: ${fmtMoney(due)}` : cashTakenEarlier(r) ? 'оплачено (наличные взяты в 1-й день)' : 'оплачено'}</div>
+            <div className={`text-sm font-bold ${due && !r.delivered ? 'text-accent' : 'text-success'}`}>{r.delivered ? 'доставлено' : due ? `к получению: ${fmtMoney(due)}${cashSinceLabel(r)}` : 'оплачено'}</div>
             {r.eta_minutes && r.eta_at && !r.delivered && <div className="text-sm font-bold text-ink-2">⏱ обещал через {r.eta_minutes} мин ({markTime(new Date(new Date(r.eta_at).getTime() + r.eta_minutes * 60_000).toISOString())})</div>}
             {r.courier_marked_at && !r.delivered && <div className="text-sm font-extrabold text-accent">🚴 Курьер отметил {markTime(r.courier_marked_at)}</div>}
           </div>

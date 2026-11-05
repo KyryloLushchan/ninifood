@@ -2,7 +2,7 @@
 // Тот же план, что у ночного отчёта (`planDay` по данным `day-plan.ts`). Кнопка курьера пишет только отметку (order_days.courier_marked_at) — статус заказа меняет админ.
 // Сообщения без цен и сумм заказа; «Взять наличными» — сумма к получению у курьера. Язык русский.
 import { nowDanang } from './dates.ts';
-import { cashDue, handle, hrefAmp, kmText, mergeSameClient, PAID_EARLIER, paidLine, portions, tripLinks, type ReportDelivery } from './courier-report.ts';
+import { cashDue, handle, hrefAmp, kmText, mergeSameClient, paidLine, portions, tripLinks, type ReportDelivery } from './courier-report.ts';
 import { loadDayPlan, loadDayRows } from './day-plan.ts';
 import { mapUrl, money, phoneText } from './order-text.ts';
 import { labelRu } from './dates.ts';
@@ -110,7 +110,7 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
           const label = list.length > 1 ? `${stopNo}.${k + 1}` : String(stopNo);
           const sb = stopBody(d);
           const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
-          stops.push({ key: dayIds.join(','), body: sb.body.replace(PAID_EARLIER, '') + '|' + sb.head, head: sb.head, eta: ts.arriveMin, dayIds, label, title: fullText(label, sb, ts.arriveMin), lang: ln(d.lang), nick: nickOf(d.telegram) });
+          stops.push({ key: dayIds.join(','), body: sb.body + '|' + sb.head, head: sb.head, eta: ts.arriveMin, dayIds, label, title: fullText(label, sb, ts.arriveMin), lang: ln(d.lang), nick: nickOf(d.telegram) });
         });
       });
       const prefix = plan.couriers.length > 1 ? `🛵 Курьер ${ci + 1} · ` : '';
@@ -124,7 +124,7 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
   const noPoint: StopMsg[] = mergeSameClient(plan.noPoint.map(norm)).map((d) => {
     const sb = stopBody(d);
     const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
-    return { key: dayIds.join(','), body: sb.body.replace(PAID_EARLIER, '') + '|' + sb.head, head: sb.head, eta: 0, dayIds, label: '⚠️', title: `⚠️ <b>Без точки на карте</b> · ${sb.head}\n${sb.body}`, lang: ln(d.lang), nick: nickOf(d.telegram) };
+    return { key: dayIds.join(','), body: sb.body + '|' + sb.head, head: sb.head, eta: 0, dayIds, label: '⚠️', title: `⚠️ <b>Без точки на карте</b> · ${sb.head}\n${sb.body}`, lang: ln(d.lang), nick: nickOf(d.telegram) };
   });
   const stopsTotal = trips.reduce((n, t) => n + t.stops.length, 0);
   const header = `🚚 <b>Маршрут на ${labelRu(date)}</b> — рейсов: ${trips.length} · адресов: ${stopsTotal + noPoint.length} · порций: ${[...trips.flatMap((t) => t.stops), ...noPoint].reduce((n, s) => n + (Number(/🍽 (\d+)/.exec(s.body)?.[1]) || 0), 0)}${warnings.length ? `\n${warnings.join('\n')}` : ''}`;
