@@ -23,8 +23,6 @@ interface Row {
   qty: number;
   delivered: boolean;
   courier_marked_at: string | null;
-  eta_minutes: number | null;
-  eta_at: string | null;
   courier_note: string | null;
   orders: {
     id: string;
@@ -96,7 +94,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, courier_marked_at, eta_minutes, eta_at, courier_note, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date, delivered))',
+        'id, delivery_date, qty, delivered, courier_marked_at, courier_note, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date, delivered))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed', 'delivered']) // доставленные остаются в плане (серыми), чтобы рейсы не «плыли» в течение дня
@@ -332,7 +330,6 @@ export function CourierTab() {
             <div className="text-[24px] font-extrabold leading-none">{r.qty} <span className="text-[15px]">{plural(r.qty)}</span></div>
             {r.orders.cutlery && <div className="mt-1.5 inline-block rounded-full bg-accent px-2.5 py-1 text-[13px] font-extrabold text-white">🍴 Приборы</div>}
             <div className={`text-sm font-bold ${due && !r.delivered ? 'text-accent' : 'text-success'}`}>{r.delivered ? 'доставлено' : due ? `к получению: ${fmtMoney(due)}${cashSinceLabel(r)}` : 'оплачено'}</div>
-            {r.eta_minutes && r.eta_at && !r.delivered && <div className="text-sm font-bold text-ink-2">⏱ обещал через {r.eta_minutes} мин ({markTime(new Date(new Date(r.eta_at).getTime() + r.eta_minutes * 60_000).toISOString())})</div>}
             {r.courier_marked_at && !r.delivered && <div className="text-sm font-extrabold text-accent">🚴 Курьер отметил {markTime(r.courier_marked_at)}</div>}
           </div>
         </div>

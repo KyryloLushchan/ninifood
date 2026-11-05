@@ -130,59 +130,41 @@ await cb(`u:${row.id}`, 11, row);
 ok(store.order_days.every((d) => !d.courier_marked_at) && tgCalls.filter((c) => c.method === 'editMessageText').pop()!.body.reply_markup.inline_keyboard[0][0].text === '✅ Доставлено', 'админ (id из ADMIN_TG_IDS) снял отметку: сообщение вернулось с кнопкой «✅ Доставлено»');
 await cb(`d:${row.id}`, 777, row);
 
-console.log('\n── «Через сколько буду» и сообщения клиенту ──');
+console.log('\n── «Через сколько буду» (URL-кнопка) и «Заказ прибыл» ──');
 const clientRow = (nick: string) => store.courier_route_msgs.find((r) => r.kind === 'stop' && r.text.includes(nick))!;
 const btns = (m: any) => (m.reply_markup?.inline_keyboard ?? []).flat();
 const msgOf = (nick: string) => sends().map((c) => c.body).find((b) => b.text.includes(nick) && b.reply_markup);
 const m0 = msgOf('@east1')!;
 const b0 = btns(m0);
 console.log('   кнопки точки:', b0.map((b: any) => b.text + (b.url ? ' [url]' : '')).join(' | '));
-ok(b0.map((b: any) => b.text).join('|') === '✅ Доставлено|💬 Заказ прибыл|⏱ Через сколько буду|📝 Комментарий', 'кнопки: [✅ Доставлено][💬 Заказ прибыл] / [⏱ Через сколько буду] / [📝 Комментарий]');
+ok(b0.map((b: any) => b.text).join('|') === '✅ Доставлено|💬 Заказ прибыл|⏱ Через сколько буду|📝 Комментарий' && m0.reply_markup.inline_keyboard.length === 3, 'кнопки: [✅ Доставлено][💬 Заказ прибыл] / [⏱ Через сколько буду] / [📝 Комментарий]');
 const arr = b0.find((b: any) => b.text === '💬 Заказ прибыл');
-ok(arr.url.startsWith('https://t.me/east1?text=') && decodeURIComponent(arr.url.split('?text=')[1]) === 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛', '«Заказ прибыл» без ETA — URL t.me/ник?text= с ПОЛНЫМ текстом (RU)');
-const eRow = clientRow('@east1');
-const east1Hook = (a: string, from = 777) => cb(`${a}:${eRow.id}`, from, eRow);
-const lastEdit = () => tgCalls.filter((c) => c.method === 'editMessageReplyMarkup' || c.method === 'editMessageText').pop()!;
-const before2 = tgCalls.length;
-await east1Hook('e', 555);
-ok(answers().pop() === 'Нет прав' && tgCalls.length === before2 + 1, 'чужой id на «⏱ Через сколько буду»: «Нет прав», ничего не меняется');
-await east1Hook('e');
-let kb = lastEdit().body.reply_markup.inline_keyboard;
-ok(lastEdit().method === 'editMessageReplyMarkup' && kb[0].map((b: any) => b.text).join('|') === '−1|5 мин|+1' && kb[1].map((b: any) => b.text).join('|') === '✅ Ок|✖️ Отмена', 'выбор: [−1][5 мин][+1] / [✅ Ок][✖️ Отмена], старт 5');
-await east1Hook('ep'); await east1Hook('ep'); await east1Hook('em');
-ok(lastEdit().body.reply_markup.inline_keyboard[0][1].text === '6 мин', 'шаг 1: +1 +1 −1 → 6 мин');
-for (let i = 0; i < 70; i++) await east1Hook('ep');
-ok(lastEdit().body.reply_markup.inline_keyboard[0][1].text === '60 мин' && answers().pop() === 'Максимум 60 мин', 'верхняя граница 60');
-for (let i = 0; i < 70; i++) await east1Hook('em');
-ok(lastEdit().body.reply_markup.inline_keyboard[0][1].text === '1 мин' && answers().pop() === 'Минимум 1 мин', 'нижняя граница 1');
-await east1Hook('ex');
-kb = lastEdit().body.reply_markup.inline_keyboard;
-ok(kb[0].map((b: any) => b.text).join('|') === '✅ Доставлено|💬 Заказ прибыл' && kb[1][0].text === '⏱ Через сколько буду' && !clientRow('@east1').eta_minutes, '«✖️ Отмена»: исходные кнопки, ETA не сохранено');
-await east1Hook('e'); for (let i = 0; i < 4; i++) await east1Hook('ep'); // 9 мин
-await east1Hook('eo');
-const rrE = clientRow('@east1');
-ok(rrE.eta_minutes === 9 && !!rrE.eta_at && store.order_days.filter((d) => d.eta_minutes === 9).length >= 1, 'после «✅ Ок»: eta_minutes/eta_at запомнены (в точке и в order_days)');
-const eo = lastEdit().body; kb = eo.reply_markup.inline_keyboard;
-const send9 = btns(eo.reply_markup ? { reply_markup: eo.reply_markup } : {}).find((b: any) => b.text === '💬 Отправить клиенту (9 мин)');
-ok(!!send9 && decodeURIComponent(send9.url.split('?text=')[1]) === 'Добрый день! 👋 Курьер NiniFood будет у вас через 9 мин 🛵💨' && /Обещал клиенту: через 9 мин \(\d\d:\d\d\)/.test(eo.text), 'под сообщением «💬 Отправить клиенту (9 мин)» с готовым текстом ETA; в тексте точки — «Обещал клиенту: через 9 мин (ЧЧ:ММ)»');
-const arr2 = btns(eo.reply_markup ? { reply_markup: eo.reply_markup } : {}).find((b: any) => b.text === '💬 Заказ прибыл');
-ok(decodeURIComponent(arr2.url.split('?text=')[1]) === 'Ваш заказ прибыл 🍲✨ Приятного аппетита! 😋💛', 'после ETA кнопка «Заказ прибыл» — КОРОТКИЙ текст без приветствия');
-// языки
-const langs = [['ru', 'Добрый день! 👋 Курьер NiniFood будет у вас через 7 мин 🛵💨', 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛', 'Ваш заказ прибыл 🍲✨ Приятного аппетита! 😋💛'], ['ua', "Добрий день! 👋 Кур'єр NiniFood буде у вас через 7 хв 🛵💨", 'Добрий день! 👋 Ваше замовлення прибуло 🛵🍲 NiniFood бажає вам смачного! 😋💛', 'Ваше замовлення прибуло 🍲✨ Смачного! 😋💛'], ['en', 'Good afternoon! 👋 Your NiniFood courier will be there in 7 min 🛵💨', 'Good afternoon! 👋 Your order has arrived 🛵🍲 NiniFood wishes you a delicious meal! 😋💛', 'Your order has arrived 🍲✨ Enjoy your meal! 😋💛'], ['vi', 'Xin chào! 👋 Shipper NiniFood sẽ đến trong 7 phút nữa 🛵💨', 'Xin chào! 👋 Đơn hàng của bạn đã đến 🛵🍲 NiniFood chúc bạn ngon miệng! 😋💛', 'Đơn hàng của bạn đã đến 🍲✨ Chúc bạn ngon miệng! 😋💛']] as const;
+const etaB = b0.find((b: any) => b.text === '⏱ Через сколько буду');
+ok(arr.url.startsWith('https://t.me/east1?text=') && decodeURIComponent(arr.url.split('?text=')[1]) === 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛', '«Заказ прибыл» — URL t.me/ник?text= с ПОЛНЫМ текстом (RU)');
+ok(etaB.url.startsWith('https://t.me/east1?text=') && !etaB.callback_data && decodeURIComponent(etaB.url.split('?text=')[1]) === 'Добрый день! 👋 Курьер NiniFood будет у вас через  мин 🛵💨', '«⏱ Через сколько буду» — одна URL-кнопка (не callback) с шаблоном «через  мин» (место для минут)');
+ok(!b0.some((b: any) => /^(e|em|ep|ek|eo|ex):/.test(b.callback_data ?? '')), 'выбора минут (−1/+1/Ок/Отмена) больше нет');
 const { etaText, arrivedText, rowKeyboard, nickOf } = await import(`${ROOT}/supabase/functions/_shared/courier-route.ts`);
-ok(langs.every(([l, e, f, sh]) => etaText(l, 7) === e && arrivedText(l, false) === f && arrivedText(l, true) === sh) && etaText(null, 7) === langs[0][1], 'тексты ETA / прибыл полный / прибыл короткий на RU, UA, EN, VI совпадают с ТЗ; нет языка — RU');
-console.log('   примеры (ссылки):'); for (const [l] of langs) console.log('    ' + l + ': ' + rowKeyboard({ id: 1, nick: 'client_x', lang: l, eta_minutes: 7, marked_at: null }).inline_keyboard[1][0].url.slice(0, 95) + '…');
-ok(rowKeyboard({ id: 1, nick: 'a_b_c', lang: 'vi', eta_minutes: null, marked_at: null }).inline_keyboard[1][0].callback_data === 'e:1', 'без ETA — кнопка «⏱ Через сколько буду»');
+const langs = [
+  ['ru', 'Добрый день! 👋 Курьер NiniFood будет у вас через  мин 🛵💨', 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛'],
+  ['ua', "Добрий день! 👋 Кур'єр NiniFood буде у вас через  хв 🛵💨", 'Добрий день! 👋 Ваше замовлення прибуло 🛵🍲 NiniFood бажає вам смачного! 😋💛'],
+  ['en', 'Good afternoon! 👋 Your NiniFood courier will be there in  min 🛵💨', 'Good afternoon! 👋 Your order has arrived 🛵🍲 NiniFood wishes you a delicious meal! 😋💛'],
+  ['vi', 'Xin chào! 👋 Shipper NiniFood sẽ đến trong  phút nữa 🛵💨', 'Xin chào! 👋 Đơn hàng của bạn đã đến 🛵🍲 NiniFood chúc bạn ngon miệng! 😋💛'],
+] as const;
+ok(langs.every(([l, e, f]) => etaText(l) === e && arrivedText(l) === f) && etaText(null) === langs[0][1] && arrivedText(null) === langs[0][2], 'тексты ETA-шаблона и «прибыл» (всегда полный) на RU, UA, EN, VI совпадают с ТЗ; нет языка — RU');
+for (const [l] of langs) { const k = rowKeyboard({ id: 1, nick: 'client_x', lang: l, marked_at: null }).inline_keyboard; console.log(`    ${l}: ${decodeURIComponent(k[1][0].url.split('?text=')[1])}`); }
+ok(rowKeyboard({ id: 1, nick: 'client_x', lang: 'vi', marked_at: null }).inline_keyboard.flat().every((b: any) => !/Отправить клиенту|Изменить/.test(b.text)), 'коротких текстов и кнопки «Отправить клиенту (N мин)» нет');
+// старые кнопки (e:/eo: и т.д.) в уже опубликованных сообщениях больше не обрабатываются
+const eRow = clientRow('@east1');
+const sNow = JSON.stringify(store.order_days.map((d) => [d.id, d.courier_marked_at, d.eta_minutes]));
+for (const a of ['e', 'em', 'ep', 'eo', 'ex']) await cb(`${a}:${eRow.id}`, 777, eRow);
+ok(answers().slice(-5).every((t) => t === 'Нет доступа') && JSON.stringify(store.order_days.map((d) => [d.id, d.courier_marked_at, d.eta_minutes])) === sNow, 'старые callback-кнопки ETA (e/em/ep/eo/ex) не работают и ничего не меняют');
 // нет ника
 ok(nickOf('@client_x') === 'client_x' && nickOf('https://t.me/client_x') === 'client_x' && nickOf('+84901234567') === null && nickOf('ab') === null, 'ник: @x / t.me/x → x; телефон и короткое — не ник');
 const nn = addOrder('@', null, {});
 nn.order.telegram = '+84 90 000 00 00';
-const nnPublish = await syncRoute(client, DATE);
+await syncRoute(client, DATE);
 const noNickMsg = sends().map((c) => c.body).find((b) => b.reply_markup && b.text.includes('нет Telegram'));
-ok(noNickMsg && noNickMsg.text.includes('⚠️ нет Telegram — позвонить') && btns(noNickMsg).map((b: any) => b.text).join('|') === '✅ Доставлено|📝 Комментарий', 'у клиента нет ника: пометка «⚠️ нет Telegram — позвонить», кнопок сообщений нет (только «Доставлено»)');
-const nnRow = store.courier_route_msgs.find((r) => r.kind === 'stop' && r.text.includes('нет Telegram') && r.status === 'active')!;
-await cb(`e:${nnRow.id}`, 777, nnRow);
-ok(answers().pop() === 'Нет Telegram — позвонить клиенту', 'ETA без ника: «Нет Telegram — позвонить клиенту»');
+ok(noNickMsg && noNickMsg.text.includes('⚠️ нет Telegram — позвонить') && btns(noNickMsg).map((b: any) => b.text).join('|') === '✅ Доставлено|📝 Комментарий', 'у клиента нет ника: пометка «⚠️ нет Telegram — позвонить», кнопок сообщений нет (только «Доставлено» и «Комментарий»)');
 // запасной режим: Telegram не принял URL-кнопку
 const orig = (globalThis as any).fetch;
 let failOnce = true;
@@ -192,13 +174,26 @@ let failOnce = true;
   return orig(url, init);
 };
 const eRow0 = clientRow('@east0');
-await cb(`ex:${eRow0.id}`, 777, eRow0);
-const fb = tgCalls.filter((c) => c.method === 'editMessageReplyMarkup').pop()!.body.reply_markup.inline_keyboard.flat().map((b: any) => b.callback_data);
-ok(fb.includes(`a:${eRow0.id}`) && !failOnce, 'Telegram отклонил URL-кнопку (BUTTON_URL_INVALID): кнопки перерисованы в запасном режиме (текст приходит ответом)');
-await cb(`a:${eRow0.id}`, 777, eRow0);
-const copy = tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body;
-ok(/<code>Добрый день! 👋 Ваш заказ прибыл/.test(copy.text) && copy.reply_to_message_id === eRow0.message_id, 'запасной режим: текст клиенту приходит ответом в <code> — копируется одним нажатием');
+const { refreshKeyboards } = await import(`${ROOT}/supabase/functions/_shared/courier-route.ts`);
+const nF = tgCalls.length;
+await refreshKeyboards(client, [DATE]);
+const fbm = tgCalls.slice(nF).filter((c) => c.method === 'editMessageReplyMarkup').flatMap((c) => c.body.reply_markup.inline_keyboard.flat()).map((b: any) => b.callback_data);
+ok(fbm.some((d: string) => /^a:\d+$/.test(d)) && !failOnce, 'Telegram отклонил URL-кнопку (BUTTON_URL_INVALID): кнопки перерисованы в запасном режиме (a:/s: — текст приходит ответом)');
 (globalThis as any).fetch = orig;
+await cb(`a:${eRow0.id}`, 777, eRow0);
+ok(/<code>Добрый день! 👋 Ваш заказ прибыл/.test(tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body.text), 'запасной режим «Заказ прибыл»: полный текст ответом в <code>');
+await cb(`s:${eRow0.id}`, 777, eRow0);
+ok(/<code>Добрый день! 👋 Курьер NiniFood будет у вас через  мин 🛵💨<\/code>/.test(tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body.text), 'запасной режим «Через сколько буду»: шаблон ответом в <code>');
+
+console.log('\n── обновление уже опубликованных сообщений ──');
+{
+  const nE = tgCalls.length;
+  const rr: any = await refreshKeyboards(client, [DATE]);
+  const eds = tgCalls.slice(nE).filter((c) => c.method === 'editMessageReplyMarkup');
+  const active = store.courier_route_msgs.filter((r) => r.kind === 'stop' && r.status === 'active' && !r.is_test && r.message_id).length;
+  ok(rr.rows === active && eds.length === active, `refresh: кнопки перерисованы у всех активных точек (${eds.length})`);
+  ok(eds.every((c) => !btns({ reply_markup: c.body.reply_markup }).some((b: any) => /^(e|em|ep|eo|ex):/.test(b.callback_data ?? ''))), 'в новых кнопках нет callback-ов выбора минут');
+}
 
 console.log('\n── «📝 Комментарий» (админ → курьер) ──');
 const upd = (message: any) => hook(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wh' }, body: JSON.stringify({ message }) }));
@@ -259,23 +254,23 @@ console.log('\n── доступ по Telegram id (courier_tg_ids / courier_no
   const logN = store.courier_button_log.length;
   const row = clientRow('@east2');
   const dayId = row.day_ids[0];
-  const allActions = ['d', 'u', 'e', 'em', 'ep', 'ek', 'eo', 'ex', 'n'];
+  const allActions = ['d', 'u', 'a', 's', 'n'];
   // посторонний id: ни одна кнопка
   const before = JSON.stringify(store.order_days.map((d) => [d.id, d.courier_marked_at, d.eta_minutes]));
   for (const a of allActions) await cb(`${a}:${row.id}`, 555, row);
-  ok(answers().slice(-allActions.length).every((t) => t === 'Нет прав') && JSON.stringify(store.order_days.map((d) => [d.id, d.courier_marked_at, d.eta_minutes])) === before, 'посторонний id (555): все 9 кнопок — «Нет прав», в БД ничего не меняется');
+  ok(answers().slice(-allActions.length).every((t) => t === 'Нет прав') && JSON.stringify(store.order_days.map((d) => [d.id, d.courier_marked_at, d.eta_minutes])) === before, 'посторонний id (555): все 5 кнопок — «Нет прав», в БД ничего не меняется');
   // id только в courier_tg_ids (курьер): все, кроме комментария
-  await cb(`e:${row.id}`, 777, row);
-  ok(answers().pop() === '' && !answers().includes('Нет прав') || true, 'курьер (id в courier_tg_ids): ETA доступна');
+  await cb(`d:${row.id}`, 777, row);
+  ok(store.order_days.find((d) => d.id === dayId)!.courier_marked_by === '@u777', 'курьер (id в courier_tg_ids): «✅ Доставлено» доступна');
+  await cb(`u:${row.id}`, 777, row);
   await cb(`n:${row.id}`, 777, row);
   ok(answers().pop() === 'Нет прав', 'курьер (только courier_tg_ids): «📝 Комментарий» — «Нет прав»');
-  await cb(`ex:${row.id}`, 777, row);
   // id из courier_note_ids (полный доступ): все кнопки, включая комментарий
   await cb(`d:${row.id}`, 888, row);
   ok(store.order_days.find((d) => d.id === dayId)!.courier_marked_at !== null && store.order_days.find((d) => d.id === dayId)!.courier_marked_by === '@u888', 'id 888 (courier_note_ids): «✅ Доставлено» работает (отметка от @u888)');
   await cb(`u:${row.id}`, 888, row);
-  await cb(`e:${row.id}`, 888, row); await cb(`ep:${row.id}`, 888, row); await cb(`eo:${row.id}`, 888, row);
-  ok(store.order_days.find((d) => d.id === dayId)!.eta_minutes === 6, 'id 888: «⏱ Через сколько буду» (+1, Ок) работает: 6 мин');
+  await cb(`a:${row.id}`, 888, row);
+  ok(/Ваш заказ прибыл/.test(tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body.text), 'id 888: «Заказ прибыл» (запасной режим) работает');
   await cb(`n:${row.id}`, 888, row);
   const pr = tgCalls.filter((c) => c.method === 'sendMessage').pop()!.body;
   ok(pr.reply_markup?.force_reply === true && /tg:\/\/user\?id=888/.test(pr.text), 'id 888: «📝 Комментарий» — бот просит комментарий (адресно ему)');
@@ -289,7 +284,7 @@ console.log('\n── доступ по Telegram id (courier_tg_ids / courier_no
   await hook(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': 'wh' }, body: JSON.stringify({ callback_query: { id: 'q9', from: { id: 888, username: 'u888' }, data: 'c:NF-9001', message: { chat: { id: -100 }, message_id: 5 } } }) }));
   ok(answers().pop() === 'Нет доступа' && store.orders.find((o) => o.id === 'oX')!.status === before2, 'права в Orders не затронуты: id 888 на «✅ Подтвердить» — «Нет доступа»');
   const lg = store.courier_button_log.slice(logN);
-  ok(lg.length >= 15 && lg.filter((x) => !x.allowed).length >= 9 && lg.some((x) => x.user_id === 888 && x.allowed && x.action === 'd'), `журнал нажатий courier_button_log: ${lg.length} записей (кто, действие, разрешено, результат)`);
+  ok(lg.length >= 10 && lg.filter((x) => !x.allowed).length >= 5 && lg.some((x) => x.user_id === 888 && x.allowed && x.action === 'd'), `журнал нажатий courier_button_log: ${lg.length} записей (кто, действие, разрешено, результат)`);
 }
 console.log('\n── изменения после публикации ──');
 const n0 = sends().length;

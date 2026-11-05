@@ -68,8 +68,8 @@ Deno.serve(async (req) => {
     return handlePayroll(cb, pm[1] as 'ok' | 'yes' | 'no', Number(pm[2]), pm[3] ? Number(pm[3]) : null, answer);
   }
 
-  // Кнопки маршрута в группе курьера (d/u — доставлено/отмена, e/em/ep/ek/eo/ex — «Через сколько буду», a/s — запасной режим, n — комментарий): по Telegram id; пишут только отметки курьера, статус заказа не меняют.
-  const cm = /^(d|u|e|em|ep|ek|eo|ex|a|s|n):(\d+)$/.exec(cb.data ?? '');
+  // Кнопки маршрута в группе курьера (d/u — доставлено/отмена, a/s — запасной режим «Заказ прибыл»/«Через сколько буду», n — комментарий): по Telegram id; пишут только отметки курьера, статус заказа не меняют.
+  const cm = /^(d|u|a|s|n):(\d+)$/.exec(cb.data ?? '');
   if (cm) {
     const uid = String(cb.from?.id);
     const rowId = Number(cm[2]);

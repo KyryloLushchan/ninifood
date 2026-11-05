@@ -1,12 +1,13 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
-import { publishRoute, syncRoute } from '../_shared/courier-route.ts';
-import { isSunday, todayISO } from '../_shared/dates.ts';
+import { publishRoute, refreshKeyboards, syncRoute } from '../_shared/courier-route.ts';
+import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
 
 /**
  * Маршрут дня в группе курьера (COURIER_CHAT_ID). Тело: { action: 'sync' | 'publish' | 'republish', date? }.
+ * refresh — перерисовать кнопки уже опубликованных точек (на дату и следующий день) после смены набора кнопок;
  * sync — сверка уже опубликованного маршрута с планом (cron каждые 3 минуты; без опубликованного маршрута ничего не делает);
  * publish — опубликовать, если ещё нет; republish — «❌ Неактуально» на старые сообщения и отправка заново (кнопка в админке, с подтверждением).
  * Доступ: x-cron-secret = CRON_SECRET (pg_cron) ИЛИ JWT админа; viewer и остальные — forbidden.
@@ -25,14 +26,14 @@ Deno.serve(async (req) => {
   }
   if (!allowed) return json({ ok: false, code: 'forbidden' }, 403);
 
-  let action: 'sync' | 'publish' | 'republish' = 'sync';
+  let action: 'sync' | 'publish' | 'republish' | 'refresh' = 'sync';
   let date = todayISO();
   try {
     const b = await req.json();
-    if (b?.action === 'publish' || b?.action === 'republish' || b?.action === 'sync') action = b.action;
+    if (b?.action === 'publish' || b?.action === 'republish' || b?.action === 'sync' || b?.action === 'refresh') action = b.action;
     if (typeof b?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) date = b.date;
   } catch { /* по умолчанию — сверка на сегодня */ }
-  if (isSunday(date)) return json({ ok: true, skipped: 'sunday' });
+  if (action !== 'refresh' && isSunday(date)) return json({ ok: true, skipped: 'sunday' });
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   const warn = async (text: string) => {
@@ -40,6 +41,7 @@ Deno.serve(async (req) => {
   };
   try {
     if (action === 'sync') return json(await syncRoute(db, date));
+    if (action === 'refresh') return json({ ok: true, ...(await refreshKeyboards(db, [date, addDays(date, 1)])) }); // кнопки опубликованных точек на дату и следующий день
     const r = await publishRoute(db, date, action, warn);
     return json(r, r.ok ? 200 : 409);
   } catch (e) {

@@ -45,12 +45,15 @@ export function nickOf(raw: string): string | null {
 }
 type L = 'ru' | 'ua' | 'en' | 'vi';
 const ln = (l?: string | null): L => (l === 'ua' || l === 'en' || l === 'vi' ? l : 'ru');
-/** Тексты клиенту (на языке заказа): ETA, «заказ прибыл» полный (если ETA не было) и короткий (если ETA уже было). */
-const ETA_TXT: Record<L, (n: number) => string> = {
-  ru: (n) => `Добрый день! 👋 Курьер NiniFood будет у вас через ${n} мин 🛵💨`,
-  ua: (n) => `Добрий день! 👋 Кур'єр NiniFood буде у вас через ${n} хв 🛵💨`,
-  en: (n) => `Good afternoon! 👋 Your NiniFood courier will be there in ${n} min 🛵💨`,
-  vi: (n) => `Xin chào! 👋 Shipper NiniFood sẽ đến trong ${n} phút nữa 🛵💨`,
+/**
+ * Тексты клиенту (на языке заказа, нет языка — RU): «Через сколько буду» — шаблон с пустым местом для минут (курьер вписывает сам, два пробела «через  мин»);
+ * «Заказ прибыл» — всегда полный текст с приветствием.
+ */
+const ETA_TXT: Record<L, string> = {
+  ru: 'Добрый день! 👋 Курьер NiniFood будет у вас через  мин 🛵💨',
+  ua: "Добрий день! 👋 Кур'єр NiniFood буде у вас через  хв 🛵💨",
+  en: 'Good afternoon! 👋 Your NiniFood courier will be there in  min 🛵💨',
+  vi: 'Xin chào! 👋 Shipper NiniFood sẽ đến trong  phút nữa 🛵💨',
 };
 const ARRIVED_FULL: Record<L, string> = {
   ru: 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛',
@@ -58,14 +61,8 @@ const ARRIVED_FULL: Record<L, string> = {
   en: 'Good afternoon! 👋 Your order has arrived 🛵🍲 NiniFood wishes you a delicious meal! 😋💛',
   vi: 'Xin chào! 👋 Đơn hàng của bạn đã đến 🛵🍲 NiniFood chúc bạn ngon miệng! 😋💛',
 };
-const ARRIVED_SHORT: Record<L, string> = {
-  ru: 'Ваш заказ прибыл 🍲✨ Приятного аппетита! 😋💛',
-  ua: 'Ваше замовлення прибуло 🍲✨ Смачного! 😋💛',
-  en: 'Your order has arrived 🍲✨ Enjoy your meal! 😋💛',
-  vi: 'Đơn hàng của bạn đã đến 🍲✨ Chúc bạn ngon miệng! 😋💛',
-};
-export const etaText = (lang: string | null | undefined, n: number) => ETA_TXT[ln(lang)](n);
-export const arrivedText = (lang: string | null | undefined, hadEta: boolean) => (hadEta ? ARRIVED_SHORT : ARRIVED_FULL)[ln(lang)];
+export const etaText = (lang: string | null | undefined) => ETA_TXT[ln(lang)];
+export const arrivedText = (lang: string | null | undefined) => ARRIVED_FULL[ln(lang)];
 /** Ссылка в личный чат с клиентом с готовым текстом в поле ввода (документированный формат t.me/<username>?text=…). */
 export const chatUrl = (nick: string, text: string) => `https://t.me/${nick}?text=${encodeURIComponent(text)}`;
 
@@ -131,40 +128,30 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
   return { header, trips, noPoint };
 }
 
-const MIN_ETA = 1;
-const MAX_ETA = 60;
-const DEFAULT_ETA = 5;
 const doneText = (title: string, at: string) => `${title.split('\n')[0]}\n✅ Доставлено курьером · ${at}`;
 
 /** Режим кнопок «клиенту»: url — открывает чат клиента с готовым текстом; copy — запасной (если Telegram не принял URL-кнопку): текст приходит ответом, его копируют. */
 type KMode = 'url' | 'copy';
-type KRow = Pick<Row, 'id' | 'nick' | 'lang' | 'eta_minutes' | 'marked_at'>;
+type KRow = Pick<Row, 'id' | 'nick' | 'lang' | 'marked_at'>;
 
-/** Кнопки точки: [✅ Доставлено][💬 Заказ прибыл] / [⏱ Через сколько буду] либо [💬 Отправить клиенту (N мин)][⏱ Изменить]. Нет ника — только «Доставлено». Отмеченная — «↩️ Отменить». */
+/**
+ * Кнопки точки: [✅ Доставлено][💬 Заказ прибыл] / [⏱ Через сколько буду] / [📝 Комментарий]. «💬» и «⏱» — URL-кнопки в чат клиента с готовым текстом (минуты курьер вписывает сам).
+ * Нет ника — только «Доставлено» и «Комментарий». Отмеченная — «↩️ Отменить» и «Комментарий».
+ */
 export function rowKeyboard(r: KRow, mode: KMode = 'url') {
-  const noteRow = [{ text: '📝 Комментарий', callback_data: `n:${r.id}` }]; // видна всем, работает только у админов
+  const noteRow = [{ text: '📝 Комментарий', callback_data: `n:${r.id}` }]; // видна всем, работает только у id из списков доступа
   if (r.marked_at) return { inline_keyboard: [[{ text: '↩️ Отменить', callback_data: `u:${r.id}` }], noteRow] };
   const first: any[] = [{ text: '✅ Доставлено', callback_data: `d:${r.id}` }];
   const rows: any[][] = [first];
   if (r.nick) {
-    const had = !!r.eta_minutes;
-    first.push(mode === 'url' ? { text: '💬 Заказ прибыл', url: chatUrl(r.nick, arrivedText(r.lang, had)) } : { text: '💬 Заказ прибыл', callback_data: `a:${r.id}` });
-    if (had) rows.push([mode === 'url' ? { text: `💬 Отправить клиенту (${r.eta_minutes} мин)`, url: chatUrl(r.nick, etaText(r.lang, r.eta_minutes!)) } : { text: `💬 Отправить клиенту (${r.eta_minutes} мин)`, callback_data: `s:${r.id}` }, { text: '⏱ Изменить', callback_data: `e:${r.id}` }]);
-    else rows.push([{ text: '⏱ Через сколько буду', callback_data: `e:${r.id}` }]);
+    first.push(mode === 'url' ? { text: '💬 Заказ прибыл', url: chatUrl(r.nick, arrivedText(r.lang)) } : { text: '💬 Заказ прибыл', callback_data: `a:${r.id}` });
+    rows.push([mode === 'url' ? { text: '⏱ Через сколько буду', url: chatUrl(r.nick, etaText(r.lang)) } : { text: '⏱ Через сколько буду', callback_data: `s:${r.id}` }]);
   }
   rows.push(noteRow);
   return { inline_keyboard: rows };
 }
-const pickerKeyboard = (id: number, n: number) => ({
-  inline_keyboard: [
-    [{ text: '−1', callback_data: `em:${id}` }, { text: `${n} мин`, callback_data: `ek:${id}` }, { text: '+1', callback_data: `ep:${id}` }],
-    [{ text: '✅ Ок', callback_data: `eo:${id}` }, { text: '✖️ Отмена', callback_data: `ex:${id}` }],
-  ],
-});
-const hmOf = (iso: string, plusMin = 0) => new Intl.DateTimeFormat('ru-RU', { timeZone: 'Asia/Ho_Chi_Minh', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(new Date(iso).getTime() + plusMin * 60_000));
-/** Текст сообщения точки: основной + строка «обещал клиенту», если курьер выбрал ETA. */
-export const renderText = (r: { text: string; eta_minutes: number | null; eta_at: string | null; note?: string | null }) =>
-  `${r.text}${r.note ? `\n📝 Комментарий: ${esc(r.note)}` : ''}${r.eta_minutes && r.eta_at ? `\n⏱ Обещал клиенту: через ${r.eta_minutes} мин (${hmOf(r.eta_at, r.eta_minutes)})` : ''}`;
+/** Текст сообщения точки: основной + строка комментария админа (если есть). */
+export const renderText = (r: { text: string; note?: string | null }) => `${r.text}${r.note ? `\n📝 Комментарий: ${esc(r.note)}` : ''}`;
 
 /** Отправка с паузой между сообщениями и повтором при лимите Telegram (группа — не больше ~20 сообщений в минуту). */
 async function send(chat: string, method: string, body: Record<string, unknown>): Promise<any> {
@@ -192,9 +179,6 @@ interface Row {
   marked_at: string | null;
   lang: string | null;
   nick: string | null;
-  eta_minutes: number | null;
-  eta_at: string | null;
-  eta_draft: number | null;
   chat_id: number;
   note: string | null;
   note_prompt_id: number | null;
@@ -226,8 +210,8 @@ async function post(db: any, chat: string, date: string, kind: Row['kind'], text
     note = (nd ?? []).map((x: any) => x.courier_note).find(Boolean) ?? null;
   }
   const id = await insertRow(db, { date, kind, trip_no: extra.trip_no ?? null, label: extra.label ?? null, sig: extra.sig ?? null, text, day_ids: extra.day_ids ?? [], status: 'active', chat_id: Number(chat), lang: extra.lang ?? null, nick: extra.nick ?? null, note });
-  const kb = (mode: KMode) => rowKeyboard({ id, nick: extra.nick ?? null, lang: extra.lang ?? null, eta_minutes: null, marked_at: null }, mode);
-  const shown = renderText({ text, eta_minutes: null, eta_at: null, note });
+  const kb = (mode: KMode) => rowKeyboard({ id, nick: extra.nick ?? null, lang: extra.lang ?? null, marked_at: null }, mode);
+  const shown = renderText({ text, note });
   let r = await send(chat, 'sendMessage', { text: shown, parse_mode: 'HTML', disable_web_page_preview: true, ...(withButton ? { reply_markup: kb('url') } : {}) });
   if (!r.ok && withButton && /BUTTON_URL_INVALID|URL_INVALID/i.test(r.description ?? '')) r = await send(chat, 'sendMessage', { text: shown, parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: kb('copy') });
   if (!r.ok) {
@@ -369,8 +353,8 @@ export interface ButtonResult {
 }
 
 /**
- * Кнопки курьера в группе. d — «✅ Доставлено» (только отметка курьера), u — «↩️ Отменить»; e — «⏱ Через сколько буду» (выбор минут), em/ep — −1/+1, ek — число, eo — «✅ Ок» (запомнить ETA),
- * ex — «✖️ Отмена»; a/s — запасной режим (текст клиенту приходит ответом для копирования). Права проверяет вызывающий. mode 'copy' — если Telegram не принял URL-кнопки.
+ * Кнопки курьера в группе. d — «✅ Доставлено» (только отметка курьера), u — «↩️ Отменить»; a/s — запасной режим для «Заказ прибыл» / «Через сколько буду» (текст клиенту приходит ответом для копирования,
+ * если Telegram не принял URL-кнопки). Права проверяет вызывающий.
  */
 export async function courierButton(db: any, action: string, rowId: number, by: string, mode: KMode = 'url'): Promise<ButtonResult> {
   const { data: row } = await db.from('courier_route_msgs').select('*').eq('id', rowId).maybeSingle();
@@ -379,7 +363,6 @@ export async function courierButton(db: any, action: string, rowId: number, by: 
   const chat_id = row.chat_id;
   const message_id = row.message_id;
   const ids = row.day_ids as number[];
-  const markup = (reply_markup: unknown): ButtonEdit => ({ method: 'editMessageReplyMarkup', params: { chat_id, message_id, reply_markup } });
   const full = (r: Row, text: string, reply_markup: unknown): ButtonEdit => ({ method: 'editMessageText', params: { chat_id, message_id, text, reply_markup } });
   const at = nowHM();
 
@@ -396,32 +379,8 @@ export async function courierButton(db: any, action: string, rowId: number, by: 
   }
   if (row.marked_at) return { ok: false, toast: 'Уже отмечено как доставлено' };
   if (!row.nick) return { ok: false, toast: 'Нет Telegram — позвонить клиенту' };
-  if (action === 'e') {
-    const n = Math.min(MAX_ETA, Math.max(MIN_ETA, Number(row.eta_minutes) || DEFAULT_ETA));
-    await db.from('courier_route_msgs').update({ eta_draft: n }).eq('id', rowId);
-    return { ok: true, toast: '', edits: [markup(pickerKeyboard(rowId, n))] };
-  }
-  if (action === 'em' || action === 'ep' || action === 'ek') {
-    const cur = Math.min(MAX_ETA, Math.max(MIN_ETA, Number(row.eta_draft) || DEFAULT_ETA));
-    const n = action === 'em' ? Math.max(MIN_ETA, cur - 1) : action === 'ep' ? Math.min(MAX_ETA, cur + 1) : cur;
-    if (n === cur) return { ok: true, toast: action === 'ek' ? '' : n === MIN_ETA ? 'Минимум 1 мин' : 'Максимум 60 мин' };
-    await db.from('courier_route_msgs').update({ eta_draft: n }).eq('id', rowId);
-    return { ok: true, toast: '', edits: [markup(pickerKeyboard(rowId, n))] };
-  }
-  if (action === 'eo') {
-    const n = Math.min(MAX_ETA, Math.max(MIN_ETA, Number(row.eta_draft) || DEFAULT_ETA));
-    const when = new Date().toISOString();
-    await db.from('courier_route_msgs').update({ eta_minutes: n, eta_at: when, eta_draft: null }).eq('id', rowId);
-    if (ids.length) await db.from('order_days').update({ eta_minutes: n, eta_at: when }).in('id', ids);
-    const next = { ...row, eta_minutes: n, eta_at: when };
-    return { ok: true, toast: `Через ${n} мин — запомнил`, edits: [full(row, renderText(next), rowKeyboard(next, mode))] };
-  }
-  if (action === 'ex') {
-    await db.from('courier_route_msgs').update({ eta_draft: null }).eq('id', rowId);
-    return { ok: true, toast: '', edits: [markup(rowKeyboard(row, mode))] };
-  }
   if (action === 'a' || action === 's') {
-    const text = action === 's' && row.eta_minutes ? etaText(row.lang, row.eta_minutes) : arrivedText(row.lang, !!row.eta_minutes);
+    const text = action === 's' ? etaText(row.lang) : arrivedText(row.lang);
     return { ok: true, toast: 'Текст ниже — скопируйте и отправьте клиенту', edits: [{ method: 'sendMessage', params: { chat_id, text: `Клиенту @${esc(row.nick)}:\n<code>${esc(text)}</code>`, reply_to_message_id: message_id, allow_sending_without_reply: true } }] };
   }
   return { ok: false, toast: 'Некорректная кнопка' };
@@ -524,7 +483,7 @@ export async function sendTestPoints(db: any, nick: string): Promise<{ ids: numb
   const ids: number[] = [];
   const insert = async (kind: Row['kind'], text: string, lang: string | null, withButtons: boolean, label: string | null) => {
     const row = await insertRow(db, { date, kind, label, text, day_ids: [], chat_id: Number(chat), status: 'active', lang, nick: withButtons ? nick : null, is_test: true });
-    const r: any = await send(chat, 'sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true, ...(withButtons ? { reply_markup: rowKeyboard({ id: row, nick, lang, eta_minutes: null, marked_at: null }) } : {}) });
+    const r: any = await send(chat, 'sendMessage', { text, parse_mode: 'HTML', disable_web_page_preview: true, ...(withButtons ? { reply_markup: rowKeyboard({ id: row, nick, lang, marked_at: null }) } : {}) });
     if (!r.ok) throw new Error(`send failed: ${r.description}`);
     await db.from('courier_route_msgs').update({ message_id: r.result.message_id }).eq('id', row);
     ids.push(row);
@@ -556,4 +515,24 @@ export async function cleanupTest(db: any): Promise<{ rows: number; messages: nu
     await db.from('courier_route_msgs').delete().eq('id', r.id);
   }
   return { rows: rows.length, messages, failed };
+}
+
+/** Перерисовать кнопки уже опубликованных точек на даты (после смены набора кнопок): editMessageReplyMarkup по каждой активной точке, без уведомлений. */
+export async function refreshKeyboards(db: any, dates: string[]): Promise<{ rows: number }> {
+  const chat = Deno.env.get('COURIER_CHAT_ID') ?? '';
+  if (!chat) return { rows: 0 };
+  const { data } = await db.from('courier_route_msgs').select('*').in('date', dates).eq('kind', 'stop').eq('status', 'active').eq('is_test', false).order('id');
+  const rows = ((data ?? []) as Row[]).filter((r) => r.message_id);
+  const run = async () => {
+    for (const r of rows) {
+      let res = await send(chat, 'editMessageReplyMarkup', { message_id: r.message_id, reply_markup: rowKeyboard(r) });
+      if (!res.ok && /BUTTON_URL_INVALID|URL_INVALID/i.test(res.description ?? '')) res = await send(chat, 'editMessageReplyMarkup', { message_id: r.message_id, reply_markup: rowKeyboard(r, 'copy') });
+      if (!res.ok && !/not modified/i.test(res.description ?? '')) console.error('refresh keyboard failed:', res.description);
+      await sleep(pace());
+    }
+  };
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt?.waitUntil) rt.waitUntil(run());
+  else await run();
+  return { rows: rows.length };
 }
