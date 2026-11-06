@@ -7,8 +7,3 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 out/
 .visual/
-*.nosync
-.visual
-node_modules
-.next
-out

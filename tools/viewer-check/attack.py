@@ -3,7 +3,7 @@
 import json, subprocess, urllib.request, urllib.error, os, sys, uuid
 SD = os.path.dirname(os.path.abspath(__file__))
 U = 'https://jeeaairmlcpueghttnky.supabase.co'
-AN = [l for l in open('/Users/kyrylolushchan/Desktop/NiNi_food/src/config/supabase.ts').read().split("'") if l.startswith('eyJ')][0]
+AN = [l for l in open('/Users/kyrylolushchan/Developer/NiNi_food/src/config/supabase.ts').read().split("'") if l.startswith('eyJ')][0]
 JWT = open(f'{SD}/viewer_jwt.txt').read().strip()
 UID = json.load(open(f'{SD}/viewer_login.json'))['user']['id']
 
@@ -21,7 +21,7 @@ def call(method, path, body=None, token=JWT, extra=None, raw=None, ctype='applic
 
 def sql(q):
     env = dict(os.environ, SUPABASE_ACCESS_TOKEN=open(os.path.expanduser('~/.ninifood/sb_token')).read().strip(), PATH='/opt/homebrew/bin:' + os.environ['PATH'])
-    out = subprocess.run(['supabase', 'db', 'query', '--linked', q], capture_output=True, text=True, env=env, cwd='/Users/kyrylolushchan/Desktop/NiNi_food').stdout
+    out = subprocess.run(['supabase', 'db', 'query', '--linked', q], capture_output=True, text=True, env=env, cwd='/Users/kyrylolushchan/Developer/NiNi_food').stdout
     j = json.loads(out[out.index('{'):out.rindex('}') + 1]); return j['rows']
 
 TABLES = ['admins','auth_attempts','cash_categories','cash_movements','customer_discounts','customers','menu_dishes','order_attempts','order_days','order_drafts','order_edits','order_surcharges','orders','route_overrides','security_alerts','settings','vip_customers','viewers','courier_pay_days','courier_payouts','courier_pay_log','renewal_links','renewal_attempts']
