@@ -96,7 +96,86 @@ const CLIENT_TEXT: Record<string, string> = {
   en: "Hi! Thanks for being with us this week 💛 Today is the last day of your NiniFood subscription.\nDon't miss out on a home-cooked lunch — renew your subscription 👇",
   vi: 'Xin chào! Cảm ơn bạn đã đồng hành cùng NiniFood tuần này 💛 Hôm nay là ngày cuối cùng của gói đăng ký.\nĐừng bỏ lỡ bữa trưa nhà làm — hãy gia hạn gói nhé 👇',
 };
-export const clientText = (lang?: string | null) => `${CLIENT_TEXT[lang === 'uk' ? 'ua' : (lang ?? '')] ?? CLIENT_TEXT.ru}\n${renewalLink(lang)}`;
+/** Группа отзывов NiniFood — одна константа на все сообщения (продление и «первый разовый»). */
+export const REVIEWS_URL = 'https://t.me/+5WmNqxOYJuJhOWU6';
+const lk = (lang?: string | null): 'ru' | 'ua' | 'en' | 'vi' => (lang === 'ua' || lang === 'uk' ? 'ua' : lang === 'en' ? 'en' : lang === 'vi' ? 'vi' : 'ru');
+const REVIEWS_ASK: Record<'ru' | 'ua' | 'en' | 'vi', string> = {
+  ru: 'Будем рады вашему отзыву 🙏 Присоединяйтесь к нашей группе: ',
+  ua: 'Будемо раді вашому відгуку 🙏 Приєднуйтесь до нашої групи: ',
+  en: "We'd love your feedback 🙏 Join our group: ",
+  vi: 'Rất mong nhận được đánh giá của bạn 🙏 Tham gia nhóm của chúng tôi: ',
+};
+/** Текст продления подписки: приглашение + ссылка + пустая строка и абзац про отзывы. */
+export const clientText = (lang?: string | null) => `${CLIENT_TEXT[lang === 'uk' ? 'ua' : (lang ?? '')] ?? CLIENT_TEXT.ru}\n${renewalLink(lang)}\n\n${REVIEWS_ASK[lk(lang)]}${REVIEWS_URL}`;
+
+/** Цена обеда в подписке по-человечески для языка: 150 000 ₫ (ru/ua), 150,000 ₫ (en), 150.000 ₫ (vi). */
+export const priceText = (lang: string | null | undefined, n: number) => {
+  const g = String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, lk(lang) === 'en' ? ',' : lk(lang) === 'vi' ? '.' : ' ');
+  return `${g} ₫`;
+};
+const FIRST_TXT: Record<'ru' | 'ua' | 'en' | 'vi', (price: string, link: string) => string> = {
+  ru: (p, l) => `Привет! Надеемся, обед NiniFood вам понравился 😋🍲\nХотите домашний обед каждый день без забот? Оформите подписку от 5 дней — всего ${p} за обед 👇\n${l}\n\nПоделитесь впечатлениями в нашей группе отзывов 💬 ${REVIEWS_URL}`,
+  ua: (p, l) => `Привіт! Сподіваємося, обід NiniFood вам сподобався 😋🍲\nХочете домашній обід щодня без клопотів? Оформіть підписку від 5 днів — лише ${p} за обід 👇\n${l}\n\nПоділіться враженнями в нашій групі відгуків 💬 ${REVIEWS_URL}`,
+  en: (p, l) => `Hi! We hope you enjoyed your NiniFood lunch 😋🍲\nWant a home-cooked lunch every day, hassle-free? Get a subscription from 5 days — just ${p} per lunch 👇\n${l}\n\nShare your impressions in our reviews group 💬 ${REVIEWS_URL}`,
+  vi: (p, l) => `Xin chào! Hy vọng bạn đã thích bữa trưa NiniFood 😋🍲\nMuốn có bữa trưa nhà làm mỗi ngày mà không phải lo nghĩ? Đăng ký gói từ 5 ngày — chỉ ${p} mỗi bữa 👇\n${l}\n\nChia sẻ cảm nhận của bạn trong nhóm đánh giá 💬 ${REVIEWS_URL}`,
+};
+/** Текст после ПЕРВОГО разового заказа (язык последнего заказа клиента; нет языка — ru); perLunch — цена обеда в подписке (price_subscription / 5). */
+export const firstSingleText = (lang: string | null | undefined, perLunch: number) => FIRST_TXT[lk(lang)](priceText(lang, perLunch), renewalLink(lang));
+
+export interface AnyOrder {
+  id: string;
+  order_number: string;
+  telegram: string;
+  phone: string | null;
+  customer_id: string | null;
+  created_at: string;
+  lang: string | null;
+  status: string;
+  type: string;
+  days: { delivery_date: string; qty: number }[];
+}
+export interface FirstNotice {
+  nick: string | null;
+  phone: string | null;
+  customer_id: string | null;
+}
+export interface FirstSingle {
+  nick: string;
+  order_number: string;
+  portions: number;
+  lang: string | null;
+  phone: string | null;
+  customer_id: string | null;
+}
+const sameClient = (a: { telegram: string; phone: string | null; customer_id: string | null }, b: { telegram: string; phone: string | null; customer_id: string | null }) =>
+  (!!nickKey(a.telegram) && nickKey(a.telegram) === nickKey(b.telegram)) || (!!a.phone && a.phone === b.phone) || (!!a.customer_id && a.customer_id === b.customer_id);
+
+/**
+ * Клиенты после ПЕРВОГО разового заказа: сегодня доставочный день самого первого заказа клиента (по нику/телефону/аккаунту; отменённые не считаем — all уже без них),
+ * этот заказ разовый и подтверждён/доставлен, у клиента нет других дней доставки после сегодня (в том числе у этого же заказа), и уведомление ему ещё не отправляли (за всё время).
+ */
+export function selectFirstSingle(today: string, all: AnyOrder[], notices: FirstNotice[]): FirstSingle[] {
+  const out: FirstSingle[] = [];
+  const done = new Set<string>();
+  for (const o of all) {
+    if (o.type !== 'single' || !['confirmed', 'delivered'].includes(o.status) || !o.days.some((d) => d.delivery_date === today)) continue;
+    const related = all.filter((x) => x.id === o.id || sameClient(x, o));
+    const first = [...related].sort((a, b) => a.created_at.localeCompare(b.created_at) || byNumber(a, b))[0];
+    if (first.id !== o.id) continue; // это не самый первый заказ клиента
+    if (related.some((x) => x.days.some((d) => d.delivery_date > today))) continue; // есть заказы на ближайшие дни
+    if (notices.some((n) => sameClient({ telegram: n.nick ?? '', phone: n.phone, customer_id: n.customer_id }, o))) continue; // уже отправляли
+    const key = nickKey(o.telegram) || o.phone || o.customer_id || o.id;
+    if (done.has(key)) continue;
+    done.add(key);
+    const lastLang = [...related].sort((a, b) => b.created_at.localeCompare(a.created_at)).find((x) => x.lang)?.lang ?? null;
+    out.push({ nick: o.telegram, order_number: o.order_number, portions: o.days.filter((d) => d.delivery_date === today).reduce((s, d) => s + d.qty, 0) || 1, lang: lastLang, phone: o.phone, customer_id: o.customer_id });
+  }
+  return out.sort(byNumber2);
+}
+const byNumber2 = (a: { order_number: string }, b: { order_number: string }) => a.order_number.localeCompare(b.order_number, 'en', { numeric: true });
+
+/** Сообщение «первый разовый»: первая строка по-русски, дальше текст на языке заказа. */
+export const firstSingleMessage = (e: FirstSingle, perLunch: number) => `🆕 Первый разовый · ${esc(nickText(e.nick))} · ${esc(e.order_number)} — ${e.portions} ${portionsWord}\n\n${esc(firstSingleText(e.lang, perLunch))}`;
 
 /** Ник для вывода: без пробелов, невидимых символов и t.me/; «@» добавляется, если ник валидный (5–32: латиница, цифры, _). В заказах не меняется. */
 export function nickText(raw: string): string {

@@ -10,7 +10,7 @@ let fails = 0;
 const ok = (c: boolean, msg: string) => { if (!c) { fails++; console.log('  ❌', msg); } else console.log('  ✅', msg); };
 
 // ── заглушки БД / Telegram / Turnstile ──
-const store: Record<string, any[]> = { orders: [], order_days: [], renewal_links: [], renewal_attempts: [], settings: [], order_attempts: [], security_alerts: [], customers: [], viewers: [], vip_customers: [], customer_discounts: [], order_drafts: [] };
+const store: Record<string, any[]> = { orders: [], order_days: [], renewal_links: [], renewal_attempts: [], renewal_first_notices: [], settings: [], order_attempts: [], security_alerts: [], customers: [], viewers: [], vip_customers: [], customer_discounts: [], order_drafts: [] };
 let seq = 0;
 const get = (r: any, p: string) => p.split('.').reduce((o, k) => o?.[k], r);
 function join(name: string, r: any, cols: string) {
@@ -74,7 +74,7 @@ async function load(fn: string) {
   return handler;
 }
 const { addDays, todayISO, isSunday } = await import(`${ROOT}/supabase/functions/_shared/dates.ts`);
-const { selectEntries, clientText, nickText, renewalLink } = await import(`${ROOT}/supabase/functions/_shared/renewal.ts`);
+const { selectEntries, clientText, nickText, renewalLink, firstSingleText, priceText, REVIEWS_URL } = await import(`${ROOT}/supabase/functions/_shared/renewal.ts`);
 const TODAY = todayISO();
 const D = (n: number) => addDays(TODAY, n);
 
@@ -82,7 +82,7 @@ const D = (n: number) => addDays(TODAY, n);
 let oid = 0;
 const mkOrder = (num: number, tg: string, o: any = {}) => {
   const id = `o${++oid}`;
-  store.orders.push({ id, order_number: `NF-${num}`, type: 'subscription', status: 'confirmed', telegram: tg, phone: o.phone ?? `+8490000${String(num).padStart(4, '0')}`, customer_id: o.customer_id ?? null, qty: 1, address: `Address of ${tg}`, hotel: o.hotel ?? null, comment: o.comment ?? null, place_id: null, lat: null, lng: null, cutlery: !!o.cutlery, lang: 'ru', ...o.fields });
+  store.orders.push({ id, order_number: `NF-${num}`, created_at: o.created ?? `2026-10-01T00:${String(num).padStart(2, '0')}:00Z`, type: 'subscription', status: 'confirmed', telegram: tg, phone: o.phone ?? `+8490000${String(num).padStart(4, '0')}`, customer_id: o.customer_id ?? null, qty: 1, address: `Address of ${tg}`, hotel: o.hotel ?? null, comment: o.comment ?? null, place_id: null, lat: null, lng: null, cutlery: !!o.cutlery, lang: 'ru', ...o.fields });
   for (const d of o.days ?? [-4, -3, -2, -1, 0]) store.order_days.push({ id: `d${++seq}`, order_id: id, delivery_date: D(d), qty: o.dayQty ?? 1 });
   return id;
 };
@@ -97,6 +97,19 @@ mkOrder(12, '@hank', { fields: { status: 'delivered', lang: 'vi' } });          
 mkOrder(13, '@ivan', { fields: { type: 'single' }, days: [0] });                                               // разовый → нет
 mkOrder(14, '@jane', { fields: { status: 'new' } });                                                           // не подтверждена → нет
 mkOrder(15, '@kim', { dayQty: 1 }); mkOrder(16, '@kim', { dayQty: 1, fields: { lang: 'en' } }); mkOrder(17, '@kim', { dayQty: 1, fields: { lang: null } });                                        // два заказа одного клиента → одна запись
+// «Первый разовый»
+const early = (d: string) => ({ created: `${d}T00:00:00Z` });
+mkOrder(40, '@fu_ua', { fields: { type: 'single', lang: 'ua' }, days: [0] });                                    // первый разовый, сегодня → да (ua)
+mkOrder(41, '@fu_en', { fields: { type: 'single', lang: 'en' }, days: [0] });                                    // да (en)
+mkOrder(42, '@fu_vi', { fields: { type: 'single', lang: 'vi' }, days: [0] });                                    // да (vi)
+mkOrder(43, '@fu_next', { fields: { type: 'single' }, days: [0] }); mkOrder(44, '@fu_next', { fields: { type: 'single' }, days: [2] }); // есть заказ на ближайшие дни → нет
+mkOrder(45, '@fu_old', { fields: { type: 'single' }, days: [-10], ...early('2026-09-01') }); mkOrder(46, '@fu_old', { fields: { type: 'single' }, days: [0] }); // не первый заказ клиента → нет
+mkOrder(47, '@fu_cancelled', { fields: { type: 'single', status: 'cancelled' }, days: [-5], ...early('2026-09-02') }); mkOrder(48, '@fu_cancelled', { fields: { type: 'single' }, days: [0] }); // отменённый не считается → да
+mkOrder(49, '@fu_multi', { fields: { type: 'single' }, days: [0, 1] });                                         // разовый на несколько дней, сегодня не последний → нет
+mkOrder(50, '@fu_notice', { fields: { type: 'single' }, days: [0] });                                           // уже отправляли → нет
+store.renewal_first_notices.push({ nick: 'fu_notice', phone: null, customer_id: null, order_number: 'NF-1000' });
+mkOrder(51, '@fu_phone1', { fields: { type: 'single' }, phone: '+84955555555', days: [-3], ...early('2026-09-03') }); mkOrder(52, '@fu_phone2', { fields: { type: 'single' }, phone: '+84955555555', days: [0] }); // тот же телефон, не первый → нет
+mkOrder(53, '@fu_new', { fields: { type: 'single', status: 'new' }, days: [0] });                               // не подтверждён → нет
 for (const k of ['price_single', 'price_subscription', 'delivery_single']) store.settings.push({ key: k, value: k === 'price_single' ? '170000' : k === 'price_subscription' ? '750000' : '20000' });
 
 console.log('\n── отбор клиентов (чистая логика) ──');
@@ -116,9 +129,11 @@ let r = await post();
 ok(r.status === 403 && tgCalls.length === 0 && store.renewal_links.length === 0, 'без секрета / не админ (viewer): 403, ничего не отправлено и не создано');
 r = await post({ 'x-cron-secret': 'cron' });
 const b1: any = await r.json();
-ok(b1.ok && b1.count === 4, `отправлено, клиентов: ${b1.count}`);
-const sent = tgCalls.filter((c) => c.method === 'sendMessage').map((c) => c.body);
-ok(sent.length === 4 && sent.every((m) => m.chat_id === '-555'), `4 отдельных сообщения (по одному на клиента) в группу Renewals: ${sent.length}`);
+ok(b1.ok && b1.count === 4 && b1.first === 5, `отправлено: продление — ${b1.count}, первый разовый — ${b1.first}`);
+const allSent = tgCalls.filter((c) => c.method === 'sendMessage').map((c) => c.body);
+const sent = allSent.filter((m) => !m.text.startsWith('🆕'));
+const firsts = allSent.filter((m) => m.text.startsWith('🆕'));
+ok(sent.length === 4 && sent.every((m) => m.chat_id === '-555'), `4 отдельных сообщения (по одному на клиента) о продлении в группу Renewals: ${sent.length}`);
 for (const m of sent) console.log(m.text.split('\n').map((l: string) => '    ' + l).join('\n') + '\n');
 const alice = sent.find((m) => m.text.includes('@alice'))!;
 console.log('   ── по одному примеру на язык ──');
@@ -126,12 +141,26 @@ for (const l of ['ru', 'ua', 'en', 'vi']) console.log(`   [${l}]\n` + `🔔 @nic
 ok(clientText('ua').startsWith('Привіт! Дякуємо') && clientText('en').startsWith('Hi! Thanks') && clientText('vi').startsWith('Xin chào!') && clientText('ru').startsWith('Привет! Спасибо') && clientText(null) === clientText('ru'), 'тексты 4 языков по ТЗ; нет языка → ru');
 ok(alice.text.split('\n')[0] === '🔔 @alice · NF-1 — 5 дн., 1 порц.', 'формат: 🔔 @ник · NF-… — N дн., M порц.');
 ok(alice.text === `🔔 @alice · NF-1 — 5 дн., 1 порц.\n\n${clientText('ua')}` && !/<code>|🔗/.test(alice.text), 'обычный текст: сводка, пустая строка, текст клиенту; без <code> и без строки «🔗 ninifoodvn.com»');
-ok(sent.every((m) => m.disable_web_page_preview === true), 'превью ссылки выключено');
-const linkOf = (nick: string) => sent.find((m) => m.text.startsWith('🔔 ' + nick))!.text.split('\n').pop();
+ok(allSent.every((m) => m.disable_web_page_preview === true), 'превью ссылки выключено (все сообщения)');
+const linkOf = (nick: string) => sent.find((m) => m.text.startsWith('🔔 ' + nick))!.text.split('\n').find((l: string) => l.startsWith('https://ninifoodvn.com'));
 ok(linkOf('@alice') === 'https://ninifoodvn.com/?lang=uk#subscription', 'язык заказа ua → ?lang=uk');
 ok(linkOf('erin') === 'https://ninifoodvn.com/?lang=en#subscription' && linkOf('hank') === 'https://ninifoodvn.com/?lang=vi#subscription' && linkOf('kim') === 'https://ninifoodvn.com/?lang=en#subscription', 'en → ?lang=en, vi → ?lang=vi; у клиента с тремя заказами язык берётся из ПОСЛЕДНЕГО заказа, у которого он есть (NF-17 без языка → NF-16 en)');
 ok(renewalLink(null) === 'https://ninifoodvn.com/?lang=ru#subscription' && renewalLink('xx') === 'https://ninifoodvn.com/?lang=ru#subscription', 'нет языка у заказа → ru');
-ok(clientText('ru') === 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nhttps://ninifoodvn.com/?lang=ru#subscription', 'текст совпадает с ТЗ посимвольно (ссылка с ?lang=)');
+ok(clientText('ru') === 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇\nhttps://ninifoodvn.com/?lang=ru#subscription\n\nБудем рады вашему отзыву 🙏 Присоединяйтесь к нашей группе: https://t.me/+5WmNqxOYJuJhOWU6', 'текст продления (RU) совпадает с ТЗ посимвольно: ссылка с ?lang= + пустая строка + абзац про отзывы');
+ok(clientText('ua').endsWith('\n\nБудемо раді вашому відгуку 🙏 Приєднуйтесь до нашої групи: ' + REVIEWS_URL) && clientText('en').endsWith("\n\nWe'd love your feedback 🙏 Join our group: " + REVIEWS_URL) && clientText('vi').endsWith('\n\nRất mong nhận được đánh giá của bạn 🙏 Tham gia nhóm của chúng tôi: ' + REVIEWS_URL), 'абзац про отзывы на UA, EN, VI; группа — одна константа REVIEWS_URL');
+console.log('\n── «первый разовый» ──');
+console.log(firsts.map((m) => m.text.split('\n').map((l: string) => '    ' + l).join('\n')).join('\n    ────\n'));
+const fl = (nick: string) => firsts.find((m) => m.text.includes(nick));
+ok(['ivan', '@fu_ua', '@fu_en', '@fu_vi', '@fu_cancelled'].every((n) => !!fl(n)) && firsts.length === 5, 'получили: первый разовый сегодня (ivan, fu_ua, fu_en, fu_vi, fu_cancelled — отменённый заказ не считается)');
+ok(!['@fu_next', '@fu_old', '@fu_multi', '@fu_notice', '@fu_phone2', '@fu_new'].some((n) => !!fl(n)), 'не получили: есть заказ на ближайшие дни, не первый заказ (ник и телефон), разовый на несколько дней, уже отправляли, не подтверждён');
+ok(firsts.every((m) => m.text.startsWith('🆕 Первый разовый · ') && /— 1 порц\.\n\n/.test(m.text.split('\n').slice(0, 2).join('\n') + '\n')) && fl('@fu_ua')!.text.split('\n')[0] === '🆕 Первый разовый · @fu_ua · NF-40 — 1 порц.', 'первая строка по-русски: «🆕 Первый разовый · @ник · NF-… — 1 порц.»');
+ok(fl('@fu_ua')!.text === `🆕 Первый разовый · @fu_ua · NF-40 — 1 порц.\n\n${firstSingleText('ua', 150000)}` && fl('@fu_en')!.text.endsWith(firstSingleText('en', 150000)) && fl('@fu_vi')!.text.endsWith(firstSingleText('vi', 150000)) && fl('ivan')!.text.endsWith(firstSingleText('ru', 150000)), 'текст на языке последнего заказа клиента (RU/UA/EN/VI), цена = price_subscription / 5 (750 000 / 5)');
+ok(firstSingleText('ru', 150000) === 'Привет! Надеемся, обед NiniFood вам понравился 😋🍲\nХотите домашний обед каждый день без забот? Оформите подписку от 5 дней — всего 150 000 ₫ за обед 👇\nhttps://ninifoodvn.com/?lang=ru#subscription\n\nПоделитесь впечатлениями в нашей группе отзывов 💬 https://t.me/+5WmNqxOYJuJhOWU6', 'RU-текст «первый разовый» посимвольно по ТЗ');
+ok(firstSingleText('en', 150000).includes('just 150,000 ₫ per lunch') && firstSingleText('vi', 150000).includes('chỉ 150.000 ₫ mỗi bữa') && firstSingleText('ua', 150000).includes('лише 150 000 ₫ за обід') && priceText(null, 150000) === '150 000 ₫', 'формат цены по языку: 150 000 / 150,000 / 150.000');
+ok(store.renewal_first_notices.length === 6 && ['fu_ua', 'fu_en', 'fu_vi', 'fu_cancelled', 'ivan'].every((n) => store.renewal_first_notices.some((x) => x.nick === n)), 'каждому отправленному записано уведомление (один раз за всё время)');
+const nF = tgCalls.length;
+await post({ 'x-cron-secret': 'cron' });
+ok(tgCalls.slice(nF).filter((c) => c.method === 'sendMessage' && c.body.text.startsWith('🆕')).length === 0, 'повторный запуск в тот же день: «первый разовый» второй раз не уходит');
 ok(sent.every((m) => !/\?r=|📞|\+84|Заканчиваются/.test(m.text)) && store.renewal_links.length === 0, 'нет телефона, нет ссылок ?r=, ссылки в БД не создаются');
 const kim = sent.find((m) => m.text.includes('kim'))!;
 ok(kim.text.startsWith('🔔 kim · NF-15 + NF-16 + NF-17 — 5 дн., 3 порц.'), 'три заказа одного клиента — одно сообщение');
