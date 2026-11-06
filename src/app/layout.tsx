@@ -19,7 +19,7 @@ const nunito = Nunito({
 // 'unsafe-inline' для script/style нужен инлайновым скриптам Next в статической сборке. В dev не включаем (HMR).
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com",
+  "script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://telegram.org",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' data: https://fonts.gstatic.com",
   "img-src 'self' data: blob: https://img.vietqr.io",

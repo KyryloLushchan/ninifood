@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react';
 import { I18nProvider, useI18n } from '@/i18n';
+import { loadTelegramScript } from '@/lib/telegram';
 import { useKeyboardAwareness } from '@/lib/use-keyboard';
 import { AppProvider, useApp } from '@/state/app-context';
 import { Auth } from './screens/Auth';
@@ -64,6 +65,7 @@ function useDropGuard() {
 export function App() {
   useKeyboardAwareness();
   useDropGuard();
+  useEffect(() => loadTelegramScript(), []); // только внутри Telegram (Mini App); вне Telegram — ничего
   return (
     <I18nProvider>
       <AppProvider>

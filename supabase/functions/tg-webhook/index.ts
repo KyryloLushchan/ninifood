@@ -5,6 +5,7 @@ import { statusLabel } from '../_shared/order-i18n.ts';
 import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
 import { addExtra, applyNote, courierButton, courierResync, startNote } from '../_shared/courier-route.ts';
+import { isStartCommand, startMessage } from '../_shared/bot-start.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
@@ -40,6 +41,27 @@ Deno.serve(async (req) => {
   } catch {
     return ok();
   }
+  // /start в ЛИЧНОМ чате с ботом: приветствие на языке пользователя + кнопка Mini App «🍽 Открыть меню»; кто нажал /start — в bot_users (чтобы потом писать клиентам от бота).
+  if (update.message && !update.callback_query && update.message.chat?.type === 'private' && update.message.from && !update.message.from.is_bot && isStartCommand(update.message.text)) {
+    const m = update.message;
+    const f = m.from;
+    try {
+      const { data: ex } = await db.from('bot_users').select('starts, first_start_at').eq('user_id', f.id).maybeSingle();
+      const now = new Date().toISOString();
+      const { error: e } = await db.from('bot_users').upsert(
+        { user_id: f.id, username: f.username ?? null, first_name: f.first_name ?? null, last_name: f.last_name ?? null, language_code: f.language_code ?? null, first_start_at: ex?.first_start_at ?? now, last_start_at: now, starts: (ex?.starts ?? 0) + 1 },
+        { onConflict: 'user_id' },
+      );
+      if (e) console.error('bot_users upsert failed:', e.message);
+    } catch (e) {
+      console.error('bot_users failed:', (e as Error).message);
+    }
+    const sm = startMessage(f);
+    const r = await tg('sendMessage', { chat_id: m.chat.id, text: sm.text, reply_markup: sm.reply_markup });
+    if (!r.ok) console.error('/start reply failed:', r.description);
+    return ok();
+  }
+
   // Ответ на вопрос бота «Напишите комментарий к NF-…» в группе курьера (ForceReply) — комментарий к точке маршрута (админы и id из courier_note_ids).
   if (update.message && !update.callback_query) {
     const m = update.message;

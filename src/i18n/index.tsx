@@ -5,6 +5,7 @@ import { ru, type TKey } from './ru';
 import { ua } from './ua';
 import { en } from './en';
 import { vi } from './vi';
+import { telegramLang, telegramLaunch } from '@/lib/telegram';
 
 export type { TKey };
 export type Lang = 'ua' | 'ru' | 'en' | 'vi';
@@ -76,7 +77,15 @@ export function I18nProvider({ children }: { children: ReactNode }) {
       if (saved && DICTS[saved]) {
         setLangState(saved);
         setHasChosen(true);
-      } else setSheetOpen(true);
+      } else {
+        // Внутри Telegram (Mini App) язык по language_code пользователя, если клиент ещё не выбирал; не сохраняем — выбор вручную сохранится как обычно.
+        const tg = telegramLaunch();
+        const fromTg = tg.inside ? telegramLang(tg.user?.language_code) : undefined;
+        if (fromTg) {
+          setLangState(fromTg);
+          setHasChosen(true);
+        } else setSheetOpen(true);
+      }
     } catch {
       setSheetOpen(true);
     }

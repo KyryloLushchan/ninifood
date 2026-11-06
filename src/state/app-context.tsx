@@ -1,5 +1,6 @@
 'use client';
 
+import { telegramNick } from '@/lib/telegram';
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { BOOKABLE_DAYS, SUB_MIN_DAYS, SUB_WINDOW_DAYS } from '@/config/site';
 import { fetchMenu, type Menu } from '@/data/menu';
@@ -28,6 +29,8 @@ export interface Contact {
   comment: string;
 }
 const EMPTY_CONTACT: Contact = { telegram: '', phone: '', address: '', hotel: '', comment: '' };
+/** Внутри Telegram (Mini App) поле Telegram заполняется ником пользователя; вне Telegram — пустое. */
+const withTgNick = (c: Contact): Contact => (c.telegram ? c : { ...c, telegram: telegramNick() });
 
 function prefillContact(c: Contact, cust: CustomerProfile): Contact {
   return {
@@ -197,6 +200,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
     return () => data.subscription.unsubscribe();
   }, [loadProfile]);
+
+  // Mini App: Telegram-ник из Telegram.WebApp.initDataUnsafe.user подставляется в оформление (клиент может изменить); вне Telegram ничего не происходит.
+  useEffect(() => {
+    const nick = telegramNick();
+    if (nick) setContact((c) => (c.telegram ? c : { ...c, telegram: nick }));
+  }, []);
 
   // Автозаполнение: Telegram, телефон и адрес из профиля — только в пустые поля.
   useEffect(() => {
@@ -424,7 +433,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setOnceDays([]);
     setSubDays(null);
     setPortionsState(1);
-    setContact(customer ? prefillContact(EMPTY_CONTACT, customer) : EMPTY_CONTACT);
+    setContact(withTgNick(customer ? prefillContact(EMPTY_CONTACT, customer) : EMPTY_CONTACT));
     setPlace(customer ? prefillPlace(customer) : null);
     setCutlery(customer ? customer.cutlery : false);
     setPayment('qr');
