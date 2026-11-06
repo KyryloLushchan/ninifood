@@ -1,6 +1,7 @@
 // Локальная проверка планировщика рейсов на выдуманных данных (без БД, Telegram, Google, деплоя):
 //   node --experimental-strip-types tools/trips/check.mts
-import { DEFAULT_TRIP_SETTINGS as ST, hhmm, planAssignment, planDay, type CourierTrips, type DayPlan, type RouteOverride } from '../../supabase/functions/_shared/trips.ts';
+import { DEFAULT_TRIP_SETTINGS as DEF, hhmm, planAssignment, planDay, type CourierTrips, type DayPlan, type RouteOverride } from '../../supabase/functions/_shared/trips.ts';
+const ST = { ...DEF, capacity: 9 }; // проверки написаны под вместимость 9 (боевая — 18, см. check-rules.mts)
 import type { LatLng } from '../../supabase/functions/_shared/route.ts';
 
 const K: LatLng = { lat: 16.0462726, lng: 108.2356202 };

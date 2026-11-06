@@ -113,7 +113,7 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
       const prefix = plan.couriers.length > 1 ? `🛵 Курьер ${ci + 1} · ` : '';
       trips.push({
         no: tripNo,
-        text: `${prefix}🚚 <b>Рейс ${ti + 1}</b> — ${t.portions} порц. · ${kmText(t.km)} · ${hhmm(t.startMin)}–${hhmm(t.endMin)}${t.overCapacity ? ' 🔴 больше вместимости' : ''}\n${tripLinks(t)}`,
+        text: `${prefix}🚚 <b>Рейс ${ti + 1}</b> — ${t.portions} порц. · ${kmText(t.km)} · ${hhmm(t.startMin)}–${hhmm(t.endMin)}${t.overCapacity ? ' 🔴 больше вместимости' : ''}${t.box ? (t.box === 'box' ? ' · 📦 с ящиком' : ' · 🎒 без ящика') : ''}\n${tripLinks(t)}`,
         stops,
       });
     });

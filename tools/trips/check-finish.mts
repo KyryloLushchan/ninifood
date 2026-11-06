@@ -1,6 +1,7 @@
 // Финиш курьера (дом): локальная проверка на выдуманных данных, без БД/Telegram/Google:
 //   node --experimental-strip-types tools/trips/check-finish.mts
-import { DEFAULT_TRIP_SETTINGS, hhmm, parseTripSettings, planDay, type CourierTrips } from '../../supabase/functions/_shared/trips.ts';
+import { DEFAULT_TRIP_SETTINGS as DEF, hhmm, parseTripSettings, planDay, type CourierTrips } from '../../supabase/functions/_shared/trips.ts';
+const DEFAULT_TRIP_SETTINGS = { ...DEF, capacity: 9 }; // проверки написаны под вместимость 9 (боевая — 18, см. check-rules.mts)
 import { computeDayPay, DEFAULT_PAY } from '../../supabase/functions/_shared/courier-pay.ts';
 import { buildCourierReport } from '../../supabase/functions/_shared/courier-report.ts';
 import type { LatLng } from '../../supabase/functions/_shared/route.ts';
@@ -28,7 +29,7 @@ const withF = planDay(A, acc, K, 1, ST).couriers[0];
 const noF = planDay(A, acc, K, 1, { ...DEFAULT_TRIP_SETTINGS }).couriers[0];
 show(withF, 'с финишем'); show(noF, 'без финиша');
 ok(withF.trips.length === 2 && withF.trips[0].closed && !withF.trips[0].toFinish && withF.trips[1].toFinish && !withF.trips[1].closed, 'точка в радиусе 3 км от дома — отдельный последний рейс до финиша; остальные — рейс с возвратом на кухню');
-ok(withF.trips[1].stops.length === 1 && lastStop(withF) === 'FPT' && withF.trips[0].stops.length === 6, 'в доме-рейсе только FPT, в первом — остальные 6 точек');
+ok(lastStop(withF) === 'FPT' && withF.trips[1].portions <= 3 && withF.trips[1].box === 'nobox' && withF.trips[0].stops.length + withF.trips[1].stops.length === 7, 'в доме-рейсе FPT последней, всего ≤ 3 порций («без ящика»), по пути могут быть соседние точки; остальные — в первом рейсе');
 ok(lastStop(withF) === 'FPT', 'точка в FPT City — последняя');
 ok(dest(withF.trips[1].links.at(-1)!) === fmt(F) && dest(withF.trips[0].links.at(-1)!) === fmt(K), 'ссылки: рейс 1 — до кухни, дом-рейс — последняя точка = финиш (дом)');
 ok(withF.trips[0].links.every((u) => u.includes('origin=' + fmt(K)) || true) && new URL(withF.trips[0].links[0]).searchParams.get('origin') === fmt(K), 'ссылка начинается на кухне');

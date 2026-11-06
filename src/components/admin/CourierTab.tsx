@@ -78,7 +78,7 @@ export function CourierTab() {
 
   // Кухня, число курьеров и параметры рейсов — из Настроек; переключатель ниже действует только на выбранную дату.
   const loadSettings = useCallback((initial: boolean) => {
-    adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km']).then(({ data }) => {
+    adminDb.from('settings').select('key, value').in('key', ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km', 'trip_nobox_portions', 'trip_box_threshold']).then(({ data }) => {
       const c = Object.fromEntries((data ?? []).map((r) => [r.key, r.value]));
       setTrip(parseTripSettings(c));
       const lat = Number(c.kitchen_lat);
@@ -210,7 +210,7 @@ export function CourierTab() {
     const lines = [`${title} на ${labelFull(date, 'ru')} — ${cr.trips.reduce((n, t) => n + t.stops.length, 0)} адр., ${sum(all)} порц., рейсов: ${cr.trips.length}, приборов: ${cutleryCount(all)}, ${km(cr.totalKm)}`, ''];
     let no = 0;
     cr.trips.forEach((t, ti) => {
-      lines.push(`РЕЙС ${ti + 1} — ${t.portions} порц. · ${km(t.km)} · ${hhmm(t.startMin)}–${hhmm(t.endMin)}`, '');
+      lines.push(`РЕЙС ${ti + 1} — ${t.portions} порц. · ${km(t.km)} · ${hhmm(t.startMin)}–${hhmm(t.endMin)}${t.box ? (t.box === 'box' ? ' · С ЯЩИКОМ' : ' · БЕЗ ЯЩИКА') : ''}`, '');
       t.stops.forEach((st) => {
         no++;
         st.stop.items.forEach((row, k) => lines.push(...rowText(row, st.stop.items.length > 1 ? `${no}.${k + 1}` : String(no), st.arriveMin)));
@@ -418,8 +418,8 @@ export function CourierTab() {
             {cr.trips.map((t, ti) => (
               <div key={ti} className="flex flex-col gap-3">
                 <div className={`rounded-md2 border px-4 py-2.5 ${t.overCapacity ? 'border-danger bg-danger-bg' : 'border-line bg-card'}`}>
-                  <div className="text-[16px] font-extrabold">🚚 Рейс {ti + 1} — {t.portions} порц. · {km(t.km)} · {hhmm(t.startMin)}–{hhmm(t.endMin)}</div>
-                  {t.overCapacity && <div className="text-sm font-extrabold text-danger">🔴 больше вместимости ({t.portions} из {trip.capacity})</div>}
+                  <div className="text-[16px] font-extrabold">🚚 Рейс {ti + 1} — {t.portions} порц. · {km(t.km)} · {hhmm(t.startMin)}–{hhmm(t.endMin)}{t.box ? (t.box === 'box' ? ' · 📦 с ящиком' : ' · 🎒 без ящика') : ''}</div>
+                  {t.overCapacity && <div className="text-sm font-extrabold text-danger">🔴 больше вместимости ({t.portions} из {t.box === 'nobox' ? (trip.noBoxPortions ?? 3) : trip.capacity})</div>}
                 </div>
                 {t.stops.map((ts) => {
                   no++;

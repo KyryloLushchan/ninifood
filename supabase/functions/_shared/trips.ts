@@ -19,9 +19,13 @@ export interface TripSettings {
   finish?: LatLng | null;
   /** Радиус вокруг финиша, км (по прямой): точки внутри него — всегда отдельный последний рейс кухня → эти точки → финиш, независимо от порций. */
   finishRadiusKm?: number;
+  /** Последний рейс «без ящика»: если в районе финиша (FPT) порций ≤ boxThreshold, на весь рейс не больше noBoxPortions (по пути можно добавить точки, пока сумма ≤ этого числа). */
+  noBoxPortions?: number;
+  /** Порог для ящика: порций в районе финиша БОЛЬШЕ этого числа — рейс «с ящиком» (до capacity порций, по пути можно добавлять точки). */
+  boxThreshold?: number;
 }
 
-export const DEFAULT_TRIP_SETTINGS: TripSettings = { capacity: 9, speedKmh: 25, stopMin: 4, roadFactor: 1.3, departMin: 13 * 60, deadlineMin: 16 * 60, gapMin: 10 };
+export const DEFAULT_TRIP_SETTINGS: TripSettings = { capacity: 18, speedKmh: 25, stopMin: 4, roadFactor: 1.3, departMin: 13 * 60, deadlineMin: 16 * 60, gapMin: 10 };
 
 const hm = (v: string | undefined, d: number) => {
   const m = /^(\d{1,2}):(\d{2})$/.exec((v ?? '').trim());
@@ -33,7 +37,7 @@ const num = (v: string | undefined, d: number, min: number, max: number) => {
   return Number.isFinite(n) && n >= min && n <= max ? n : d;
 };
 
-/** Ключи settings: trip_capacity, courier_speed_kmh, stop_minutes, road_factor, depart_time, deadline_time, trip_gap_min. Неверные/пустые — значения по умолчанию. */
+/** Ключи settings: trip_capacity, trip_nobox_portions, trip_box_threshold, courier_speed_kmh, stop_minutes, road_factor, depart_time, deadline_time, trip_gap_min. Неверные/пустые — значения по умолчанию. */
 export function parseTripSettings(s: Record<string, string | undefined>): TripSettings {
   const d = DEFAULT_TRIP_SETTINGS;
   return {
@@ -46,6 +50,8 @@ export function parseTripSettings(s: Record<string, string | undefined>): TripSe
     gapMin: num(s.trip_gap_min, d.gapMin, 0, 120),
     finish: parseFinish(s),
     finishRadiusKm: num(s.courier_finish_radius_km, 3, 0.1, 30),
+    noBoxPortions: Math.round(num(s.trip_nobox_portions, 3, 1, 50)),
+    boxThreshold: Math.round(num(s.trip_box_threshold, 3, 0, 50)),
   };
 }
 
@@ -84,6 +90,8 @@ export interface Trip<T> {
   /** Отрезок «последняя точка → финиш», км (в `km` и ЗП не входит); 0, если финиша нет. */
   finishKm: number;
   overCapacity: boolean;
+  /** Только у рейса до финиша: «с ящиком» / «без ящика» (по порциям в районе финиша). */
+  box?: 'box' | 'nobox';
   /** Ссылки Google Maps (по LINK_STOPS остановок в части). */
   links: string[];
 }
@@ -121,6 +129,18 @@ const hav = (a: LatLng, b: LatLng) => {
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(rad(a.lat)) * Math.cos(rad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
 };
+
+/** Последний рейс (до финиша): порции в районе финиша → вместимость и «ящик». Нет точек в районе — обычная вместимость, ящик по числу порций. */
+function lastTripInfo<T>(c: Ctx<T>, stops: Stop<T>[], portions: number): { limit: number; box: 'box' | 'nobox' } {
+  const f = c.st.finish;
+  const R = c.st.finishRadiusKm ?? 3;
+  const thr = c.st.boxThreshold ?? 3;
+  const noBox = c.st.noBoxPortions ?? 3;
+  const F = f ? stops.filter((x) => hav(x, f) <= R + 1e-9).reduce((a, x) => a + x.portions, 0) : 0;
+  if (F > thr) return { limit: c.st.capacity, box: 'box' };
+  if (F === 0) return { limit: c.st.capacity, box: portions > noBox ? 'box' : 'nobox' };
+  return { limit: noBox, box: 'nobox' };
+}
 
 interface Tour {
   order: number[];
@@ -385,6 +405,7 @@ function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidate
     const tr = bestTour(c, sectors[p], closed ? 'closed' : toFinish ? 'finish' : 'open');
     const ordered = tr.order.map((i) => c.stops[i]);
     const portions = ordered.reduce((s, x) => s + x.portions, 0);
+    const info = toFinish ? lastTripInfo(c, ordered, portions) : null;
     trips.push({
       stops: ordered.map((stop, k) => ({ stop, key: stopKey(stop), arriveMin: t + tr.arr[k] })),
       portions,
@@ -394,7 +415,8 @@ function buildTrips<T>(c: Ctx<T>, sectors: number[][], perm: number[], candidate
       closed,
       toFinish,
       finishKm: tr.finishKm,
-      overCapacity: portions > c.st.capacity,
+      overCapacity: portions > (info?.limit ?? c.st.capacity),
+      ...(info ? { box: info.box } : {}),
       links: directionsLinks(c.kitchen, closed ? [...ordered, c.kitchen] : toFinish ? [...ordered, c.st.finish!] : ordered),
     });
     t += tr.endOff + c.st.gapMin;
@@ -409,6 +431,31 @@ function summarize<T>(c: Ctx<T>, trips: Trip<T>[], candidates: number): CourierT
   return { trips, lastArrivalMin: last, onTime: last <= c.st.deadlineMin + 1e-9, meanArrivalMin: mean, totalKm: trips.reduce((s, x) => s + x.km, 0), finishKm: trips.reduce((s, x) => s + x.finishKm, 0), candidates };
 }
 
+/** Рейсы: остальные точки (left) обычными рейсами с возвратом на кухню, затем последний рейс (last) кухня → точки → финиш. */
+function homeTrips<T>(c: Ctx<T>, left: number[], last: number[], f: LatLng): CourierTrips<T> {
+  const head = left.length ? planCore(c, left, false, true) : null;
+  const trips = head ? [...head.trips] : [];
+  const start = trips.length ? trips[trips.length - 1].endMin + c.st.gapMin : c.st.departMin;
+  const tr = bestTour(c, last, 'finish');
+  const ordered = tr.order.map((i) => c.stops[i]);
+  const portions = ordered.reduce((x, y) => x + y.portions, 0);
+  const info = lastTripInfo(c, ordered, portions);
+  trips.push({
+    stops: ordered.map((stop, k) => ({ stop, key: stopKey(stop), arriveMin: start + tr.arr[k] })),
+    portions,
+    km: tr.km,
+    startMin: start,
+    endMin: start + tr.endOff,
+    closed: false,
+    toFinish: true,
+    finishKm: tr.finishKm,
+    overCapacity: portions > info.limit,
+    box: info.box,
+    links: directionsLinks(c.kitchen, [...ordered, f]),
+  });
+  return summarize(c, trips, head?.candidates ?? 1);
+}
+
 /** Рейсы одного курьера по его точкам (subset — индексы в ctx.stops). Один рейс (порций ≤ вместимости) — открытый маршрут. */
 function planCourier<T>(c: Ctx<T>, subset: number[], fin: boolean): CourierTrips<T> | null {
   if (!subset.length) return null;
@@ -418,26 +465,35 @@ function planCourier<T>(c: Ctx<T>, subset: number[], fin: boolean): CourierTrips
     const R = c.st.finishRadiusKm ?? 3;
     const home = subset.filter((i) => hav(c.stops[i], f) <= R + 1e-9);
     if (home.length) {
+      // Последний рейс = точки FPT + (по пути) соседние точки, пока влезает: порций в FPT ≤ порога → «без ящика», всего ≤ noBoxPortions; больше порога → «с ящиком», до capacity.
       const rest = subset.filter((i) => !home.includes(i));
-      const head = rest.length ? planCore(c, rest, false, true) : null;
-      const trips = head ? [...head.trips] : [];
-      const start = trips.length ? trips[trips.length - 1].endMin + c.st.gapMin : c.st.departMin;
-      const tr = bestTour(c, home, 'finish');
-      const ordered = tr.order.map((i) => c.stops[i]);
-      const portions = ordered.reduce((x, y) => x + y.portions, 0);
-      trips.push({
-        stops: ordered.map((stop, k) => ({ stop, key: stopKey(stop), arriveMin: start + tr.arr[k] })),
-        portions,
-        km: tr.km,
-        startMin: start,
-        endMin: start + tr.endOff,
-        closed: false,
-        toFinish: true,
-        finishKm: tr.finishKm,
-        overCapacity: portions > c.st.capacity,
-        links: directionsLinks(c.kitchen, [...ordered, f]),
-      });
-      return summarize(c, trips, (head?.candidates ?? 1));
+      const pt = (i: number) => c.stops[i].portions;
+      const F = home.reduce((x, i) => x + pt(i), 0);
+      const limit = F > (c.st.boxThreshold ?? 3) ? c.st.capacity : (c.st.noBoxPortions ?? 3);
+      const base = bestTour(c, home, 'finish');
+      const baseLen = base.km + base.finishKm;
+      // кандидаты «по пути» — по возрастанию крюка (доп. путь последнего рейса)
+      const detour = new Map(rest.map((i) => { const t = bestTour(c, [...home, i], 'finish'); return [i, t.km + t.finishKm - baseLen] as const; }));
+      const order = rest.filter((i) => F + pt(i) <= limit).sort((a, b) => detour.get(a)! - detour.get(b)!).slice(0, 12);
+      const options: number[][] = [[]];
+      let sel: number[] = [];
+      let sum = F;
+      for (const i of order) {
+        if (sum + pt(i) > limit) continue;
+        sel = [...sel, i];
+        sum += pt(i);
+        options.push(sel);
+        if (options.length > 9) break;
+      }
+      let best: CourierTrips<T> | null = null;
+      for (const extra of options) {
+        const last = [...home, ...extra];
+        const left = rest.filter((i) => !extra.includes(i));
+        const r = homeTrips(c, left, last, f);
+        const m = (x: CourierTrips<T>) => ({ feasible: x.onTime, mean: x.meanArrivalMin, km: x.totalKm, kmAll: x.totalKm + x.finishKm });
+        if (!best || betterTrips(m(r), m(best), true)) best = r;
+      }
+      return best;
     }
   }
   return planCore(c, subset, fin, false);

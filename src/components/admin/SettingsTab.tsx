@@ -19,7 +19,9 @@ const KITCHEN = [
 const COURIER_IDS_KEY = 'courier_tg_ids';
 
 const TRIPS = [
-  { key: 'trip_capacity', label: 'Порций за рейс', kind: 'int', min: 1, max: 50 },
+  { key: 'trip_capacity', label: 'Порций за рейс (обычные рейсы и последний «с ящиком»)', kind: 'int', min: 1, max: 50 },
+  { key: 'trip_nobox_portions', label: 'Без ящика, порций (последний рейс в район FPT, если порций там не больше порога)', kind: 'int', min: 1, max: 50 },
+  { key: 'trip_box_threshold', label: 'Порог для ящика: порций в районе FPT больше этого — рейс с ящиком', kind: 'int', min: 0, max: 50 },
   { key: 'courier_speed_kmh', label: 'Средняя скорость, км/ч', kind: 'num', min: 5, max: 80 },
   { key: 'stop_minutes', label: 'Время на точку, мин', kind: 'num', min: 0, max: 30 },
   { key: 'road_factor', label: 'Коэффициент дорог к прямой (по умолчанию 1,3)', kind: 'num', min: 1, max: 3 },
@@ -35,7 +37,7 @@ const PAY = [
   { key: 'courier_lunch', label: 'Обед курьера, ₫/день (вычитается из ЗП за каждый рабочий день; 0 — не вычитать)', kind: 'int', min: 0, max: 1000000 },
 ] as const;
 const PAY_DEFAULTS: Record<string, string> = { courier_lunch: '50000', courier_lunch_from: '2026-11-05', extra_portions: '3', courier_pay_from: '2026-11-02', courier_pay_per_address: '20000', courier_fuel_l100: '2.2', courier_fuel_price: '26000' };
-const TRIP_DEFAULTS: Record<string, string> = { trip_capacity: '9', courier_speed_kmh: '25', stop_minutes: '4', road_factor: '1.3', depart_time: '13:00', deadline_time: '16:00', trip_gap_min: '10' };
+const TRIP_DEFAULTS: Record<string, string> = { trip_capacity: '18', trip_nobox_portions: '3', trip_box_threshold: '3', courier_speed_kmh: '25', stop_minutes: '4', road_factor: '1.3', depart_time: '13:00', deadline_time: '16:00', trip_gap_min: '10' };
 
 const FIELDS = [
   { key: 'price_single', label: 'Цена обеда, ₫', numeric: true },

@@ -149,7 +149,7 @@ function courierBlock(cr: CourierTrips<ReportDelivery>, couriers: 1 | 2, index: 
   let no = 0;
   cr.trips.forEach((t, ti) => {
     // заголовок рейса идёт одним куском с первой точкой — при разбиении на сообщения они не разъезжаются
-    let title: string | null = `🚚 <b>Рейс ${ti + 1}</b> — ${t.portions} порц. · ${kmText(t.km)} · ${hhmm(t.startMin)}–${hhmm(t.endMin)}${t.overCapacity ? ' 🔴 больше вместимости' : ''}`;
+    let title: string | null = `🚚 <b>Рейс ${ti + 1}</b> — ${t.portions} порц. · ${kmText(t.km)} · ${hhmm(t.startMin)}–${hhmm(t.endMin)}${t.overCapacity ? ' 🔴 больше вместимости' : ''}${t.box ? (t.box === 'box' ? ' · 📦 с ящиком' : ' · 🎒 без ящика') : ''}`;
     t.stops.forEach((s) => {
       no++;
       const list = mergeSameClient(s.stop.items);

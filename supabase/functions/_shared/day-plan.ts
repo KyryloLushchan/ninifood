@@ -3,7 +3,7 @@ import type { ReportDelivery } from './courier-report.ts';
 import { parseTripSettings, type RouteOverride, type TripSettings } from './trips.ts';
 import type { LatLng } from './route.ts';
 
-const SETTING_KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km'];
+const SETTING_KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km', 'trip_nobox_portions', 'trip_box_threshold'];
 
 /** Заказы new (⏳) + confirmed + delivered на дату (отменённые не считаются; delivered остаются в плане, чтобы рейсы не «плыли» в течение дня). */
 export async function loadDayRows(db: any, date: string): Promise<{ error: string | null; rows: any[] }> {
