@@ -14,6 +14,8 @@ interface Dict {
   sub: (n: number) => string;
   subExtra: (n: number) => string;
   days: string;
+  /** Слово перед временем доставки в строке дней: «— доставка 13:00–16:00». */
+  deliveryWord: string;
   portions: (qty: number, total: number) => string;
   cutlery: string;
   lunches: string;
@@ -52,6 +54,7 @@ const D: Record<OrderLang, Dict> = {
     sub: (n) => `Подписка ${n} дн.`,
     subExtra: (n) => `Подписка 5 дн. + ${n - 5} доп. (всего ${n})`,
     days: 'Дни',
+    deliveryWord: 'доставка',
     portions: (q, t) => `Порций: <b>${q} в день</b> (всего ${t})`,
     cutlery: 'Приборы: да',
     lunches: 'Обеды',
@@ -86,6 +89,7 @@ const D: Record<OrderLang, Dict> = {
     sub: (n) => `Підписка ${n} дн.`,
     subExtra: (n) => `Підписка 5 дн. + ${n - 5} дод. (всього ${n})`,
     days: 'Дні',
+    deliveryWord: 'доставка',
     portions: (q, t) => `Порцій: <b>${q} на день</b> (разом ${t})`,
     cutlery: 'Прибори: так',
     lunches: 'Обіди',
@@ -120,6 +124,7 @@ const D: Record<OrderLang, Dict> = {
     sub: (n) => `Subscription ${n} days`,
     subExtra: (n) => `Subscription 5 days + ${n - 5} extra (${n} total)`,
     days: 'Days',
+    deliveryWord: 'delivery',
     portions: (q, t) => `Portions: <b>${q} per day</b> (${t} total)`,
     cutlery: 'Cutlery: yes',
     lunches: 'Lunches',
@@ -154,6 +159,7 @@ const D: Record<OrderLang, Dict> = {
     sub: (n) => `Gói ${n} ngày`,
     subExtra: (n) => `Gói 5 ngày + ${n - 5} ngày thêm (tổng ${n})`,
     days: 'Ngày',
+    deliveryWord: 'giao hàng',
     portions: (q, t) => `Số suất: <b>${q} mỗi ngày</b> (tổng ${t})`,
     cutlery: 'Dụng cụ ăn: có',
     lunches: 'Bữa trưa',

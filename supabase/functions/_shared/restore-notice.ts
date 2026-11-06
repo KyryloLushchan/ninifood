@@ -1,6 +1,6 @@
 import { nowDanang } from './dates.ts';
 import { dict } from './order-i18n.ts';
-import { buildOrderText, keyboardConfirmed, type OrderRow } from './order-text.ts';
+import { buildOrderText, getDeliveryHours, keyboardConfirmed, type OrderRow } from './order-text.ts';
 import { esc, tg } from './telegram.ts';
 
 /**
@@ -15,7 +15,7 @@ export async function notifyRestored(db: any, orderNumber: string, by: string): 
   const chat = Deno.env.get('ORDERS_CHAT_ID')!;
   let ok = true;
   if (order.tg_message_id) {
-    const text = buildOrderText(order as OrderRow, (days ?? []).map((d: { delivery_date: string }) => d.delivery_date), line);
+    const text = buildOrderText(order as OrderRow, (days ?? []).map((d: { delivery_date: string }) => d.delivery_date), line, await getDeliveryHours(db));
     const reply_markup = keyboardConfirmed(orderNumber);
     const r = order.receipt_file_id
       ? await tg('editMessageCaption', { chat_id: chat, message_id: order.tg_message_id, caption: text, parse_mode: 'HTML', reply_markup })

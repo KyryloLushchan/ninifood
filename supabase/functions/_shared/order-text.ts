@@ -53,15 +53,23 @@ function telegramLink(raw: string, open = 'открыть'): string {
   return /^[A-Za-z0-9_]{4,32}$/.test(h) ? `<code>@${h}</code> · <a href="https://t.me/${h}">${open}</a>` : `<code>${esc(raw.trim())}</code>`;
 }
 
+/** Время доставки из settings (`delivery_from`, `delivery_to`, «ЧЧ:ММ») → «13:00–16:00»; нет/неверно — null (в сообщении времени не будет). */
+export async function getDeliveryHours(db: any): Promise<string | null> {
+  const { data } = await db.from('settings').select('key, value').in('key', ['delivery_from', 'delivery_to']);
+  const v = Object.fromEntries((data ?? []).map((r: { key: string; value: string }) => [r.key, String(r.value).trim()]));
+  const re = /^([01]?\d|2[0-3]):[0-5]\d$/;
+  return re.test(v.delivery_from ?? '') && re.test(v.delivery_to ?? '') ? `${v.delivery_from}–${v.delivery_to}` : null;
+}
+
 /** Сообщение о заказе в группе Orders — целиком на языке заказа (`o.lang`: ru/ua/en/vi; нет языка — ru). statusLine — уже готовая строка статуса (✅/❌ — кто, когда). */
-export function buildOrderText(o: OrderRow, days: string[], statusLine?: string): string {
+export function buildOrderText(o: OrderRow, days: string[], statusLine?: string, hours?: string | null): string {
   const d = dict(o.lang);
   const sorted = [...days].sort();
   const lines = [
     `🆕 <b>${d.title} ${o.order_number}</b>${o.is_vip ? ' ⭐ VIP' : ''}`,
     '',
     `${d.type}: ${o.type === 'single' ? d.once : sorted.length <= 5 ? d.sub(sorted.length) : d.subExtra(sorted.length)}`,
-    `📅 ${d.days}: ${sorted.map((x) => dayLabel(x, o.lang)).join(' · ')}`,
+    `📅 ${d.days}: ${sorted.map((x) => dayLabel(x, o.lang)).join(' · ')}${hours ? ` — ${d.deliveryWord} ${hours}` : ''}`,
     `🍽 ${d.portions(o.qty, o.qty * sorted.length)}`,
     ...(o.cutlery ? [`🍴 ${d.cutlery}`] : []),
     `🍱 ${d.lunches}: ${money(o.total - o.delivery_total + (o.discount_amount ?? 0))}`,

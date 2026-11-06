@@ -2,7 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { nowDanang } from '../_shared/dates.ts';
 import { buildPayrollReport, fmtRub, weekDays } from '../_shared/courier-pay.ts';
 import { statusLabel } from '../_shared/order-i18n.ts';
-import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
+import { buildOrderText, getDeliveryHours, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
 import { addExtra, applyNote, courierButton, courierResync, startNote } from '../_shared/courier-route.ts';
 import { safeEqual } from '../_shared/security.ts';
@@ -196,7 +196,7 @@ Deno.serve(async (req) => {
   }
 
   const { data: days } = await db.from('order_days').select('delivery_date').eq('order_id', order.id);
-  const text = buildOrderText(order as OrderRow, (days ?? []).map((d) => d.delivery_date), `${label} — @${by}, ${nowDanang()}`);
+  const text = buildOrderText(order as OrderRow, (days ?? []).map((d) => d.delivery_date), `${label} — @${by}, ${nowDanang()}`, await getDeliveryHours(db));
   const reply_markup = next === 'confirmed' ? keyboardConfirmed(number) : keyboardNone;
   const isPhoto = Array.isArray(msg.photo) && msg.photo.length > 0;
   const r = isPhoto

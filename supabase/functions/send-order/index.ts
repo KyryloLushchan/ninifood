@@ -3,7 +3,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { geocodeAddress } from '../_shared/geocode.ts';
-import { buildOrderText, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
+import { buildOrderText, getDeliveryHours, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
 import { corsFor } from '../_shared/cors.ts';
 import { clientIp, detectImage, sha256hex, verifyTurnstile } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
@@ -232,7 +232,7 @@ Deno.serve(async (req) => {
 
   // ── Telegram ──
   const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, discount_percent, discount_amount, lang, cutlery, is_vip: vip };
-  const text = buildOrderText(row, days);
+  const text = buildOrderText(row, days, undefined, await getDeliveryHours(db));
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
   let messageId: number | null = null;
   let fileId: string | null = null;

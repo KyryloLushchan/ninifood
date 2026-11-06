@@ -7,6 +7,7 @@ let fails = 0;
 const ok = (c: boolean, msg: string) => { if (!c) { fails++; console.log('  ❌', msg); } else console.log('  ✅', msg); };
 const base: OrderRow = { order_number: 'NF-1099', type: 'subscription', telegram: '@nini_client', phone: '+84901234567', address: '12 Bach Dang, Hai Chau', place_id: 'PID', lat: 16.06, lng: 108.22, hotel: 'Hotel Sun', comment: 'Call me', payment_method: 'qr', qty: 2, total: 1_620_000, delivery_total: 100_000, discount_percent: 10, discount_amount: 150_000, lang: 'ru', cutlery: true, is_vip: false };
 const days = ['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-09', '2026-11-10'];
+const H = '13:00–16:00';
 const strip = (t: string) => t.replace(/<[^>]+>/g, '');
 for (const lang of ['ru', 'ua', 'en', 'vi']) {
   console.log(`\n━━ ${lang.toUpperCase()} ━━`);
@@ -15,6 +16,12 @@ for (const lang of ['ru', 'ua', 'en', 'vi']) {
   ok(!/Язык|Language|Ngôn ngữ|Мова|🌐/.test(text) && !/\b(RU|UA|EN|VI)\b$/m.test(strip(text)), `${lang}: строки с языком нет`);
   if (lang === 'en' || lang === 'vi') ok(!/Заказ|Тип|Дни|Порций|Приборы|Обеды|Доставка|Итого|Оплата|Адрес|Отель|Комментарий|Подписка|Спасибо|открыть|Карта/.test(text.replace(/Hotel Sun|Call me/g, '')), `${lang}: русских подписей в тексте нет`);
 }
+for (const [lang, word] of [['ru', 'доставка'], ['ua', 'доставка'], ['en', 'delivery'], ['vi', 'giao hàng']]) {
+  const line = strip(buildOrderText({ ...base, lang }, days.slice(0, 2), undefined, H)).split('\n').find((l) => l.startsWith('📅')) ?? '';
+  console.log('   ' + line);
+  ok(line.endsWith(` — ${word} ${H}`), `${lang}: время доставки в строке дней`);
+}
+ok(!/доставка 13|delivery 13/.test(buildOrderText(base, days)), 'без настроек времени нет');
 const t = (l: string | null) => buildOrderText({ ...base, lang: l }, days);
 ok(t(null) === t('ru') && t('xx') === t('ru'), 'нет языка / неизвестный → русский');
 const one = buildOrderText({ ...base, lang: 'en', type: 'single', discount_amount: 0, cutlery: false, payment_method: 'cash', hotel: null, comment: null, lat: null, lng: null }, ['2026-11-04']);
