@@ -10,7 +10,7 @@ import { safeEqual } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
 
 /** Запас порций сверх заказов по умолчанию (повар готовит заказанное + это количество); настройка `extra_portions` (Настройки → Курьеры) важнее. */
-const DEFAULT_EXTRA_PORTIONS = 3;
+const DEFAULT_EXTRA_PORTIONS = 2;
 
 /**
  * Два сообщения: (1) курьеру в группу Orders, (2) порции для кухни в группу NiNi Ops (KITCHEN_CHAT_ID). Тело запроса `parts`: 'courier' | 'kitchen' (по умолчанию — оба, как у cron).

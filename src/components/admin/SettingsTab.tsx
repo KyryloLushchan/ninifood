@@ -36,7 +36,7 @@ const PAY = [
   { key: 'courier_fuel_price', label: 'Цена бензина, ₫/л (меняется вручную)', kind: 'int', min: 0, max: 200000 },
   { key: 'courier_lunch', label: 'Обед курьера, ₫/день (вычитается из ЗП за каждый рабочий день; 0 — не вычитать)', kind: 'int', min: 0, max: 1000000 },
 ] as const;
-const PAY_DEFAULTS: Record<string, string> = { courier_lunch: '50000', courier_lunch_from: '2026-11-05', extra_portions: '3', courier_pay_from: '2026-11-02', courier_pay_per_address: '20000', courier_fuel_l100: '2.2', courier_fuel_price: '26000' };
+const PAY_DEFAULTS: Record<string, string> = { courier_lunch: '50000', courier_lunch_from: '2026-11-05', extra_portions: '2', courier_pay_from: '2026-11-02', courier_pay_per_address: '20000', courier_fuel_l100: '2.2', courier_fuel_price: '26000' };
 const TRIP_DEFAULTS: Record<string, string> = { trip_capacity: '18', trip_nobox_portions: '3', trip_box_threshold: '3', courier_speed_kmh: '25', stop_minutes: '4', road_factor: '1.3', depart_time: '13:00', deadline_time: '16:00', trip_gap_min: '10' };
 
 const FIELDS = [
@@ -78,7 +78,7 @@ export function SettingsTab() {
       ...KITCHEN.map((f) => ({ key: f.key, value: values[f.key].trim(), is_public: false })),
       { key: 'couriers_count', value: values.couriers_count === '2' ? '2' : '1', is_public: false },
       { key: COURIER_IDS_KEY, value: ids.join(','), is_public: false },
-      { key: 'extra_portions', value: String(Math.min(50, Number((values.extra_portions ?? '3') || 0))), is_public: false },
+      { key: 'extra_portions', value: String(Math.min(50, Number((values.extra_portions ?? '2') || 0))), is_public: false },
     ];
     const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
     setBusy(false);
@@ -202,7 +202,7 @@ export function SettingsTab() {
           {KITCHEN.map((f) => row(f.label, values[f.key]))}
           {row('Курьеров по умолчанию', values.couriers_count)}
           {row('Курьер: Telegram id', values[COURIER_IDS_KEY] || '—')}
-          {row('Доп. порции в день (кухня)', values.extra_portions ?? '3')}
+          {row('Доп. порции в день (кухня)', values.extra_portions ?? '2')}
         </Card>
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">Финиш курьера</div>
