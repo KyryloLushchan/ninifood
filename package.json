@@ -7,7 +7,9 @@
     "build": "NEXT_FONT_GOOGLE_MOCKED_RESPONSES=$PWD/tools/fonts/mock.cjs next build",
     "start": "next start",
     "lint": "tsc --noEmit",
-    "prepare": "git config core.hooksPath .githooks || true"
+    "prepare": "git config core.hooksPath .githooks || true",
+    "postinstall": "sh tools/nosync.sh || true",
+    "postbuild": "sh tools/nosync.sh || true"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
