@@ -21,7 +21,7 @@ export async function loadPayrollRange(datesIn: string[]): Promise<PayrollData |
   const pay = parsePaySettings(cfg);
   const dates = datesIn.filter((d) => d >= pay.from); // дни раньше «Учитывать ЗП с даты» не считаются
   if (!dates.length) return { days: [], pay, rows: [] };
-  const { data: payRows } = await adminDb.from('courier_pay_days').select('date, courier, addresses_manual, km_manual, paid_at, paid_addresses, paid_km, paid_amount, lunch_skip').in('date', dates);
+  const { data: payRows } = await adminDb.from('courier_pay_days').select('date, courier, addresses_manual, km_manual, paid_at, paid_addresses, paid_km, paid_amount, lunch_skip, snap_at, snap_source, snap_addresses, snap_km, snap_per_address, snap_fuel_l100, snap_fuel_price, snap_lunch').in('date', dates);
   const rows = (payRows ?? []) as PayRow[];
   if (!cfg.kitchen_lat || !cfg.kitchen_lng || !Number.isFinite(klat) || !Number.isFinite(klng)) return null;
   const trip = parseTripSettings(cfg);
@@ -44,7 +44,7 @@ export async function loadPayrollRange(datesIn: string[]): Promise<PayrollData |
   const { data: ovs } = await adminDb.from('route_overrides').select('date, couriers, assign').in('date', dates);
   for (const date of dates) {
     const items = all.filter((r) => r.delivery_date === date).map((r) => ({ qty: r.qty, telegram: r.orders.telegram, address: r.orders.address, lat: r.orders.lat, lng: r.orders.lng }));
-    if (!items.length) continue;
+    if (!items.length && !rows.some((r) => r.date === date && r.snap_at)) continue;
     const ov = (ovs ?? []).find((o) => o.date === date);
     const override: RouteOverride | null = ov ? { couriers: ov.couriers === 2 ? 2 : 1, assign: (ov.assign ?? {}) as RouteOverride['assign'] } : null;
     days.push(

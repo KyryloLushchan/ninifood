@@ -55,6 +55,15 @@ export interface PayRow {
   paid_amount: number | null;
   /** Админ убрал вычет обеда на этот день. */
   lunch_skip?: boolean | null;
+  /** Снимок расчёта дня (фиксируется в 23:30): адреса/км по плану и ставки на тот день — день дальше не пересчитывается при смене настроек. */
+  snap_at?: string | null;
+  snap_source?: string | null;
+  snap_addresses?: number | null;
+  snap_km?: number | string | null;
+  snap_per_address?: number | null;
+  snap_fuel_l100?: number | string | null;
+  snap_fuel_price?: number | null;
+  snap_lunch?: number | null;
 }
 
 export interface CourierDayPay {
@@ -73,6 +82,9 @@ export interface CourierDayPay {
   /** Вычет обеда, применённый к дню (0 — не вычитаем), и признак «вычет убран админом». */
   lunch: number;
   lunchSkip: boolean;
+  /** День зафиксирован снимком (не пересчитывается при смене настроек); время фиксации. */
+  snapshot: boolean;
+  snapAt: string | null;
 }
 
 /** Клиент по нику Telegram (регистр и @ не важны). */
@@ -108,25 +120,38 @@ export function computeDayPay<T>(
 ): CourierDayPay[] {
   const plan = planDay(items, a, kitchen, couriers, trip, override);
   const out: CourierDayPay[] = [];
-  plan.couriers.forEach((cr, i) => {
-    const courier = i + 1;
-    const autoAddresses = countAddresses(
-      cr.trips.flatMap((t) => t.stops),
-      client,
-    );
-    const autoKm = roundKm(cr.totalKm);
+  // дни со снимком показываются даже если плана уже нет (например, заказы потом отменили)
+  const snapCouriers = rows.filter((r) => r.date === date && r.snap_at).map((r) => r.courier);
+  const n = Math.max(plan.couriers.length, ...snapCouriers, 0);
+  for (let courier = 1; courier <= n; courier++) {
+    const cr = plan.couriers[courier - 1];
     const row = rows.find((r) => r.date === date && r.courier === courier);
+    const snap = row?.snap_at ? row : null;
+    if (!cr && !snap) continue;
+    // со снимком: адреса и км «как посчитано в тот день», ставки — те, что действовали тогда
+    const p: PaySettings = snap
+      ? {
+          ...pay,
+          perAddress: snap.snap_per_address ?? pay.perAddress,
+          fuelPer100: snap.snap_fuel_l100 != null ? Number(snap.snap_fuel_l100) : pay.fuelPer100,
+          fuelPrice: snap.snap_fuel_price ?? pay.fuelPrice,
+          lunch: snap.snap_lunch ?? 0,
+          lunchFrom: '0000-00-00',
+        }
+      : pay;
+    const autoAddresses = snap && snap.snap_addresses != null ? snap.snap_addresses : countAddresses(cr!.trips.flatMap((t) => t.stops), client);
+    const autoKm = snap && snap.snap_km != null ? roundKm(Number(snap.snap_km)) : roundKm(cr!.totalKm);
     const paid = !!row?.paid_at;
     const addresses = paid ? (row!.paid_addresses ?? autoAddresses) : (row?.addresses_manual ?? autoAddresses);
     const km = paid ? Number(row!.paid_km ?? autoKm) : Number(row?.km_manual ?? autoKm);
-    const fuel = fuelCost(km, pay);
-    const base = addresses * pay.perAddress + fuel;
+    const fuel = fuelCost(km, p);
+    const base = addresses * p.perAddress + fuel;
     const lunchSkip = !!row?.lunch_skip;
     // обед вычитается за каждый день, когда курьер работал (есть доставки), с lunchFrom; у выплаченного дня вычет восстанавливается из выплаченной суммы
-    const lunch = paid && row!.paid_amount != null ? Math.max(0, base - Number(row!.paid_amount)) : date >= pay.lunchFrom && pay.lunch > 0 && !lunchSkip ? pay.lunch : 0;
+    const lunch = paid && row!.paid_amount != null ? Math.max(0, base - Number(row!.paid_amount)) : date >= p.lunchFrom && p.lunch > 0 && !lunchSkip ? p.lunch : 0;
     const total = paid && row!.paid_amount != null ? Number(row!.paid_amount) : base - lunch;
-    out.push({ date, courier, autoAddresses, autoKm, addresses, km, fuel, total, manual: !paid && (row?.addresses_manual != null || row?.km_manual != null), paid, lunch, lunchSkip });
-  });
+    out.push({ date, courier, autoAddresses, autoKm, addresses, km, fuel, total, manual: !paid && (row?.addresses_manual != null || row?.km_manual != null), paid, lunch, lunchSkip, snapshot: !!snap, snapAt: snap?.snap_at ?? null });
+  }
   return out;
 }
 

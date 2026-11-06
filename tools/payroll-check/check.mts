@@ -210,5 +210,60 @@ ok(store.orders[0].status === 'confirmed' && answers().pop() === 'Нет дос�
 await cb('x:NF-5001');
 ok(store.orders[0].status === 'cancelled', 'админ ❌ Отклонить: статус cancelled');
 
+console.log('\n── снимок расчёта дня (23:30) ──');
+{
+  const { computeDayPay, DEFAULT_PAY, parsePaySettings, clientKey } = await import(`${ROOT}/supabase/functions/_shared/courier-pay.ts`);
+  const { loadPayroll } = await import(`${ROOT}/supabase/functions/_shared/payroll.ts`);
+  const snapFn = await load('courier-pay-snapshot');
+  const SD = '2026-11-12'; // Чт
+  for (let i = 0; i < 4; i++) od(SD, `@s${i}`, 1 + i * 0.5, 1 + i * 0.4);
+  const callSnap = (h: Record<string, string>, body: any = {}) => snapFn(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', ...h }, body: JSON.stringify(body) }));
+  isAdminJwt = false;
+  ok((await callSnap({}, { date: SD })).status === 403 && (await callSnap({ authorization: 'Bearer viewer' }, { date: SD })).status === 403 && !store.courier_pay_days.some((d) => d.date === SD), 'снимок: без секрета и не админ (viewer) — 403, ничего не записано');
+  ok((await (await callSnap({ 'x-cron-secret': 'cron' }, { date: '2026-11-15' })).json()).skipped === 'sunday', 'воскресенье — пропуск');
+  const before = await loadPayroll(client, [SD]);
+  const dayBefore = before!.days[0];
+  const r1: any = await (await callSnap({ 'x-cron-secret': 'cron' }, { date: SD })).json();
+  const row = store.courier_pay_days.find((d) => d.date === SD && d.courier === 1)!;
+  ok(r1.ok && r1.written === 1 && row.snap_source === 'cron' && row.snap_addresses === dayBefore.autoAddresses && Number(row.snap_km) === dayBefore.autoKm && row.snap_per_address === 20000 && row.snap_fuel_price === 26000 && row.snap_lunch === 50000, `снимок записан: ${row.snap_addresses} адр., ${row.snap_km} км, ставка ${row.snap_per_address}, бензин ${row.snap_fuel_price} ₫/л, обед ${row.snap_lunch}`);
+  const frozenTotal = dayBefore.total;
+  // смена настроек: ставка за адрес, цена бензина, вместимость рейса и радиус — день не должен измениться
+  for (const [k, v] of [['courier_pay_per_address', '35000'], ['courier_fuel_price', '40000'], ['trip_capacity', '2'], ['courier_finish_radius_km', '9']] as const) { const e = store.settings.find((x) => x.key === k); if (e) e.value = v; else store.settings.push({ key: k, value: v }); }
+  const after = await loadPayroll(client, [SD]);
+  const dAfter = after!.days[0];
+  ok(dAfter.snapshot && dAfter.total === frozenTotal && dAfter.addresses === dayBefore.addresses && dAfter.km === dayBefore.km && dAfter.fuel === dayBefore.fuel, `после смены настроек (ставка 35 000, бензин 40 000, вместимость 2) зафиксированный день НЕ изменился: ${dAfter.total} ₫ (было ${frozenTotal} ₫)`);
+  // а несфиксированный день на тех же настройках пересчитывается
+  const other = await loadPayroll(client, ['2026-11-03']);
+  ok(other!.days[0] && !other!.days[0].snapshot, 'день без снимка по-прежнему считается по текущим настройкам');
+  // повторный запуск не перезаписывает cron-снимок
+  const r2: any = await (await callSnap({ 'x-cron-secret': 'cron' }, { date: SD })).json();
+  ok(r2.written === 0 && r2.kept === 1 && row.snap_per_address === 20000, 'повторный запуск: зафиксированный день не перезаписывается');
+  // ручная правка поверх снимка: адреса/км меняются, ставки — из снимка
+  row.addresses_manual = 5; row.km_manual = 20;
+  const man = (await loadPayroll(client, [SD]))!.days[0];
+  const expectFuel = Math.round(((20 * 2.2) / 100) * 26000 / 500) * 500;
+  ok(man.manual && man.addresses === 5 && man.km === 20 && man.total === 5 * 20000 + expectFuel - 50000 && man.autoAddresses === dayBefore.autoAddresses, `ручная правка поверх снимка работает (5 адр. × 20 000 + бензин 20 км − обед 50 000 по ставкам снимка = ${man.total} ₫)`);
+  row.addresses_manual = null; row.km_manual = null;
+  // предварительный снимок (provisional) обновляется, cron — нет
+  const PD = '2026-11-13';
+  for (let i = 0; i < 3; i++) od(PD, `@p${i}`, 1 + i * 0.5, -1 - i * 0.4);
+  store.settings.find((x) => x.key === 'courier_pay_per_address')!.value = '20000'; store.settings.find((x) => x.key === 'courier_fuel_price')!.value = '26000';
+  await callSnap({ 'x-cron-secret': 'cron' }, { date: PD, source: 'provisional' });
+  const prow = store.courier_pay_days.find((d) => d.date === PD)!;
+  ok(prow.snap_source === 'provisional', 'предварительный снимок записан (provisional)');
+  od(PD, '@p3', 3, -2); // добавился заказ
+  await callSnap({ 'x-cron-secret': 'cron' }, { date: PD });
+  ok(prow.snap_source === 'cron' && prow.snap_addresses === 4, 'ночной запуск обновил предварительный снимок (теперь cron, 4 адреса) и дальше не меняет');
+  // выплаченный день не трогаем
+  const XD = '2026-11-14';
+  for (let i = 0; i < 3; i++) od(XD, `@x${i}`, 1 + i * 0.5, 2 + i * 0.4);
+  store.courier_pay_days.push({ date: XD, courier: 1, paid_at: new Date().toISOString(), paid_addresses: 3, paid_km: 4, paid_amount: 99000 });
+  const r3: any = await (await callSnap({ 'x-cron-secret': 'cron' }, { date: XD })).json();
+  ok(r3.written === 0 && !store.courier_pay_days.find((d) => d.date === XD)!.snap_at, 'выплаченный день снимком не трогаем');
+  // день со снимком виден, даже если заказов потом не осталось
+  store.order_days = store.order_days.filter((d: any) => d.delivery_date !== SD);
+  const gone = (await loadPayroll(client, [SD]))!.days;
+  ok(gone.length === 1 && gone[0].snapshot && gone[0].addresses === dayBefore.autoAddresses, 'зафиксированный день остаётся в расчёте, даже если заказы потом отменили');
+}
 console.log(fails ? `\n❌ ПРОВАЛОВ: ${fails}` : '\n✅ все проверки ЗП курьера пройдены');
 fs.rmSync(tmp, { recursive: true, force: true });

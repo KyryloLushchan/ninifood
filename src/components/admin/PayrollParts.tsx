@@ -90,7 +90,8 @@ export function CourierPayBlock({ date, refreshKey }: { date: string; refreshKey
           <div className="text-sm font-extrabold">💰 ЗП курьера{multi ? ` · курьер ${d.courier}` : ''}</div>
           <div className="text-[15px] font-bold">{payLine(d, data.pay)}</div>
           <div className="text-xs text-ink-muted">
-            {d.paid ? '✅ выплачено' : d.manual ? `✏️ правка вручную (расчёт: ${d.autoAddresses} адр., ${d.autoKm} км)` : 'расчёт по маршруту; не выплачено'}
+            {d.paid ? '✅ выплачено' : d.manual ? `✏️ правка вручную (расчёт: ${d.autoAddresses} адр., ${d.autoKm} км)` : d.snapshot ? 'расчёт зафиксирован; не выплачено' : 'расчёт по маршруту; не выплачено'}
+            {d.snapshot && !d.paid && d.snapAt && ` · 🔒 ${new Intl.DateTimeFormat('ru', { timeZone: 'Asia/Ho_Chi_Minh', day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).format(new Date(d.snapAt))} (при смене настроек не пересчитывается)`}
           </div>
           {(d.date >= data.pay.lunchFrom && data.pay.lunch > 0 || d.lunch > 0) && !d.paid && (
             <label className={`flex items-center gap-2 text-sm font-bold ${readOnly ? 'opacity-70' : ''}`}>
