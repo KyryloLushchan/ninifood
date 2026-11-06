@@ -229,6 +229,37 @@ const markObsolete = async (db: any, chat: string, row: Row, why = '❌ Неак
   await db.from('courier_route_msgs').update({ status: 'obsolete' }).eq('id', row.id);
 };
 
+/** Удалить сообщение строки из группы (у бота право удалять) и вернуть её в обороте как неактуальную: message_id обнуляется, служебные сообщения точки (extra_msg_ids) тоже удаляются. */
+async function deleteRowMessages(db: any, chat: string, row: Row): Promise<number> {
+  const ids = [...new Set([row.message_id, row.note_prompt_id, ...(row.extra_msg_ids ?? [])].filter((x): x is number => !!x))];
+  let n = 0;
+  for (const id of ids) {
+    const r: any = await send(chat, 'deleteMessage', { message_id: id });
+    if (r.ok) n++;
+    else if (!/message to delete not found|message can't be deleted/i.test(r.description ?? '')) console.error('deleteMessage failed:', r.description);
+  }
+  await db.from('courier_route_msgs').update({ status: 'obsolete', message_id: null, note_prompt_id: null, extra_msg_ids: [] }).eq('id', row.id);
+  return n;
+}
+
+/** Удалить из группы все сообщения «❌ Неактуально» (строки status = obsolete) на даты; актуальные точки не трогаем. */
+export async function purgeObsolete(db: any, dates: string[]): Promise<{ rows: number }> {
+  const chat = Deno.env.get('COURIER_CHAT_ID') ?? '';
+  if (!chat) return { rows: 0 };
+  const { data } = await db.from('courier_route_msgs').select('*').in('date', dates).eq('status', 'obsolete').eq('is_test', false).order('id');
+  const rows = ((data ?? []) as Row[]).filter((r) => r.message_id || r.note_prompt_id || (r.extra_msg_ids ?? []).length);
+  const run = async () => {
+    for (const r of rows) {
+      await deleteRowMessages(db, chat, r);
+      await sleep(Number(Deno.env.get('ROUTE_DELETE_PACE_MS') ?? 250));
+    }
+  };
+  const rt = (globalThis as any).EdgeRuntime;
+  if (rt?.waitUntil) rt.waitUntil(run());
+  else await run();
+  return { rows: rows.length };
+}
+
 const LOCK_KEY = 'courier_route_lock';
 const LOCK_TTL_MS = 5 * 60_000;
 /** Блокировка на время публикации: пока маршрут отправляется (старые сообщения гасятся, новые уходят), сверка (cron каждые 3 минуты) ничего не делает — иначе она дублирует точки. Истекает через 5 минут. */
@@ -268,7 +299,8 @@ export async function publishRoute(db: any, date: string, mode: 'publish' | 'rep
   await setLock(db, true);
   const run = async () => {
    try {
-    for (const row of (existing ?? []) as Row[]) await markObsolete(db, chat, row, '❌ Неактуально — маршрут отправлен заново');
+    // при перепубликации старые сообщения маршрута удаляются из группы (не помечаются), чтобы группа оставалась чистой
+    for (const row of (existing ?? []) as Row[]) await deleteRowMessages(db, chat, row);
     let failed = 0;
     // повторная отправка уже опубликованного маршрута — шапка «⚠️ Маршрут изменён» (старые сообщения выше помечены «❌ Неактуально»)
     const head = (existing ?? []).length ? `⚠️ <b>Маршрут изменён</b>\n${rp.header}` : rp.header;

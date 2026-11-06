@@ -332,12 +332,33 @@ console.log('\n── блокировка сверки во время публ
 
 console.log('\n── ручная переотправка ──');
 const before = tgCalls.filter((c) => c.method === 'editMessageText').length;
+const beforeDel = tgCalls.filter((c) => c.method === 'deleteMessage').length;
+const activeBefore = store.courier_route_msgs.filter((r) => r.status === 'active' && !r.is_test && r.message_id).map((r) => r.message_id);
 const rr: any = await publishRoute(client, DATE, 'republish', warn);
 ok((store.settings.find((x) => x.key === 'courier_route_lock')?.value ?? '') === '', 'после публикации блокировка снята');
 const re = tgCalls.filter((c) => c.method === 'editMessageText').slice(before);
-ok(rr.ok && re.length > 10 && re.every((e) => /^❌ Неактуально — маршрут отправлен заново/.test(e.body.text)), 'republish: все старые сообщения — «❌ Неактуально — маршрут отправлен заново»');
+const delsNow = tgCalls.filter((c) => c.method === 'deleteMessage').slice(beforeDel).map((c) => c.body.message_id);
+ok(rr.ok && activeBefore.length > 10 && activeBefore.every((id) => delsNow.includes(id)), `republish: все ${activeBefore.length} старых сообщений маршрута УДАЛЕНЫ из группы (deleteMessage)`);
+ok(!re.some((e) => /Неактуально/.test(e.body.text)), 'republish: старые сообщения не помечаются «❌ Неактуально» (не редактируются)');
 ok(sends().map((x) => x.body.text).some((tx: string) => tx.startsWith('⚠️ <b>Маршрут изменён</b>\n🚚 <b>Маршрут на')), 'republish: новая шапка «⚠️ Маршрут изменён» + обычная шапка дня');
 ok(store.courier_route_msgs.filter((r) => r.status === 'active' && r.kind === 'stop').length === store.order_days.filter((d) => d.orders.status !== 'cancelled').length - 0 || true, 'новая версия маршрута активна');
+
+console.log('\n── очистка «❌ Неактуально» (purge) ──');
+{
+  const { purgeObsolete } = await import(`${ROOT}/supabase/functions/_shared/courier-route.ts`);
+  // «Неактуальные» точки, помеченные сверкой (редактированием), — их и удаляет purge; актуальные не трогаем
+  const obsolete = store.courier_route_msgs.filter((r) => r.status === 'obsolete' && !r.is_test && (r.message_id || r.note_prompt_id || (r.extra_msg_ids ?? []).length));
+  const act = store.courier_route_msgs.filter((r) => r.status === 'active' && !r.is_test && r.message_id).map((r) => r.message_id);
+  const n1 = tgCalls.length;
+  const pr: any = await purgeObsolete(client, [DATE]);
+  const dels = tgCalls.slice(n1).filter((c) => c.method === 'deleteMessage').map((c) => c.body.message_id);
+  ok(pr.rows === obsolete.length && obsolete.every((r) => !r.message_id || dels.includes(r.message_id)), `purge: удалены все сообщения неактуальных строк (${pr.rows})`);
+  ok(!act.some((id) => dels.includes(id)) && act.length > 0, 'актуальные сообщения маршрута не тронуты');
+  ok(store.courier_route_msgs.filter((r) => r.status === 'obsolete' && !r.is_test).every((r) => !r.message_id), 'у удалённых строк message_id обнулён (повторный purge их не трогает)');
+  const n2 = tgCalls.length;
+  const pr2: any = await purgeObsolete(client, [DATE]);
+  ok(pr2.rows === 0 && tgCalls.length === n2, 'повторный purge ничего не делает');
+}
 
 console.log('\n── отчёт кухне: доп. порции ──');
 {
