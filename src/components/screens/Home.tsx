@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
 import { useI18n } from '@/i18n';
 import { ddmm, isSunday, labelFull, weekdayShort } from '@/lib/dates';
@@ -14,8 +13,6 @@ import { LangPill } from '../ui/LangPill';
 import { useWide } from '@/lib/use-wide';
 import { Photo } from '../ui/Photo';
 import { Logo } from '../ui/ScreenHeader';
-
-const hours = { from: DELIVERY_FROM, to: DELIVERY_TO };
 
 function NutritionLine({ n, className, split }: { n: { kcal: number; protein: number; fat: number; carbs: number }; className: string; split?: boolean }) {
   const { t } = useI18n();
@@ -50,6 +47,7 @@ function HeroCollage({ dishes }: { dishes?: { photo: string | null }[] }) {
 export function Home() {
   const { t, lang } = useI18n();
   const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub, isVip } = useApp();
+  const hours = { from: settings.deliveryFrom, to: settings.deliveryTo };
   const [tab, setTab] = useState<string | null>(null);
   const wide = useWide();
 

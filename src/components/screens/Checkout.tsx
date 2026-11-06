@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
 import { useI18n, type TKey } from '@/i18n';
 import { labelShort } from '@/lib/dates';
 import { isValidPhone, PHONE_PREFIX, formatDigits, parsePhoneInput, phoneDigits } from '@/lib/phone';
@@ -20,7 +19,7 @@ const REQUIRED: (keyof Contact)[] = ['telegram', 'phone', 'address'];
 
 export function Checkout() {
   const { t, lang, pl } = useI18n();
-  const { customer, cutlery, setCutlery, go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError, renewal, phoneKept, setPhoneKept } = useApp();
+  const { settings, customer, cutlery, setCutlery, go, orderType, days, portions, sum, contact, setContactField, place, selectPlace, captcha, payment, setPayment, placeOrder, sending, submitError, renewal, phoneKept, setPhoneKept } = useApp();
   const [phoneForeign, setPhoneForeign] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<keyof Contact, boolean>>>({});
 
@@ -77,7 +76,7 @@ export function Checkout() {
               {orderType === 'once' ? t('checkout.summaryOnce', { text }) : t('checkout.summarySub', { text })}
             </div>
             <div className="text-[13px] text-ink-muted">
-              {days.map((d) => labelShort(d, lang)).join(', ')} · {DELIVERY_FROM}–{DELIVERY_TO}
+              {days.map((d) => labelShort(d, lang)).join(', ')} · {settings.deliveryFrom}–{settings.deliveryTo}
             </div>
           </div>
           <button type="button" onClick={() => go('order')} className="text-sm font-bold text-accent hover:underline">

@@ -40,10 +40,12 @@ const PAY_DEFAULTS: Record<string, string> = { courier_lunch: '50000', courier_l
 const TRIP_DEFAULTS: Record<string, string> = { trip_capacity: '18', trip_nobox_portions: '3', trip_box_threshold: '3', courier_speed_kmh: '25', stop_minutes: '4', road_factor: '1.3', depart_time: '13:00', deadline_time: '16:00', trip_gap_min: '10' };
 
 const FIELDS = [
-  { key: 'price_single', label: 'Цена обеда, ₫', numeric: true },
-  { key: 'price_subscription', label: 'Цена подписки за 5 дней, ₫ (обед в подписке = 1/5)', numeric: true },
-  { key: 'delivery_single', label: 'Доставка, ₫ за каждый день доставки (разовый и подписка)', numeric: true },
-  { key: 'telegram_url', label: 'Ссылка Telegram для заказов на сегодня', numeric: false },
+  { key: 'price_single', label: 'Цена обеда, ₫', numeric: true, time: false },
+  { key: 'price_subscription', label: 'Цена подписки за 5 дней, ₫ (обед в подписке = 1/5)', numeric: true, time: false },
+  { key: 'delivery_single', label: 'Доставка, ₫ за каждый день доставки (разовый и подписка)', numeric: true, time: false },
+  { key: 'delivery_from', label: 'Доставка с (ЧЧ:ММ; сайт и сообщение о заказе)', numeric: false, time: true },
+  { key: 'delivery_to', label: 'Доставка до (ЧЧ:ММ)', numeric: false, time: true },
+  { key: 'telegram_url', label: 'Ссылка Telegram для заказов на сегодня', numeric: false, time: false },
 ] as const;
 
 export function SettingsTab() {
@@ -166,10 +168,15 @@ export function SettingsTab() {
     setMsg('');
     for (const f of FIELDS) {
       const v = (values[f.key] ?? '').trim();
-      if (f.numeric ? !/^\d+$/.test(v) : !/^https?:\/\//.test(v)) {
+      if (f.numeric ? !/^\d+$/.test(v) : f.time ? !/^([01]?\d|2[0-3]):[0-5]\d$/.test(v) : !/^https?:\/\//.test(v)) {
         return setError(`Проверьте поле: ${f.label}`);
       }
     }
+    const mins = (k: string) => {
+      const [h, m] = values[k].trim().split(':');
+      return +h * 60 + +m;
+    };
+    if (mins('delivery_from') >= mins('delivery_to')) return setError('«Доставка с» должна быть раньше «Доставка до».');
     setBusy(true);
     const rows = FIELDS.map((f) => ({ key: f.key, value: values[f.key].trim(), is_public: true }));
     const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
@@ -226,7 +233,7 @@ export function SettingsTab() {
             <Label>{f.label}</Label>
             <input
               className={inputCls}
-              inputMode={f.numeric ? 'numeric' : 'url'}
+              inputMode={f.numeric ? 'numeric' : f.time ? 'text' : 'url'}
               value={values[f.key] ?? ''}
               onChange={(e) => setValues({ ...values, [f.key]: e.target.value })}
             />

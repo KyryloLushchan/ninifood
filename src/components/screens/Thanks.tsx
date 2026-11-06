@@ -1,6 +1,5 @@
 'use client';
 
-import { DELIVERY_FROM, DELIVERY_TO } from '@/config/site';
 import { useI18n } from '@/i18n';
 import { labelList } from '@/lib/dates';
 import { fmtMoney } from '@/lib/format';
@@ -18,7 +17,7 @@ export function Thanks() {
     [t('thanks.orderNo'), placed.orderId],
     [t('thanks.days'), labelList(placed.days, lang)],
     [t('thanks.portions'), t('thanks.portionsValue', { n: placed.portions })],
-    [t('thanks.delivery'), `${DELIVERY_FROM}–${DELIVERY_TO}`],
+    [t('thanks.delivery'), `${settings.deliveryFrom}–${settings.deliveryTo}`],
     [t('thanks.payment'), `${placed.payment === 'qr' ? t('thanks.payQr') : placed.payment === 'other' ? t('thanks.payOther') : t('thanks.payCash')} · ${fmtMoney(placed.total)}`],
   ];
 
