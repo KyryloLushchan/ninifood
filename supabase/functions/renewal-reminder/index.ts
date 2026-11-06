@@ -111,9 +111,14 @@ Deno.serve(async (req) => {
     return r.ok;
   };
   // Одно сообщение на клиента (несколько заказов одного клиента — уже одна запись).
-  for (const e of entries) if (!(await send(entryMessage(e)))) return fail('telegram_failed', 502);
+  for (const e of entries) {
+    if (!(await send(entryMessage(e)))) return fail('telegram_failed', 502);
+    // запоминаем отправку: через 2 дня к ней вернётся renewal-followup (повторное напоминание)
+    await db.from('renewal_sent').insert({ kind: 'renewal', nick: nickKey(e.nick) || null, phone: e.phone, customer_id: e.customer_id, order_number: e.orders[0] });
+  }
   for (const f of firsts) {
     if (!(await send(firstSingleMessage(f, perLunch)))) return fail('telegram_failed', 502);
+    await db.from('renewal_sent').insert({ kind: 'first_single', nick: nickKey(f.nick) || null, phone: f.phone, customer_id: f.customer_id, order_number: f.order_number });
     await db.from('renewal_first_notices').insert({ nick: nickKey(f.nick) || null, phone: f.phone, customer_id: f.customer_id, order_number: f.order_number });
   }
   return json({ ok: true, count: entries.length, first: firsts.length });

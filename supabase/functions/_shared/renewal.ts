@@ -47,6 +47,7 @@ export interface Entry {
   primaryId: string;
   /** Язык клиента (по ПОСЛЕДНЕМУ заказу, у которого он есть), null — RU. */
   lang: string | null;
+  customer_id: string | null;
 }
 
 const byNumber = (a: { order_number: string }, b: { order_number: string }) => a.order_number.localeCompare(b.order_number, 'en', { numeric: true });
@@ -78,6 +79,7 @@ export function selectEntries(today: string, ending: EndingOrder[], future: Futu
         portions: sorted.reduce((s, o) => s + o.lastQty, 0),
         primaryId: sorted[0].id,
         lang: [...sorted].reverse().find((o) => o.lang)?.lang ?? null,
+        customer_id: sorted.find((o) => o.customer_id)?.customer_id ?? null,
       };
     })
     .sort((a, b) => byNumber({ order_number: a.orders[0] }, { order_number: b.orders[0] }));
@@ -192,3 +194,69 @@ const portionsWord = 'порц.';
 export function entryMessage(e: Entry): string {
   return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n\n${esc(clientText(e.lang))}`;
 }
+
+// ── Повторное напоминание: через 2 дня после напоминания о продлении / «первого разового», если клиент так и не заказал ──
+export interface SentReminder {
+  id: number;
+  kind: 'renewal' | 'first_single';
+  nick: string | null;
+  phone: string | null;
+  customer_id: string | null;
+  order_number: string;
+  sent_at: string;
+  followup_at: string | null;
+}
+export interface ClientOrder {
+  telegram: string;
+  phone: string | null;
+  customer_id: string | null;
+  created_at: string;
+  lang: string | null;
+  status: string;
+}
+export interface Followup {
+  reminder: SentReminder;
+  /** true — повторное не шлём (клиент уже заказал или это второе напоминание того же клиента); строку всё равно помечаем обработанной. */
+  skip: boolean;
+  nick: string;
+  lang: string | null;
+}
+/** Дата Дананга (UTC+7) для момента времени, ISO YYYY-MM-DD. */
+export const danangDate = (ts: string | number) => new Date(new Date(ts).getTime() + 7 * 3600_000).toISOString().slice(0, 10);
+const addDays = (iso: string, n: number) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
+const ddmm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
+
+/**
+ * Что делать с отправленными напоминаниями сегодня (13:00 Дананг): срок — дата напоминания + 2 дня (опоздавшие запуски догоняем до +4 дней), повторное один раз (followup_at пуст).
+ * Клиент (по нику/телефону/аккаунту) сделал после напоминания любой заказ кроме отменённого — skip. orders — все заказы клиентов (любой статус).
+ */
+export function selectFollowups(today: string, sent: SentReminder[], orders: ClientOrder[]): Followup[] {
+  const out: Followup[] = [];
+  const seen = new Set<string>();
+  for (const r of sent) {
+    if (r.followup_at) continue;
+    const due = addDays(danangDate(r.sent_at), 2);
+    if (today < due || today > addDays(due, 2)) continue;
+    const me = { telegram: r.nick ?? '', phone: r.phone, customer_id: r.customer_id };
+    const mine = orders.filter((o) => sameClient(me, o));
+    // у клиента два напоминания (например, продление и первый разовый) — повторное одно, вторая запись просто закрывается
+    const key = nickKey(me.telegram) || me.phone || me.customer_id || String(r.id);
+    const skip = mine.some((o) => o.status !== 'cancelled' && o.created_at > r.sent_at) || seen.has(key);
+    if (!skip) seen.add(key);
+    const lang = [...mine].filter((o) => o.status !== 'cancelled').sort((a, b) => b.created_at.localeCompare(a.created_at)).find((o) => o.lang)?.lang ?? null;
+    out.push({ reminder: r, skip, nick: me.telegram, lang });
+  }
+  return out;
+}
+
+const AGAIN_TXT: Record<'ru' | 'ua' | 'en' | 'vi', (link: string, group: string) => string> = {
+  ru: (l, g) => `Голодны? 😋🍲 А ведь могли бы уже наслаждаться вкусным домашним обедом от NiniFood! 🥗🍛✨\nЗакажите на завтра — мы всё приготовим и привезём 🛵💨\n👉 ${l}\n\nЗагляните в отзывы наших гостей 💬⭐ ${g}`,
+  ua: (l, g) => `Голодні? 😋🍲 А могли б уже насолоджуватися смачним домашнім обідом від NiniFood! 🥗🍛✨\nЗамовте на завтра — ми все приготуємо й привеземо 🛵💨\n👉 ${l}\n\nЗазирніть у відгуки наших гостей 💬⭐ ${g}`,
+  en: (l, g) => `Hungry? 😋🍲 You could already be enjoying a delicious home-cooked lunch from NiniFood! 🥗🍛✨\nOrder for tomorrow — we'll cook it and bring it to you 🛵💨\n👉 ${l}\n\nCheck out what our guests say 💬⭐ ${g}`,
+  vi: (l, g) => `Đói bụng chưa? 😋🍲 Bạn đã có thể thưởng thức bữa trưa nhà làm thơm ngon từ NiniFood rồi đấy! 🥗🍛✨\nĐặt cho ngày mai nhé — chúng tôi sẽ nấu và giao tận nơi 🛵💨\n👉 ${l}\n\nXem đánh giá của khách hàng 💬⭐ ${g}`,
+};
+/** Текст клиенту на языке последнего заказа (нет языка — ru); ссылка — сайт с ?lang=. */
+export const againText = (lang?: string | null) => AGAIN_TXT[lk(lang)](`${SITE_URL}/?lang=${linkLang(lang)}`, REVIEWS_URL);
+/** Сообщение в Renewals: первая строка по-русски, дальше текст на языке клиента. */
+export const followupMessage = (f: Followup) =>
+  `😋 Повторное · ${esc(nickText(f.nick))} · ${esc(f.reminder.order_number)} (${f.reminder.kind === 'renewal' ? 'после продления' : 'после первого разового'} ${ddmm(danangDate(f.reminder.sent_at))})\n\n${esc(againText(f.lang))}`;
