@@ -1,4 +1,4 @@
-// /start в личке бота (Mini App) — на заглушках: без БД и Telegram.
+// Бот молчит в личке и в чужих группах — на заглушках: без БД и Telegram.
 //   node --experimental-strip-types tools/bot-check/check.mts
 import fs from 'node:fs';
 import os from 'node:os';
@@ -9,25 +9,26 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bot-'));
 let fails = 0;
 const ok = (c: boolean, msg: string) => { if (!c) { fails++; console.log('  ❌', msg); } else console.log('  ✅', msg); };
 
-const store: Record<string, any[]> = { bot_users: [], settings: [], orders: [], courier_route_msgs: [], order_days: [] };
+const store: Record<string, any[]> = { settings: [], orders: [], courier_route_msgs: [], order_days: [] };
+const writes: string[] = [];
 const get = (r: any, p: string) => p.split('.').reduce((o, k) => o?.[k], r);
 function from(name: string) {
   const filters: ((r: any) => boolean)[] = [];
-  let mode: 'select' | 'upsert' | 'insert' = 'select';
+  let mode: 'select' | 'upsert' | 'insert' | 'update' | 'delete' = 'select';
   let up: any = null;
   const run = (single: boolean) => {
     const t = store[name] ?? (store[name] = []);
     if (mode === 'upsert') {
-      const k = up.onConflict;
-      let r = t.find((x) => x[k] === up.obj[k]);
+      writes.push(`upsert ${name}`);
+      let r = t.find((x) => x[up.onConflict] === up.obj[up.onConflict]);
       if (r) Object.assign(r, up.obj); else t.push((r = { ...up.obj }));
       return Promise.resolve({ data: r, error: null });
     }
-    if (mode === 'insert') { t.push({ ...up.obj }); return Promise.resolve({ data: null, error: null }); }
+    if (mode !== 'select') { writes.push(`${mode} ${name}`); return Promise.resolve({ data: null, error: null }); }
     const hit = t.filter((r) => filters.every((f) => f(r)));
     return Promise.resolve({ data: single ? (hit[0] ?? null) : hit, error: null });
   };
-  const q: any = { select: () => q, eq: (c: string, v: any) => (filters.push((r) => get(r, c) === v), q), in: (c: string, vs: any[]) => (filters.push((r) => vs.includes(get(r, c))), q), upsert: (obj: any, o: any) => ((mode = 'upsert'), (up = { obj, onConflict: o.onConflict }), q), insert: (obj: any) => ((mode = 'insert'), (up = { obj }), q), maybeSingle: () => run(true), single: () => run(true), then: (a: any, b: any) => run(false).then(a, b) };
+  const q: any = { select: () => q, eq: (c: string, v: any) => (filters.push((r) => get(r, c) === v), q), in: (c: string, vs: any[]) => (filters.push((r) => vs.includes(get(r, c))), q), upsert: (obj: any, o: any) => ((mode = 'upsert'), (up = { obj, onConflict: o.onConflict }), q), insert: () => ((mode = 'insert'), q), update: () => ((mode = 'update'), q), delete: () => ((mode = 'delete'), q), maybeSingle: () => run(true), single: () => run(true), then: (a: any, b: any) => run(false).then(a, b) };
   return q;
 }
 (globalThis as any).__client = { from, rpc: async () => ({ data: false, error: null }) };
@@ -39,7 +40,7 @@ const tgCalls: { method: string; body: any }[] = [];
   tgCalls.push({ method: m[1], body: JSON.parse(init.body) });
   return { json: async () => ({ ok: true, result: { message_id: 1 } }) };
 };
-const env: Record<string, string> = { CRON_SECRET: 'cron', ORDERS_CHAT_ID: '-100', COURIER_CHAT_ID: '-555', TG_WEBHOOK_SECRET: 'wh', ADMIN_TG_IDS: '11', TELEGRAM_BOT_TOKEN: 'x', SUPABASE_URL: 'u', SUPABASE_ANON_KEY: 'a', SUPABASE_SERVICE_ROLE_KEY: 's' };
+const env: Record<string, string> = { CRON_SECRET: 'cron', ORDERS_CHAT_ID: '-100', KITCHEN_CHAT_ID: '-200', COURIER_CHAT_ID: '-555', RENEWALS_CHAT_ID: '-300', TG_WEBHOOK_SECRET: 'wh', ADMIN_TG_IDS: '11', TELEGRAM_BOT_TOKEN: 'x', SUPABASE_URL: 'u', SUPABASE_ANON_KEY: 'a', SUPABASE_SERVICE_ROLE_KEY: 's' };
 let handler: any;
 (globalThis as any).Deno = { env: { get: (k: string) => env[k] }, serve: (h: any) => { handler = h; } };
 let s = fs.readFileSync(path.join(ROOT, 'supabase/functions/tg-webhook/index.ts'), 'utf8');
@@ -48,66 +49,62 @@ const f = path.join(tmp, 'tg-webhook.mts');
 fs.writeFileSync(f, s);
 await import(f);
 const send = (update: any, secret = 'wh') => handler(new Request('http://x', { method: 'POST', headers: { 'content-type': 'application/json', 'x-telegram-bot-api-secret-token': secret }, body: JSON.stringify(update) }));
-const start = (from: any, text = '/start', chatType = 'private') => send({ message: { message_id: 1, text, chat: { id: from.id, type: chatType }, from } });
-const last = () => tgCalls.filter((c) => c.method === 'sendMessage').pop()?.body;
+const reset = () => { tgCalls.length = 0; writes.length = 0; };
 
-console.log('── /start: язык, текст, кнопка ──');
-const cases: [string, string, string, string][] = [
-  ['ru', 'Анна', 'Привет, Анна! 👋 Это NiniFood — домашние обеды с доставкой в Дананге 🍲 Нажмите кнопку ниже, чтобы посмотреть меню и заказать 👇', 'ru'],
-  ['uk', 'Оля', 'Привіт, Оля! 👋 Це NiniFood — домашні обіди з доставкою в Дананзі 🍲 Натисніть кнопку нижче, щоб переглянути меню та замовити 👇', 'uk'],
-  ['en', 'John', 'Hi, John! 👋 This is NiniFood — home-cooked lunches delivered in Da Nang 🍲 Tap the button below to see the menu and order 👇', 'en'],
-  ['vi', 'Lan', 'Xin chào, Lan! 👋 Đây là NiniFood — bữa trưa nhà làm giao tận nơi ở Đà Nẵng 🍲 Nhấn nút bên dưới để xem thực đơn và đặt món 👇', 'vi'],
-  ['de', 'Hans', 'Hi, Hans! 👋 This is NiniFood — home-cooked lunches delivered in Da Nang 🍲 Tap the button below to see the menu and order 👇', 'en'],
-];
-let id = 1000;
-for (const [code, name, text, lang] of cases) {
-  tgCalls.length = 0;
-  await start({ id: ++id, first_name: name, username: `u${id}`, language_code: code });
-  const m = last()!;
-  ok(m.chat_id === id && m.text === text && m.reply_markup.inline_keyboard[0][0].text === '🍽 Открыть меню' && m.reply_markup.inline_keyboard[0][0].web_app.url === `https://ninifoodvn.com/?lang=${lang}`, `language_code «${code}» → ответ на ${lang}, кнопка web_app → ?lang=${lang}`);
+console.log('── личные чаты: полная тишина ──');
+for (const text of ['/start', '/start abc', '/help', 'привет']) {
+  reset();
+  const r = await send({ message: { message_id: 1, text, chat: { id: 5001, type: 'private' }, from: { id: 5001, first_name: 'X', language_code: 'ru' } } });
+  ok(r.status === 200 && tgCalls.length === 0 && writes.length === 0, `«${text}» в личке: нет ответа, нет записи в БД`);
 }
-tgCalls.length = 0;
-await start({ id: 2001, first_name: 'Pt', language_code: 'pt-BR' });
-ok(/^Hi, Pt!/.test(last()!.text), 'pt-BR (неизвестный) → en');
-tgCalls.length = 0;
-await start({ id: 2002, language_code: 'ru', username: 'nofirst' });
-ok(/^Привет, @nofirst!/.test(last()!.text), 'нет имени — подставляется @ник');
-tgCalls.length = 0;
-await start({ id: 2003, first_name: 'Max', language_code: 'en' }, '/start payload123');
-ok(/^Hi, Max!/.test(last()!.text), '«/start payload» тоже обрабатывается');
-tgCalls.length = 0;
-await start({ id: 2004, first_name: 'Max', language_code: 'en' }, '/start@nini_food_bot');
-ok(/^Hi, Max!/.test(last()!.text), '«/start@бот» тоже обрабатывается');
+reset();
+await send({ callback_query: { id: 'c', data: 'c:abc', from: { id: 11 }, message: { message_id: 1, chat: { id: 11, type: 'private' } } } });
+ok(tgCalls.length === 0, 'кнопка из личного чата — игнорируется (даже от админа)');
+reset();
+await send({ my_chat_member: { chat: { id: 5002, type: 'private' }, new_chat_member: { status: 'member' } } });
+ok(tgCalls.length === 0, 'my_chat_member в личке — тишина');
 
-console.log('\n── только личные чаты ──');
-tgCalls.length = 0;
-await start({ id: 3001, first_name: 'G', language_code: 'ru' }, '/start', 'group');
-await start({ id: 3002, first_name: 'G', language_code: 'ru' }, '/start', 'supergroup');
-ok(tgCalls.length === 0 && !store.bot_users.some((u) => u.user_id === 3001 || u.user_id === 3002), '/start в группе/супергруппе игнорируется: ответа нет, в bot_users не пишется');
-await start({ id: 3003, first_name: 'T', language_code: 'ru' }, 'привет');
-await start({ id: 3004, first_name: 'T', language_code: 'ru' }, '/help');
-ok(tgCalls.length === 0, 'любой другой текст в личке (не /start) — тишина');
-await start({ id: 3005, is_bot: true, first_name: 'Bot', language_code: 'ru' });
-ok(tgCalls.length === 0, 'сообщения от ботов игнорируются');
-const bad: Response = await send({ message: { text: '/start', chat: { id: 1, type: 'private' }, from: { id: 1, first_name: 'X' } } }, 'wrong');
-ok(bad.status === 401 && tgCalls.length === 0, 'неверный секрет вебхука — 401, ничего не отправлено');
+console.log('\n── чужие группы: выход ──');
+for (const type of ['group', 'supergroup', 'channel']) {
+  reset();
+  await send({ my_chat_member: { chat: { id: -9001, type, title: 'Чужая' }, new_chat_member: { status: 'member' } } });
+  ok(tgCalls.length === 1 && tgCalls[0].method === 'leaveChat' && tgCalls[0].body.chat_id === -9001 && writes.length === 0, `бота добавили в чужой ${type} → leaveChat, больше ничего`);
+}
+reset();
+await send({ message: { message_id: 1, text: 'hi', chat: { id: -9002, type: 'supergroup' }, from: { id: 11 } } });
+ok(tgCalls.length === 1 && tgCalls[0].method === 'leaveChat', 'сообщение из чужой группы → leaveChat');
+reset();
+await send({ callback_query: { id: 'c', data: 'c:abc', from: { id: 11 }, message: { message_id: 1, chat: { id: -9003, type: 'supergroup' } } } });
+ok(tgCalls.every((c) => c.method === 'leaveChat') && writes.length === 0, 'кнопка заказа в чужой группе (даже от админа) — не выполняется, выход');
 
-console.log('\n── bot_users ──');
-const u = store.bot_users.find((x) => x.user_id === 1001)!;
-ok(!!u && u.username === 'u1001' && u.first_name === 'Анна' && u.language_code === 'ru' && u.starts === 1 && !!u.first_start_at, 'записан: user id, ник, имя, язык, дата, число запусков');
-const first = u.first_start_at;
-await start({ id: 1001, first_name: 'Анна', username: 'u1001', language_code: 'ru' });
-ok(store.bot_users.filter((x) => x.user_id === 1001).length === 1 && u.starts === 2 && u.first_start_at === first, 'повторный /start: та же строка, starts = 2, первая дата сохраняется');
+console.log('\n── свои группы остаются ──');
+for (const id of ['-100', '-200', '-555', '-300']) {
+  reset();
+  await send({ my_chat_member: { chat: { id: Number(id), type: 'supergroup' }, new_chat_member: { status: 'administrator' } } });
+  ok(tgCalls.length === 0, `изменение членства в нашей группе ${id} — без выхода и действий`);
+  reset();
+  await send({ message: { message_id: 1, text: 'hello', chat: { id: Number(id), type: 'supergroup' }, from: { id: 99 } } });
+  ok(!tgCalls.some((c) => c.method === 'leaveChat'), `обычное сообщение в нашей группе ${id} — не выходим`);
+}
 
-console.log('\n── прежнее поведение tg-webhook не сломано ──');
-tgCalls.length = 0;
-await send({ callback_query: { id: 'q1', from: { id: 999 }, data: 'c:NF-1', message: { chat: { id: -100 }, message_id: 5 } } });
-ok(tgCalls.some((c) => c.method === 'answerCallbackQuery' && c.body.text === 'Нет доступа'), 'кнопка заказа от чужого id: «Нет доступа» (как раньше)');
-tgCalls.length = 0;
-await send({ callback_query: { id: 'q2', from: { id: 999 }, data: 'd:1', message: { chat: { id: -555 }, message_id: 5 } } });
-ok(tgCalls.some((c) => c.method === 'answerCallbackQuery' && c.body.text === 'Нет прав'), 'кнопка группы курьера от чужого id: «Нет прав» (как раньше)');
-tgCalls.length = 0;
-await send({ message: { message_id: 7, text: 'просто сообщение в группе', chat: { id: -555, type: 'group' }, from: { id: 5, first_name: 'A' }, reply_to_message: { message_id: 3 } } });
-ok(tgCalls.length === 0, 'ответ в группе курьера не на вопрос бота — игнорируется (как раньше)');
-console.log(fails ? `\n❌ ПРОВАЛОВ: ${fails}` : '\n✅ все проверки /start пройдены');
-fs.rmSync(tmp, { recursive: true, force: true });
+console.log('\n── миграция своей группы в супергруппу ──');
+reset();
+await send({ message: { message_id: 1, migrate_from_chat_id: -555, chat: { id: -1009999, type: 'supergroup', title: 'NiniFood Courier' } } });
+ok(!tgCalls.some((c) => c.method === 'leaveChat') && tgCalls.some((c) => c.method === 'sendMessage' && c.body.chat_id === '-100' && /супергруппой/.test(c.body.text)), 'migrate_from_chat_id нашей группы: не выходим, предупреждение в Orders');
+reset();
+await send({ message: { message_id: 2, text: 'hi', chat: { id: -1009999, type: 'supergroup' }, from: { id: 99 } } });
+ok(!tgCalls.some((c) => c.method === 'leaveChat'), 'следующие сообщения в мигрировавшей группе — тоже без выхода');
+
+console.log('\n── кнопки курьера только в группе курьера ──');
+reset();
+const r1 = await send({ callback_query: { id: 'c', data: 'd:5', from: { id: 11 }, message: { message_id: 1, chat: { id: -100, type: 'supergroup' } } } });
+ok(r1.status === 200 && !tgCalls.some((c) => c.method === 'editMessageText') && writes.length === 0, 'd:<id> из группы Orders (не курьера) — ничего не меняется');
+
+console.log('\n── секрет вебхука ──');
+for (const sec of ['', 'bad', 'whx']) {
+  reset();
+  const r = await send({ message: { chat: { id: -9005, type: 'supergroup' } } }, sec);
+  ok(r.status === 401 && tgCalls.length === 0, `секрет «${sec}» → 401, ничего не выполняется`);
+}
+console.log(fails ? `\nПРОВАЛ: ${fails}` : '\nВсё ок');
+process.exit(fails ? 1 : 0);

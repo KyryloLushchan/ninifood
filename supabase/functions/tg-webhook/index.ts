@@ -5,7 +5,6 @@ import { statusLabel } from '../_shared/order-i18n.ts';
 import { buildOrderText, keyboardConfirmed, keyboardNone, type OrderRow } from '../_shared/order-text.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
 import { addExtra, applyNote, courierButton, courierResync, startNote } from '../_shared/courier-route.ts';
-import { isStartCommand, startMessage } from '../_shared/bot-start.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
 
@@ -41,25 +40,27 @@ Deno.serve(async (req) => {
   } catch {
     return ok();
   }
-  // /start в ЛИЧНОМ чате с ботом: приветствие на языке пользователя + кнопка Mini App «🍽 Открыть меню»; кто нажал /start — в bot_users (чтобы потом писать клиентам от бота).
-  if (update.message && !update.callback_query && update.message.chat?.type === 'private' && update.message.from && !update.message.from.is_bot && isStartCommand(update.message.text)) {
-    const m = update.message;
-    const f = m.from;
-    try {
-      const { data: ex } = await db.from('bot_users').select('starts, first_start_at').eq('user_id', f.id).maybeSingle();
-      const now = new Date().toISOString();
-      const { error: e } = await db.from('bot_users').upsert(
-        { user_id: f.id, username: f.username ?? null, first_name: f.first_name ?? null, last_name: f.last_name ?? null, language_code: f.language_code ?? null, first_start_at: ex?.first_start_at ?? now, last_start_at: now, starts: (ex?.starts ?? 0) + 1 },
-        { onConflict: 'user_id' },
-      );
-      if (e) console.error('bot_users upsert failed:', e.message);
-    } catch (e) {
-      console.error('bot_users failed:', (e as Error).message);
+  // Бот в личке и в чужих группах молчит: личные чаты игнорируются полностью (без ответа и без записи в БД); чужая группа — бот сам выходит (leaveChat) и ничего не делает.
+  // Свои группы — Orders, NiniFood Ops, Courier, Renewals (id из секретов).
+  const ours = new Set(['ORDERS_CHAT_ID', 'KITCHEN_CHAT_ID', 'COURIER_CHAT_ID', 'RENEWALS_CHAT_ID'].map((k) => Deno.env.get(k) ?? '').filter(Boolean));
+  const chat = update.message?.chat ?? update.edited_message?.chat ?? update.callback_query?.message?.chat ?? update.my_chat_member?.chat ?? update.channel_post?.chat ?? null;
+  if (chat) {
+    if (chat.type === 'private') return ok();
+    if (!ours.has(String(chat.id))) {
+      // Наша группа стала супергруппой (новый chat_id): запоминаем новый id в settings.extra_chat_ids (чтобы не выйти из своей группы) и просим обновить секрет.
+      const from = String(update.message?.migrate_from_chat_id ?? '');
+      const { data: ex } = await db.from('settings').select('value').eq('key', 'extra_chat_ids').maybeSingle();
+      const extra = String(ex?.value ?? '').split(/[\s,;]+/).filter(Boolean);
+      if (from && ours.has(from)) {
+        if (!extra.includes(String(chat.id))) await db.from('settings').upsert({ key: 'extra_chat_ids', value: [...extra, String(chat.id)].join(',') }, { onConflict: 'key' });
+        await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text: `⚠️ Группа «${String(chat.title ?? '').replace(/[<>&]/g, '')}» стала супергруппой: обновите её chat_id в секретах Supabase (ORDERS/KITCHEN/COURIER/RENEWALS_CHAT_ID).`, parse_mode: 'HTML' });
+        return ok();
+      }
+      if (extra.includes(String(chat.id))) return ok(); // свою мигрировавшую группу не покидаем (кнопки в ней не работают, пока секрет не обновлён)
+      if (['group', 'supergroup', 'channel'].includes(chat.type)) await tg('leaveChat', { chat_id: chat.id });
+      return ok();
     }
-    const sm = startMessage(f);
-    const r = await tg('sendMessage', { chat_id: m.chat.id, text: sm.text, reply_markup: sm.reply_markup });
-    if (!r.ok) console.error('/start reply failed:', r.description);
-    return ok();
+    if (update.my_chat_member) return ok(); // изменения членства в наших группах — без действий
   }
 
   // Ответ на вопрос бота «Напишите комментарий к NF-…» в группе курьера (ForceReply) — комментарий к точке маршрута (админы и id из courier_note_ids).
@@ -95,6 +96,10 @@ Deno.serve(async (req) => {
   if (cm) {
     const uid = String(cb.from?.id);
     const rowId = Number(cm[2]);
+    if (String(cb.message?.chat?.id ?? '') !== (Deno.env.get('COURIER_CHAT_ID') ?? '')) {
+      await answer('Некорректная кнопка'); // кнопки маршрута работают только в группе курьера
+      return ok();
+    }
     const log = (allowed: boolean, result: string) => db.from('courier_button_log').insert({ row_id: rowId, action: cm[1], user_id: cb.from?.id ?? null, username: cb.from?.username ?? null, allowed, result });
     const acc = await courierAccess();
     if (!acc.canButtons(uid)) {
