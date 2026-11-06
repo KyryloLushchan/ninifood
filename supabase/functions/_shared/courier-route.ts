@@ -229,6 +229,21 @@ const markObsolete = async (db: any, chat: string, row: Row, why = '❌ Неак
   await db.from('courier_route_msgs').update({ status: 'obsolete' }).eq('id', row.id);
 };
 
+const LOCK_KEY = 'courier_route_lock';
+const LOCK_TTL_MS = 5 * 60_000;
+/** Блокировка на время публикации: пока маршрут отправляется (старые сообщения гасятся, новые уходят), сверка (cron каждые 3 минуты) ничего не делает — иначе она дублирует точки. Истекает через 5 минут. */
+async function setLock(db: any, on: boolean): Promise<void> {
+  const value = on ? new Date().toISOString() : '';
+  const { data } = await db.from('settings').select('key').eq('key', LOCK_KEY).maybeSingle();
+  if (data) await db.from('settings').update({ value }).eq('key', LOCK_KEY);
+  else await db.from('settings').insert({ key: LOCK_KEY, value, is_public: false });
+}
+async function locked(db: any): Promise<boolean> {
+  const { data } = await db.from('settings').select('value').eq('key', LOCK_KEY).maybeSingle();
+  const t = Date.parse(String(data?.value ?? ''));
+  return Number.isFinite(t) && Date.now() - t < LOCK_TTL_MS;
+}
+
 export interface PublishResult {
   ok: boolean;
   code?: string;
@@ -250,16 +265,23 @@ export async function publishRoute(db: any, date: string, mode: 'publish' | 'rep
   const total = 1 + rp.trips.reduce((n, t) => n + 1 + t.stops.length, 0) + rp.noPoint.length;
   if (!total) return { ok: true, skipped: 'empty' };
 
+  await setLock(db, true);
   const run = async () => {
+   try {
     for (const row of (existing ?? []) as Row[]) await markObsolete(db, chat, row, '❌ Неактуально — маршрут отправлен заново');
     let failed = 0;
-    if (!(await post(db, chat, date, 'day', rp.header, {}, false))) failed++;
+    // повторная отправка уже опубликованного маршрута — шапка «⚠️ Маршрут изменён» (старые сообщения выше помечены «❌ Неактуально»)
+    const head = (existing ?? []).length ? `⚠️ <b>Маршрут изменён</b>\n${rp.header}` : rp.header;
+    if (!(await post(db, chat, date, 'day', head, {}, false))) failed++;
     for (const t of rp.trips) {
       if (!(await post(db, chat, date, 'trip', t.text, { trip_no: t.no }, false))) failed++;
       for (const s of t.stops) if (!(await post(db, chat, date, 'stop', s.title, { trip_no: t.no, label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, true))) failed++;
     }
     for (const s of rp.noPoint) if (!(await post(db, chat, date, 'stop', s.title, { label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, true))) failed++;
     if (failed) await warn?.(`Маршрут ${esc(date)} в группу курьера отправлен не полностью: не ушло сообщений — ${failed}.`);
+   } finally {
+    await setLock(db, false);
+   }
   };
   // Сообщений десятки, пауза между ними ~1 с: отправляем в фоне, чтобы ответ функции не ждал (в тестах — синхронно).
   const rt = (globalThis as any).EdgeRuntime;
@@ -281,6 +303,7 @@ export interface SyncResult {
 export async function syncRoute(db: any, date: string): Promise<SyncResult> {
   const chat = Deno.env.get('COURIER_CHAT_ID') ?? '';
   if (!chat) return { ok: false, skipped: 'chat_missing' };
+  if (await locked(db)) return { ok: true, skipped: 'publishing' };
   const { data } = await db.from('courier_route_msgs').select('*').eq('date', date).eq('status', 'active').eq('is_test', false).order('id');
   const rows = (data ?? []) as Row[];
   if (!rows.length) return { ok: true, skipped: 'not_published' };

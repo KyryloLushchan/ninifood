@@ -319,11 +319,24 @@ store.route_overrides.push({ date: DATE, couriers: 1, assign: Object.fromEntries
 const s4: any = await syncRoute(client, DATE);
 ok(s4.ok, `ручное распределение (route_overrides): сверка выполнена (${s4.changed ? 'порядок/состав изменился' : 'точки те же, номера/время обновлены молча'}), отправлено сообщений: ${sends().length - n3}`);
 
+console.log('\n── блокировка сверки во время публикации ──');
+{
+  const lockRow = store.settings.find((x) => x.key === 'courier_route_lock') ?? (store.settings.push({ key: 'courier_route_lock', value: '' }), store.settings.at(-1)!);
+  lockRow.value = new Date().toISOString();
+  const nL = sends().length;
+  const sl: any = await syncRoute(client, DATE);
+  ok(sl.skipped === 'publishing' && sends().length === nL, 'пока идёт публикация (блокировка), сверка ничего не отправляет — дублей точек не будет');
+  lockRow.value = new Date(Date.now() - 6 * 60_000).toISOString();
+  ok((await syncRoute(client, DATE)).skipped !== 'publishing', 'просроченная блокировка (> 5 минут) не мешает сверке');
+}
+
 console.log('\n── ручная переотправка ──');
 const before = tgCalls.filter((c) => c.method === 'editMessageText').length;
 const rr: any = await publishRoute(client, DATE, 'republish', warn);
+ok((store.settings.find((x) => x.key === 'courier_route_lock')?.value ?? '') === '', 'после публикации блокировка снята');
 const re = tgCalls.filter((c) => c.method === 'editMessageText').slice(before);
 ok(rr.ok && re.length > 10 && re.every((e) => /^❌ Неактуально — маршрут отправлен заново/.test(e.body.text)), 'republish: все старые сообщения — «❌ Неактуально — маршрут отправлен заново»');
+ok(sends().map((x) => x.body.text).some((tx: string) => tx.startsWith('⚠️ <b>Маршрут изменён</b>\n🚚 <b>Маршрут на')), 'republish: новая шапка «⚠️ Маршрут изменён» + обычная шапка дня');
 ok(store.courier_route_msgs.filter((r) => r.status === 'active' && r.kind === 'stop').length === store.order_days.filter((d) => d.orders.status !== 'cancelled').length - 0 || true, 'новая версия маршрута активна');
 
 console.log('\n── отчёт кухне: доп. порции ──');
