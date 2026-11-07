@@ -19,6 +19,10 @@ export function newCode(): string {
 /** Ник Telegram без @ и ссылки, в нижнем регистре — ключ клиента. */
 export const nickKey = (telegram: string) => telegram.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '').toLowerCase();
 
+/** Подписка — от 5 дней (как `SUB_MIN_DAYS` на сайте). «Разовый» заказ на 5+ дней считается подпиской: ему «продление», не «первый разовый». */
+export const SUB_MIN_DAYS = 5;
+export const isSubscriptionSized = (type: string, daysCount: number) => type === 'subscription' || daysCount >= SUB_MIN_DAYS;
+
 export interface EndingOrder {
   id: string;
   order_number: string;
@@ -53,7 +57,7 @@ export interface Entry {
 const byNumber = (a: { order_number: string }, b: { order_number: string }) => a.order_number.localeCompare(b.order_number, 'en', { numeric: true });
 
 /**
- * Клиенты, у которых СЕГОДНЯ последний день подписки и нет заказа/подписки на ближайшие дни.
+ * Клиенты, у которых СЕГОДНЯ последний день подписки (в т.ч. «разового» на 5+ дней — `isSubscriptionSized`) и нет заказа/подписки на ближайшие дни.
  * ending — подписки (confirmed/delivered), у которых последний день = сегодня; future — заказы (new/confirmed/delivered) с днями после сегодня.
  * «Тот же клиент» — по нику Telegram, телефону или аккаунту. Несколько заканчивающихся подписок одного клиента — одна запись.
  */
@@ -162,8 +166,6 @@ const sameClient = (a: { telegram: string; phone: string | null; customer_id: st
  * в любом статусе кроме отменённого (all уже без отменённых); этот заказ разовый, подтверждён/доставлен, короче подписки (< 5 дней: «разовый» на 5+ дней — по сути подписка, ей положено «продление»),
  * сегодня его доставочный день и дальше дней нет, и уведомление клиенту ещё не отправляли (за всё время).
  */
-/** Подписка — от 5 дней (как `SUB_MIN_DAYS` на сайте). */
-const SUB_MIN_DAYS = 5;
 export function selectFirstSingle(today: string, all: AnyOrder[], notices: FirstNotice[]): FirstSingle[] {
   const out: FirstSingle[] = [];
   const done = new Set<string>();
@@ -171,7 +173,7 @@ export function selectFirstSingle(today: string, all: AnyOrder[], notices: First
     if (o.type !== 'single' || !['confirmed', 'delivered'].includes(o.status) || !o.days.some((d) => d.delivery_date === today)) continue;
     const related = all.filter((x) => x.id === o.id || sameClient(x, o));
     if (related.some((x) => x.id !== o.id)) continue; // у клиента есть другой заказ — это не «первый разовый»
-    if (o.days.length >= SUB_MIN_DAYS) continue; // 5+ дней — это подписка по размеру
+    if (isSubscriptionSized(o.type, o.days.length)) continue; // 5+ дней — подписка по размеру: ей «продление»
     if (related.some((x) => x.days.some((d) => d.delivery_date > today))) continue; // есть заказы на ближайшие дни
     if (notices.some((n) => sameClient({ telegram: n.nick ?? '', phone: n.phone, customer_id: n.customer_id }, o))) continue; // уже отправляли
     const key = nickKey(o.telegram) || o.phone || o.customer_id || o.id;

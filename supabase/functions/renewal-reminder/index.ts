@@ -1,7 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { todayISO } from '../_shared/dates.ts';
-import { entryMessage, firstSingleMessage, nickKey, selectEntries, selectFirstSingle, type AnyOrder, type EndingOrder, type FirstNotice, type FutureOrder } from '../_shared/renewal.ts';
+import { entryMessage, firstSingleMessage, isSubscriptionSized, nickKey, selectEntries, selectFirstSingle, type AnyOrder, type EndingOrder, type FirstNotice, type FutureOrder } from '../_shared/renewal.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
 
@@ -48,7 +48,6 @@ Deno.serve(async (req) => {
     .from('order_days')
     .select('order_id, orders!inner(type, status)')
     .eq('delivery_date', today)
-    .eq('orders.type', 'subscription')
     .in('orders.status', ['confirmed', 'delivered']);
   if (e1) {
     console.error('renewal-reminder query failed:', e1.message);
@@ -57,12 +56,12 @@ Deno.serve(async (req) => {
   const ids = [...new Set((todays ?? []).map((r: any) => r.order_id as string))];
   let entries: ReturnType<typeof selectEntries> = [];
   if (ids.length) {
-    const { data: orders, error: e2 } = await db.from('orders').select('id, order_number, telegram, phone, customer_id, lang, order_days(delivery_date, qty)').in('id', ids);
+    const { data: orders, error: e2 } = await db.from('orders').select('id, order_number, type, telegram, phone, customer_id, lang, order_days(delivery_date, qty)').in('id', ids);
     if (e2) {
       console.error('renewal-reminder orders failed:', e2.message);
       return fail('server_error', 500);
     }
-    const ending: EndingOrder[] = (orders ?? []).map((o: any) => {
+    const ending: EndingOrder[] = (orders ?? []).filter((o: any) => isSubscriptionSized(o.type, (o.order_days ?? []).length)).map((o: any) => {
       const days: { delivery_date: string; qty: number }[] = o.order_days ?? [];
       const last = days.map((d) => d.delivery_date).sort().pop() ?? '';
       return { id: o.id, order_number: o.order_number, telegram: o.telegram, phone: o.phone, customer_id: o.customer_id, lang: o.lang, daysCount: days.length, lastDay: last, lastQty: days.find((d) => d.delivery_date === last)?.qty ?? 1 };

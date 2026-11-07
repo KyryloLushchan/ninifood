@@ -119,11 +119,11 @@ mkOrder(53, '@fu_new', { fields: { type: 'single', status: 'new' }, days: [0] })
 for (const k of ['price_single', 'price_subscription', 'delivery_single']) store.settings.push({ key: k, value: k === 'price_single' ? '170000' : k === 'price_subscription' ? '750000' : '20000' });
 
 console.log('\n── отбор клиентов (чистая логика) ──');
-const ending = store.orders.filter((o) => o.type === 'subscription' && ['confirmed', 'delivered'].includes(o.status)).map((o) => { const ds = store.order_days.filter((d) => d.order_id === o.id).map((d) => d.delivery_date).sort(); return { id: o.id, order_number: o.order_number, telegram: o.telegram, phone: o.phone, customer_id: o.customer_id, daysCount: ds.length, lastDay: ds[ds.length - 1], lastQty: 1 }; });
+const ending = store.orders.filter((o) => (o.type === 'subscription' || store.order_days.filter((d) => d.order_id === o.id).length >= 5) && ['confirmed', 'delivered'].includes(o.status)).map((o) => { const ds = store.order_days.filter((d) => d.order_id === o.id).map((d) => d.delivery_date).sort(); return { id: o.id, order_number: o.order_number, telegram: o.telegram, phone: o.phone, customer_id: o.customer_id, daysCount: ds.length, lastDay: ds[ds.length - 1], lastQty: 1 }; });
 const future = store.order_days.filter((d) => d.delivery_date > TODAY).map((d) => store.orders.find((o) => o.id === d.order_id)).filter((o) => ['new', 'confirmed', 'delivered'].includes(o.status)).map((o) => ({ telegram: o.telegram, phone: o.phone, customer_id: o.customer_id }));
 const entries = selectEntries(TODAY, ending, future);
 console.log('   в списке:', entries.map((e: any) => `${e.nick} (${e.orders.join('+')})`).join(', '));
-ok(entries.map((e: any) => e.nick).join(',') === '@alice,@erin,@hank,@kim', 'в списке ровно alice, erin (будущая отменена), hank (доставлена), kim');
+ok(entries.map((e: any) => e.nick).join(',') === '@alice,@erin,@hank,@kim,@vluvrv', 'в списке ровно alice, erin (будущая отменена), hank (доставлена), kim и vluvrv («разовый» на 5 дней — это подписка, ему продление)');
 ok(entries.find((e: any) => e.nick === '@kim')?.orders.join('+') === 'NF-15+NF-16+NF-17' && entries.find((e: any) => e.nick === '@kim')?.portions === 3, 'три заказа одного клиента — одна запись (NF-15 + NF-16 + NF-17, 3 порц.)');
 ok(!entries.some((e: any) => ['@bob', '@carol', '@dave', '@frank', '@gina', '@ivan', '@jane'].includes(e.nick)), 'нет: следующий заказ (по нику / телефону / аккаунту), закончилась вчера, заканчивается позже, разовый, неподтверждённая');
 
@@ -135,13 +135,14 @@ let r = await post();
 ok(r.status === 403 && tgCalls.length === 0 && store.renewal_links.length === 0, 'без секрета / не админ (viewer): 403, ничего не отправлено и не создано');
 r = await post({ 'x-cron-secret': 'cron' });
 const b1: any = await r.json();
-ok(b1.ok && b1.count === 4 && b1.first === 5, `отправлено: продление — ${b1.count}, первый разовый — ${b1.first}`);
+ok(b1.ok && b1.count === 5 && b1.first === 5, `отправлено: продление — ${b1.count}, первый разовый — ${b1.first}`);
 const allSent = tgCalls.filter((c) => c.method === 'sendMessage').map((c) => c.body);
 // сначала уходят продления (b1.count штук), потом «первый разовый» — первой строкой у всех только ник
 const sent = allSent.slice(0, b1.count);
 const firsts = allSent.slice(b1.count);
-ok(sent.length === 4 && sent.every((m) => m.chat_id === '-555'), `4 отдельных сообщения (по одному на клиента) о продлении в группу Renewals: ${sent.length}`);
+ok(sent.length === 5 && sent.every((m) => m.chat_id === '-555'), `5 отдельных сообщений (по одному на клиента) о продлении в группу Renewals: ${sent.length}`);
 for (const m of sent) console.log(m.text.split('\n').map((l: string) => '    ' + l).join('\n') + '\n');
+ok(sent.some((m) => m.text.startsWith('@vluvrv\n\n')) && !firsts.some((m) => m.text.includes('vluvrv')), '«разовый» на 5 дней (@vluvrv): получил продление, «первый разовый» — нет');
 const alice = sent.find((m) => m.text.includes('@alice'))!;
 console.log('   ── по одному примеру на язык ──');
 for (const l of ['ru', 'ua', 'en', 'vi']) console.log(`   [${l}]\n` + `@nick\n\n${clientText(l)}`.split('\n').map((x: string) => '     ' + x).join('\n'));
