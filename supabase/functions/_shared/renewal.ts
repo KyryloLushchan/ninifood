@@ -149,21 +149,29 @@ export interface FirstSingle {
   phone: string | null;
   customer_id: string | null;
 }
+/** Телефон для сравнения: только цифры, без кода страны 84 и ведущего 0 («+84 90 123 45 67» = «0901234567»); короче 7 цифр — не телефон. */
+export const phoneKey = (phone: string | null | undefined) => {
+  const d = (phone ?? '').replace(/\D/g, '').replace(/^84/, '').replace(/^0+/, '');
+  return d.length >= 7 ? d : '';
+};
 const sameClient = (a: { telegram: string; phone: string | null; customer_id: string | null }, b: { telegram: string; phone: string | null; customer_id: string | null }) =>
-  (!!nickKey(a.telegram) && nickKey(a.telegram) === nickKey(b.telegram)) || (!!a.phone && a.phone === b.phone) || (!!a.customer_id && a.customer_id === b.customer_id);
+  (!!nickKey(a.telegram) && nickKey(a.telegram) === nickKey(b.telegram)) || (!!phoneKey(a.phone) && phoneKey(a.phone) === phoneKey(b.phone)) || (!!a.customer_id && a.customer_id === b.customer_id);
 
 /**
- * Клиенты после ПЕРВОГО разового заказа: сегодня доставочный день самого первого заказа клиента (по нику/телефону/аккаунту; отменённые не считаем — all уже без них),
- * этот заказ разовый и подтверждён/доставлен, у клиента нет других дней доставки после сегодня (в том числе у этого же заказа), и уведомление ему ещё не отправляли (за всё время).
+ * Клиенты после ЕДИНСТВЕННОГО разового заказа: у клиента (ник без регистра и @ / нормализованный телефон / аккаунт) за всё время нет НИ ОДНОГО другого заказа — разового или подписки,
+ * в любом статусе кроме отменённого (all уже без отменённых); этот заказ разовый, подтверждён/доставлен, короче подписки (< 5 дней: «разовый» на 5+ дней — по сути подписка, ей положено «продление»),
+ * сегодня его доставочный день и дальше дней нет, и уведомление клиенту ещё не отправляли (за всё время).
  */
+/** Подписка — от 5 дней (как `SUB_MIN_DAYS` на сайте). */
+const SUB_MIN_DAYS = 5;
 export function selectFirstSingle(today: string, all: AnyOrder[], notices: FirstNotice[]): FirstSingle[] {
   const out: FirstSingle[] = [];
   const done = new Set<string>();
   for (const o of all) {
     if (o.type !== 'single' || !['confirmed', 'delivered'].includes(o.status) || !o.days.some((d) => d.delivery_date === today)) continue;
     const related = all.filter((x) => x.id === o.id || sameClient(x, o));
-    const first = [...related].sort((a, b) => a.created_at.localeCompare(b.created_at) || byNumber(a, b))[0];
-    if (first.id !== o.id) continue; // это не самый первый заказ клиента
+    if (related.some((x) => x.id !== o.id)) continue; // у клиента есть другой заказ — это не «первый разовый»
+    if (o.days.length >= SUB_MIN_DAYS) continue; // 5+ дней — это подписка по размеру
     if (related.some((x) => x.days.some((d) => d.delivery_date > today))) continue; // есть заказы на ближайшие дни
     if (notices.some((n) => sameClient({ telegram: n.nick ?? '', phone: n.phone, customer_id: n.customer_id }, o))) continue; // уже отправляли
     const key = nickKey(o.telegram) || o.phone || o.customer_id || o.id;
@@ -176,8 +184,8 @@ export function selectFirstSingle(today: string, all: AnyOrder[], notices: First
 }
 const byNumber2 = (a: { order_number: string }, b: { order_number: string }) => a.order_number.localeCompare(b.order_number, 'en', { numeric: true });
 
-/** Сообщение «первый разовый»: первая строка по-русски, дальше текст на языке заказа. */
-export const firstSingleMessage = (e: FirstSingle, perLunch: number) => `🆕 Первый разовый · ${esc(nickText(e.nick))} · ${esc(e.order_number)} — ${e.portions} ${portionsWord}\n\n${esc(firstSingleText(e.lang, perLunch))}`;
+/** Сообщение «первый разовый»: первая строка — только ник, пустая строка, текст клиенту на языке заказа. */
+export const firstSingleMessage = (e: FirstSingle, perLunch: number) => `${esc(nickText(e.nick))}\n\n${esc(firstSingleText(e.lang, perLunch))}`;
 
 /** Ник для вывода: без пробелов, невидимых символов и t.me/; «@» добавляется, если ник валидный (5–32: латиница, цифры, _). В заказах не меняется. */
 export function nickText(raw: string): string {
@@ -188,11 +196,10 @@ export function nickText(raw: string): string {
     .replace(/[/?#].*$/, '');
   return /^[A-Za-z0-9_]{5,32}$/.test(clean) ? `@${clean}` : clean || raw.trim();
 }
-const portionsWord = 'порц.';
 
-/** Отдельное сообщение одного клиента — обычный текст (без <code>): строка со сводкой, пустая строка, текст клиенту со ссылкой. Ник и ссылка кликабельны сами; телефона нет. */
+/** Сообщение о продлении: первая строка — только ник, пустая строка, текст клиенту со ссылкой (обычный текст, без <code>; копируется целиком). */
 export function entryMessage(e: Entry): string {
-  return `🔔 ${esc(nickText(e.nick))} · ${esc(e.orders.join(' + '))} — ${e.days} дн., ${e.portions} ${portionsWord}\n\n${esc(clientText(e.lang))}`;
+  return `${esc(nickText(e.nick))}\n\n${esc(clientText(e.lang))}`;
 }
 
 // ── Повторное напоминание: через 2 дня после напоминания о продлении / «первого разового», если клиент так и не заказал ──
@@ -224,7 +231,6 @@ export interface Followup {
 /** Дата Дананга (UTC+7) для момента времени, ISO YYYY-MM-DD. */
 export const danangDate = (ts: string | number) => new Date(new Date(ts).getTime() + 7 * 3600_000).toISOString().slice(0, 10);
 const addDays = (iso: string, n: number) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
-const ddmm = (iso: string) => `${iso.slice(8, 10)}.${iso.slice(5, 7)}`;
 
 /**
  * Что делать с отправленными напоминаниями сегодня (13:00 Дананг): срок — дата напоминания + 2 дня (опоздавшие запуски догоняем до +4 дней), повторное один раз (followup_at пуст).
@@ -257,6 +263,6 @@ const AGAIN_TXT: Record<'ru' | 'ua' | 'en' | 'vi', (link: string, group: string)
 };
 /** Текст клиенту на языке последнего заказа (нет языка — ru); ссылка — сайт с ?lang=. */
 export const againText = (lang?: string | null) => AGAIN_TXT[lk(lang)](`${SITE_URL}/?lang=${linkLang(lang)}`, REVIEWS_URL);
-/** Сообщение в Renewals: первая строка по-русски, дальше текст на языке клиента. */
+/** Повторное сообщение: первая строка — только ник, пустая строка, текст клиенту на его языке. */
 export const followupMessage = (f: Followup) =>
-  `😋 Повторное · ${esc(nickText(f.nick))} · ${esc(f.reminder.order_number)} (${f.reminder.kind === 'renewal' ? 'после продления' : 'после первого разового'} ${ddmm(danangDate(f.reminder.sent_at))})\n\n${esc(againText(f.lang))}`;
+  `${esc(nickText(f.nick))}\n\n${esc(againText(f.lang))}`;

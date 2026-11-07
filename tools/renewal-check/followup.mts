@@ -74,11 +74,11 @@ ok(r1.ok && r1.count === 3, `отправлено 3 (anna_ru ru, olya_ua ua, lan
 const by = (n: string) => msgs.find((m) => m.text.includes(n));
 ok(msgs.every((m) => m.chat_id === '-300' && m.parse_mode === 'HTML' && m.disable_web_page_preview === true), 'в группу Renewals, без превью ссылок');
 ok(!by('john_en') && !by('byphone'), 'заказал за 2 дня (по нику / по телефону) — не шлём');
-ok(!!by('NF-1001') && !by('NF-1007'), 'у одного клиента два напоминания — одно повторное');
+ok(msgs.filter((m) => m.text.startsWith('@anna_ru\n')).length === 1, 'у одного клиента два напоминания — одно повторное');
 const a = by('anna_ru')!.text, o = by('olya_ua')!.text, l = by('lan_vi')!.text;
-ok(a.startsWith('😋 Повторное · @anna_ru · NF-1001 (после продления 06.11)\n\nГолодны? 😋🍲'), 'RU: первая строка и текст');
+ok(a.startsWith('@anna_ru\n\nГолодны? 😋🍲') && !/Повторное|NF-/.test(a), 'RU: первая строка и текст');
 ok(a.includes('👉 https://ninifoodvn.com/?lang=ru\n\nЗагляните в отзывы наших гостей 💬⭐ https://t.me/+5WmNqxOYJuJhOWU6'), 'RU: ссылка и группа отзывов');
-ok(o.startsWith('😋 Повторное · @olya_ua · NF-1002 (после первого разового 06.11)\n\nГолодні?') && o.includes('?lang=uk') && o.includes('Зазирніть у відгуки'), 'UA: первая строка, ?lang=uk, текст');
+ok(o.startsWith('@olya_ua\n\nГолодні?') && o.includes('?lang=uk') && o.includes('Зазирніть у відгуки'), 'UA: первая строка, ?lang=uk, текст');
 ok(l.includes('Đói bụng chưa?') && l.includes('?lang=vi') && l.includes('Xem đánh giá'), 'VI: текст и ?lang=vi (заказ-отмена не считается)');
 const rowOf = (id: number) => store.renewal_sent.find((r) => r.id === id);
 ok(rowOf(1).followup_status === 'sent' && rowOf(3).followup_status === 'skipped' && rowOf(5).followup_at === null, 'отмечено: отправлено / пропущено; «ещё рано» не тронуто');
@@ -97,7 +97,7 @@ const r4 = await run('2026-11-12');
 ok(r4.count === 0 && tgCalls.length === 0, 'запись старше окна догона (срок 08.11, сегодня 12.11) — не шлём');
 tgCalls.length = 0;
 const r5 = await run('2026-11-09');
-ok(r5.count === 1 && tgCalls[0].body.text.includes("NF-1005"), 'запись от 07.11 наступает 09.11');
+ok(r5.count === 1 && tgCalls[0].body.text.startsWith('@late_guy\n'), 'запись от 07.11 наступает 09.11');
 tgCalls.length = 0;
 store.renewal_sent.length = 0; // никого — не отправлять
 const r6 = await run('2026-11-08');

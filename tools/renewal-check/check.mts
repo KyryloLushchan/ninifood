@@ -109,6 +109,12 @@ mkOrder(49, '@fu_multi', { fields: { type: 'single' }, days: [0, 1] });         
 mkOrder(50, '@fu_notice', { fields: { type: 'single' }, days: [0] });                                           // уже отправляли → нет
 store.renewal_first_notices.push({ nick: 'fu_notice', phone: null, customer_id: null, order_number: 'NF-1000' });
 mkOrder(51, '@fu_phone1', { fields: { type: 'single' }, phone: '+84955555555', days: [-3], ...early('2026-09-03') }); mkOrder(52, '@fu_phone2', { fields: { type: 'single' }, phone: '+84955555555', days: [0] }); // тот же телефон, не первый → нет
+// правило «ни одного другого заказа»: любой другой заказ (разовый/подписка, любой давности, не отменённый) — нет; совпадение по нику без регистра и @, нормализованному телефону, аккаунту
+mkOrder(60, '@vluvrv', { fields: { type: 'single', status: 'delivered' }, days: [-4, -3, -2, -1, 0] });          // «разовый» на 5 дней (как NF-1047): по размеру подписка → нет
+mkOrder(61, '@fu_sub', { fields: { type: 'subscription' }, days: [-30, -29, -28, -27, -26], ...early('2026-09-10') }); mkOrder(62, '@fu_sub', { fields: { type: 'single' }, days: [0] }); // раньше была подписка → нет
+mkOrder(63, '@FU_Case', { fields: { type: 'single', status: 'delivered' }, days: [-20], ...early('2026-09-11') }); mkOrder(64, 'fu_case', { fields: { type: 'single' }, days: [0] });   // тот же ник другим регистром / без @ → нет
+mkOrder(65, '@fu_ph_a', { fields: { type: 'single', status: 'delivered' }, phone: '0955123456', days: [-20], ...early('2026-09-12') }); mkOrder(66, '@fu_ph_b', { fields: { type: 'single' }, phone: '+84 955 123 456', days: [0] }); // тот же телефон в другой записи → нет
+mkOrder(67, '@fu_acc_a', { fields: { type: 'single', status: 'delivered', customer_id: 'cust-77' }, days: [-20], ...early('2026-09-13') }); mkOrder(68, '@fu_acc_b', { fields: { type: 'single', customer_id: 'cust-77' }, days: [0] }); // тот же аккаунт → нет
 mkOrder(53, '@fu_new', { fields: { type: 'single', status: 'new' }, days: [0] });                               // не подтверждён → нет
 for (const k of ['price_single', 'price_subscription', 'delivery_single']) store.settings.push({ key: k, value: k === 'price_single' ? '170000' : k === 'price_subscription' ? '750000' : '20000' });
 
@@ -131,18 +137,19 @@ r = await post({ 'x-cron-secret': 'cron' });
 const b1: any = await r.json();
 ok(b1.ok && b1.count === 4 && b1.first === 5, `отправлено: продление — ${b1.count}, первый разовый — ${b1.first}`);
 const allSent = tgCalls.filter((c) => c.method === 'sendMessage').map((c) => c.body);
-const sent = allSent.filter((m) => !m.text.startsWith('🆕'));
-const firsts = allSent.filter((m) => m.text.startsWith('🆕'));
+// сначала уходят продления (b1.count штук), потом «первый разовый» — первой строкой у всех только ник
+const sent = allSent.slice(0, b1.count);
+const firsts = allSent.slice(b1.count);
 ok(sent.length === 4 && sent.every((m) => m.chat_id === '-555'), `4 отдельных сообщения (по одному на клиента) о продлении в группу Renewals: ${sent.length}`);
 for (const m of sent) console.log(m.text.split('\n').map((l: string) => '    ' + l).join('\n') + '\n');
 const alice = sent.find((m) => m.text.includes('@alice'))!;
 console.log('   ── по одному примеру на язык ──');
-for (const l of ['ru', 'ua', 'en', 'vi']) console.log(`   [${l}]\n` + `🔔 @nick · NF-1 — 5 дн., 1 порц.\n\n${clientText(l)}`.split('\n').map((x: string) => '     ' + x).join('\n'));
+for (const l of ['ru', 'ua', 'en', 'vi']) console.log(`   [${l}]\n` + `@nick\n\n${clientText(l)}`.split('\n').map((x: string) => '     ' + x).join('\n'));
 ok(clientText('ua').startsWith('Привіт! Дякуємо') && clientText('en').startsWith('Hi! Thanks') && clientText('vi').startsWith('Xin chào!') && clientText('ru').startsWith('Привет! Спасибо') && clientText(null) === clientText('ru'), 'тексты 4 языков по ТЗ; нет языка → ru');
-ok(alice.text.split('\n')[0] === '🔔 @alice · NF-1 — 5 дн., 1 порц.', 'формат: 🔔 @ник · NF-… — N дн., M порц.');
-ok(alice.text === `🔔 @alice · NF-1 — 5 дн., 1 порц.\n\n${clientText('ua')}` && !/<code>|🔗/.test(alice.text), 'обычный текст: сводка, пустая строка, текст клиенту; без <code> и без строки «🔗 ninifoodvn.com»');
+ok(alice.text.split('\n')[0] === '@alice' && alice.text.split('\n')[1] === '', 'формат: первая строка — только «@ник», дальше пустая строка');
+ok(alice.text === `@alice\n\n${clientText('ua')}` && !/🔔|NF-|порц|дн\./.test(alice.text.split('\n')[0]) && !/<code>|🔗/.test(alice.text), 'обычный текст: ник, пустая строка, текст клиенту; без <code>, значков, номера заказа и порций');
 ok(allSent.every((m) => m.disable_web_page_preview === true), 'превью ссылки выключено (все сообщения)');
-const linkOf = (nick: string) => sent.find((m) => m.text.startsWith('🔔 ' + nick))!.text.split('\n').find((l: string) => l.startsWith('https://ninifoodvn.com'));
+const linkOf = (nick: string) => sent.find((m) => m.text.split('\n')[0].includes(nick))!.text.split('\n').find((l: string) => l.startsWith('https://ninifoodvn.com'));
 ok(linkOf('@alice') === 'https://ninifoodvn.com/?lang=uk#subscription', 'язык заказа ua → ?lang=uk');
 ok(linkOf('erin') === 'https://ninifoodvn.com/?lang=en#subscription' && linkOf('hank') === 'https://ninifoodvn.com/?lang=vi#subscription' && linkOf('kim') === 'https://ninifoodvn.com/?lang=en#subscription', 'en → ?lang=en, vi → ?lang=vi; у клиента с тремя заказами язык берётся из ПОСЛЕДНЕГО заказа, у которого он есть (NF-17 без языка → NF-16 en)');
 ok(renewalLink(null) === 'https://ninifoodvn.com/?lang=ru#subscription' && renewalLink('xx') === 'https://ninifoodvn.com/?lang=ru#subscription', 'нет языка у заказа → ru');
@@ -152,18 +159,19 @@ console.log('\n── «первый разовый» ──');
 console.log(firsts.map((m) => m.text.split('\n').map((l: string) => '    ' + l).join('\n')).join('\n    ────\n'));
 const fl = (nick: string) => firsts.find((m) => m.text.includes(nick));
 ok(['ivan', '@fu_ua', '@fu_en', '@fu_vi', '@fu_cancelled'].every((n) => !!fl(n)) && firsts.length === 5, 'получили: первый разовый сегодня (ivan, fu_ua, fu_en, fu_vi, fu_cancelled — отменённый заказ не считается)');
-ok(!['@fu_next', '@fu_old', '@fu_multi', '@fu_notice', '@fu_phone2', '@fu_new'].some((n) => !!fl(n)), 'не получили: есть заказ на ближайшие дни, не первый заказ (ник и телефон), разовый на несколько дней, уже отправляли, не подтверждён');
-ok(firsts.every((m) => m.text.startsWith('🆕 Первый разовый · ') && /— 1 порц\.\n\n/.test(m.text.split('\n').slice(0, 2).join('\n') + '\n')) && fl('@fu_ua')!.text.split('\n')[0] === '🆕 Первый разовый · @fu_ua · NF-40 — 1 порц.', 'первая строка по-русски: «🆕 Первый разовый · @ник · NF-… — 1 порц.»');
-ok(fl('@fu_ua')!.text === `🆕 Первый разовый · @fu_ua · NF-40 — 1 порц.\n\n${firstSingleText('ua', 150000)}` && fl('@fu_en')!.text.endsWith(firstSingleText('en', 150000)) && fl('@fu_vi')!.text.endsWith(firstSingleText('vi', 150000)) && fl('ivan')!.text.endsWith(firstSingleText('ru', 150000)), 'текст на языке последнего заказа клиента (RU/UA/EN/VI), цена = price_subscription / 5 (750 000 / 5)');
+ok(!['@fu_next', '@fu_old', '@fu_multi', '@fu_notice', '@fu_phone2', '@fu_new', '@vluvrv', '@fu_sub', 'fu_case', '@fu_ph_b', '@fu_acc_b'].some((n) => !!fl(n)), 'не получили: есть заказ на ближайшие дни, есть другой заказ (ник / ник в другом регистре и без @ / телефон в другом формате / аккаунт / прошлая подписка), «разовый» на 5 дней (@vluvrv), несколько дней, уже отправляли, не подтверждён');
+ok(firsts.every((m) => /^@?[A-Za-z0-9_]+\n\n/.test(m.text) && !/🆕|Первый разовый|NF-|порц/.test(m.text.split('\n')[0])) && fl('@fu_ua')!.text.split('\n')[0] === '@fu_ua', 'первая строка — только «@ник», без «🆕 Первый разовый», номера и порций');
+ok(fl('@fu_ua')!.text === `@fu_ua\n\n${firstSingleText('ua', 150000)}` && fl('@fu_en')!.text.endsWith(firstSingleText('en', 150000)) && fl('@fu_vi')!.text.endsWith(firstSingleText('vi', 150000)) && fl('ivan')!.text.endsWith(firstSingleText('ru', 150000)), 'текст на языке последнего заказа клиента (RU/UA/EN/VI), цена = price_subscription / 5 (750 000 / 5)');
 ok(firstSingleText('ru', 150000) === 'Привет! Надеемся, обед NiniFood вам понравился 😋🍲\nХотите домашний обед каждый день без забот? Оформите подписку от 5 дней — всего 150 000 ₫ за обед 👇\nhttps://ninifoodvn.com/?lang=ru#subscription\n\nПоделитесь впечатлениями в нашей группе отзывов 💬 https://t.me/+5WmNqxOYJuJhOWU6', 'RU-текст «первый разовый» посимвольно по ТЗ');
 ok(firstSingleText('en', 150000).includes('just 150,000 ₫ per lunch') && firstSingleText('vi', 150000).includes('chỉ 150.000 ₫ mỗi bữa') && firstSingleText('ua', 150000).includes('лише 150 000 ₫ за обід') && priceText(null, 150000) === '150 000 ₫', 'формат цены по языку: 150 000 / 150,000 / 150.000');
 ok(store.renewal_first_notices.length === 6 && ['fu_ua', 'fu_en', 'fu_vi', 'fu_cancelled', 'ivan'].every((n) => store.renewal_first_notices.some((x) => x.nick === n)), 'каждому отправленному записано уведомление (один раз за всё время)');
 const nF = tgCalls.length;
+const firstTexts = ['ru', 'ua', 'en', 'vi'].map((l) => firstSingleText(l, 150000));
 await post({ 'x-cron-secret': 'cron' });
-ok(tgCalls.slice(nF).filter((c) => c.method === 'sendMessage' && c.body.text.startsWith('🆕')).length === 0, 'повторный запуск в тот же день: «первый разовый» второй раз не уходит');
+ok(tgCalls.slice(nF).filter((c) => c.method === 'sendMessage' && firstTexts.some((t) => c.body.text.endsWith(t))).length === 0, 'повторный запуск в тот же день: «первый разовый» второй раз не уходит');
 ok(sent.every((m) => !/\?r=|📞|\+84|Заканчиваются/.test(m.text)) && store.renewal_links.length === 0, 'нет телефона, нет ссылок ?r=, ссылки в БД не создаются');
 const kim = sent.find((m) => m.text.includes('kim'))!;
-ok(kim.text.startsWith('🔔 kim · NF-15 + NF-16 + NF-17 — 5 дн., 3 порц.'), 'три заказа одного клиента — одно сообщение');
+ok(kim.text.startsWith('kim\n\n') && sent.filter((m) => m.text.includes('kim')).length === 1, 'три заказа одного клиента — одно сообщение, первая строка — только ник');
 // пустой день → ничего не отправляем
 store.order_days.length = 0; store.orders.length = 0;
 const n0 = tgCalls.length;
