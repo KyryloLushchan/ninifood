@@ -29,6 +29,8 @@ interface Dict {
   open: string;
   address: string;
   map: string;
+  /** Предупреждение в Orders: у заказа нет координат (ссылка/адрес не удалось превратить в точку). */
+  noPoint: string;
   hotel: string;
   comment: string;
   confirmed: string;
@@ -68,6 +70,7 @@ const D: Record<OrderLang, Dict> = {
     open: 'открыть',
     address: 'Адрес',
     map: 'Карта',
+    noPoint: '⚠️ адрес без точки на карте — проверьте',
     hotel: 'Отель',
     comment: 'Комментарий',
     confirmed: '✅ Подтверждён',
@@ -103,6 +106,7 @@ const D: Record<OrderLang, Dict> = {
     open: 'відкрити',
     address: 'Адреса',
     map: 'Мапа',
+    noPoint: '⚠️ адреса без точки на мапі — перевірте',
     hotel: 'Готель',
     comment: 'Коментар',
     confirmed: '✅ Підтверджено',
@@ -138,6 +142,7 @@ const D: Record<OrderLang, Dict> = {
     open: 'open',
     address: 'Address',
     map: 'Map',
+    noPoint: '⚠️ address has no map point — please check',
     hotel: 'Hotel',
     comment: 'Comment',
     confirmed: '✅ Confirmed',
@@ -173,6 +178,7 @@ const D: Record<OrderLang, Dict> = {
     open: 'mở',
     address: 'Địa chỉ',
     map: 'Bản đồ',
+    noPoint: '⚠️ địa chỉ chưa có điểm trên bản đồ — vui lòng kiểm tra',
     hotel: 'Khách sạn',
     comment: 'Ghi chú',
     confirmed: '✅ Đã xác nhận',

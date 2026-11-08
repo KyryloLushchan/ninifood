@@ -3,6 +3,31 @@ import { inDanang } from './danang.ts';
 const OK_TYPES = new Set(['street_address', 'premise', 'subpremise', 'route', 'establishment', 'point_of_interest', 'intersection']);
 
 /**
+ * Обратное геокодирование (координаты → адрес для людей, язык vi). Только Дананг; нет ключа/ошибка/таймаут → null.
+ */
+export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
+  const key = Deno.env.get('GOOGLE_GEOCODING_KEY') ?? '';
+  if (!key || !inDanang(lat, lng)) return null;
+  try {
+    const u = new URL('https://maps.googleapis.com/maps/api/geocode/json');
+    u.searchParams.set('latlng', `${lat},${lng}`);
+    u.searchParams.set('language', 'vi');
+    u.searchParams.set('key', key);
+    const res = await fetch(u, { signal: AbortSignal.timeout(4000) });
+    if (!res.ok) return null;
+    const data = await res.json();
+    if (data.status !== 'OK') return null;
+    const results: any[] = data.results ?? [];
+    const r = results.find((x) => (x.types ?? []).some((t: string) => OK_TYPES.has(t))) ?? null;
+    const text = String(r?.formatted_address ?? '').trim();
+    return text ? text.slice(0, 250) : null;
+  } catch (e) {
+    console.error('reverse geocode failed:', (e as Error).message);
+    return null;
+  }
+}
+
+/**
  * Геокодирование адреса текстом (Google Geocoding API, ключ GOOGLE_GEOCODING_KEY — только секрет Supabase).
  * Принимается точка только в пределах Дананга и только «адресного» уровня (улица/дом/заведение — не «город» целиком).
  * Любая ошибка/таймаут/нет ключа → null: заказ из-за геокодинга не ломается.

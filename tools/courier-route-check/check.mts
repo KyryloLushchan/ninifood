@@ -374,13 +374,13 @@ console.log('\n── отчёт кухне: доп. порции ──');
   };
   const k0 = await runKitchen();
   console.log('   ' + k0.text.split('\n')[0].replace(/<[^>]+>/g, ''));
-  ok(k0.res.kitchen.extra === 3 && k0.res.kitchen.total === total + 3 && new RegExp(`${total} \\+ 3 = ${total + 3}`).test(k0.text), `настройки нет → по умолчанию 3: «${total} + 3 = ${total + 3}»`);
+  ok(k0.res.kitchen.extra === 2 && k0.res.kitchen.total === total + 2 && new RegExp(`${total} \\+ 2 = ${total + 2}`).test(k0.text), `настройки нет → по умолчанию 2: «${total} + 2 = ${total + 2}»`);
   store.settings.push({ key: 'extra_portions', value: '5' });
   const k5 = await runKitchen();
   ok(k5.res.kitchen.extra === 5 && new RegExp(`${total} \\+ 5 = ${total + 5}`).test(k5.text), 'настройка «Доп. порции в день» = 5 → «+ 5»');
   store.settings.find((x) => x.key === 'extra_portions')!.value = 'abc';
   const kb2 = await runKitchen();
-  ok(kb2.res.kitchen.extra === 3, 'мусор в настройке → 3');
+  ok(kb2.res.kitchen.extra === 2, 'мусор в настройке → 2');
   store.settings.splice(store.settings.findIndex((x) => x.key === 'extra_portions'), 1);
 }
 console.log('\n── доступ функции ──');

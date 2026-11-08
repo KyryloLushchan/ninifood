@@ -2,7 +2,7 @@ import { discountAmount } from '../_shared/discount.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { inDanang } from '../_shared/danang.ts';
-import { geocodeAddress } from '../_shared/geocode.ts';
+import { resolveOrderPoint } from '../_shared/maps-link.ts';
 import { buildOrderText, getDeliveryHours, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
 import { corsFor } from '../_shared/cors.ts';
 import { clientIp, detectImage, sha256hex, verifyTurnstile } from '../_shared/security.ts';
@@ -112,7 +112,7 @@ Deno.serve(async (req) => {
     const { data: rl } = await db.from('renewal_links').select('orders!inner(phone)').eq('code', renewalCode).is('used_at', null).gt('expires_at', new Date().toISOString()).maybeSingle();
     phone = String((rl as any)?.orders?.phone ?? '');
   }
-  const address = str(p.address, 300);
+  let address = str(p.address, 300);
   const hotel = str(p.hotel, 150);
   const comment = str(p.comment, 500);
   // Координаты из подсказок; вне Дананга или битые — всё сбрасываем (адрес остаётся текстом).
@@ -166,8 +166,11 @@ Deno.serve(async (req) => {
 
   // ── адрес без точки (текстом, без выбора подсказки): геокодируем на сервере, чтобы заказ попал в маршрут курьера ──
   if (lat === null || lng === null) {
-    const g = await geocodeAddress(address);
-    if (g) ({ lat, lng } = g);
+    // Ссылка Google Maps в адресе → точка и человеческий адрес; текст → геокодирование; не вышло — заказ всё равно принимается (в Orders пометка «адрес без точки»).
+    const r = await resolveOrderPoint(address);
+    address = r.address;
+    lat = r.lat;
+    lng = r.lng;
   }
 
   // ── цена: только из settings ──

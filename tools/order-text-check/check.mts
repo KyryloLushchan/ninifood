@@ -22,6 +22,10 @@ for (const [lang, word] of [['ru', 'доставка'], ['ua', 'доставка
   ok(line.endsWith(` — ${word} ${H}`), `${lang}: время доставки в строке дней`);
 }
 ok(!/доставка 13|delivery 13/.test(buildOrderText(base, days)), 'без настроек времени нет');
+for (const [lang, w] of [['ru', 'адрес без точки на карте — проверьте'], ['ua', 'адреса без точки на мапі — перевірте'], ['en', 'address has no map point — please check'], ['vi', 'địa chỉ chưa có điểm trên bản đồ']]) {
+  const noPt = buildOrderText({ ...base, lang, lat: null, lng: null, place_id: null }, days.slice(0, 1));
+  ok(noPt.includes('⚠️ ' + w) && !buildOrderText({ ...base, lang }, days.slice(0, 1)).includes('⚠️'), `${lang}: без координат — «⚠️ ${w}», с координатами предупреждения нет`);
+}
 const t = (l: string | null) => buildOrderText({ ...base, lang: l }, days);
 ok(t(null) === t('ru') && t('xx') === t('ru'), 'нет языка / неизвестный → русский');
 const one = buildOrderText({ ...base, lang: 'en', type: 'single', discount_amount: 0, cutlery: false, payment_method: 'cash', hotel: null, comment: null, lat: null, lng: null }, ['2026-11-04']);

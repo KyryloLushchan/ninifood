@@ -84,6 +84,7 @@ export function buildOrderText(o: OrderRow, days: string[], statusLine?: string,
   ];
   const map = mapLinkHtml(o.lat, o.lng, o.place_id, d.map);
   if (map) lines.push(map);
+  else lines.push(d.noPoint);
   if (o.hotel) lines.push(`🏨 ${d.hotel}: ${esc(o.hotel)}`);
   if (o.comment) lines.push(`💬 ${d.comment}: ${esc(o.comment)}`);
   if (statusLine) lines.push('', statusLine);
