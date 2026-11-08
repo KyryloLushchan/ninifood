@@ -235,15 +235,22 @@ export const danangDate = (ts: string | number) => new Date(new Date(ts).getTime
 const addDays = (iso: string, n: number) => new Date(new Date(`${iso}T00:00:00Z`).getTime() + n * 86_400_000).toISOString().slice(0, 10);
 
 /**
- * Что делать с отправленными напоминаниями сегодня (13:00 Дананг): срок — дата напоминания + 2 дня (опоздавшие запуски догоняем до +4 дней), повторное один раз (followup_at пуст).
+ * Что делать с отправленными напоминаниями сегодня (13:00 Дананг): срок — дата напоминания + `days` дней (settings.renewal_followup_days, по умолчанию 7; пересчёт действует и на уже записанные) (опоздавшие запуски догоняем до +4 дней), повторное один раз (followup_at пуст).
  * Клиент (по нику/телефону/аккаунту) сделал после напоминания любой заказ кроме отменённого — skip. orders — все заказы клиентов (любой статус).
  */
-export function selectFollowups(today: string, sent: SentReminder[], orders: ClientOrder[]): Followup[] {
+export const DEFAULT_FOLLOWUP_DAYS = 7;
+/** Повторное через N дней (settings.renewal_followup_days): целое 1–30, иначе 7. */
+export const followupDays = (v: unknown) => {
+  const n = Number(String(v ?? '').trim());
+  return String(v ?? '').trim() !== '' && Number.isInteger(n) && n >= 1 && n <= 30 ? n : DEFAULT_FOLLOWUP_DAYS;
+};
+
+export function selectFollowups(today: string, sent: SentReminder[], orders: ClientOrder[], days = DEFAULT_FOLLOWUP_DAYS): Followup[] {
   const out: Followup[] = [];
   const seen = new Set<string>();
   for (const r of sent) {
     if (r.followup_at) continue;
-    const due = addDays(danangDate(r.sent_at), 2);
+    const due = addDays(danangDate(r.sent_at), days);
     if (today < due || today > addDays(due, 2)) continue;
     const me = { telegram: r.nick ?? '', phone: r.phone, customer_id: r.customer_id };
     const mine = orders.filter((o) => sameClient(me, o));

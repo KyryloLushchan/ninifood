@@ -45,6 +45,7 @@ const FIELDS = [
   { key: 'delivery_single', label: 'Доставка, ₫ за каждый день доставки (разовый и подписка)', numeric: true, time: false },
   { key: 'delivery_from', label: 'Доставка с (ЧЧ:ММ; сайт и сообщение о заказе)', numeric: false, time: true },
   { key: 'delivery_to', label: 'Доставка до (ЧЧ:ММ)', numeric: false, time: true },
+  { key: 'renewal_followup_days', label: 'Повторное «Голодны?» через, дней (после первого напоминания; 1–30)', numeric: true, time: false },
   { key: 'telegram_url', label: 'Ссылка Telegram для заказов на сегодня', numeric: false, time: false },
 ] as const;
 
@@ -58,7 +59,7 @@ export function SettingsTab() {
   useEffect(() => {
     adminDb.from('settings').select('key, value').then(({ data, error }) => {
       if (error) setError(ruError(error.message));
-      else setValues(Object.fromEntries((data ?? []).map((r) => [r.key, r.value])));
+      else setValues({ renewal_followup_days: '7', ...Object.fromEntries((data ?? []).map((r) => [r.key, r.value])) });
     });
   }, []);
 
@@ -172,6 +173,7 @@ export function SettingsTab() {
         return setError(`Проверьте поле: ${f.label}`);
       }
     }
+    if (Number(values.renewal_followup_days) < 1 || Number(values.renewal_followup_days) > 30) return setError('«Повторное через, дней» — от 1 до 30.');
     const mins = (k: string) => {
       const [h, m] = values[k].trim().split(':');
       return +h * 60 + +m;

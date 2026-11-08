@@ -1,12 +1,12 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { todayISO } from '../_shared/dates.ts';
-import { followupMessage, selectFollowups, type ClientOrder, type SentReminder } from '../_shared/renewal.ts';
+import { followupDays, followupMessage, selectFollowups, type ClientOrder, type SentReminder } from '../_shared/renewal.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
 
 /**
- * Ежедневно в 13:00 (Дананг, pg_cron): повторное «весёлое» напоминание в группу «NiniFood Renewals» (секрет RENEWALS_CHAT_ID) — клиентам, которым 2 дня назад ушло напоминание
+ * Ежедневно в 13:00 (Дананг, pg_cron): повторное «весёлое» напоминание в группу «NiniFood Renewals» (секрет RENEWALS_CHAT_ID) — клиентам, которым N дня назад ушло напоминание
  * о продлении или «после первого разового» (таблица renewal_sent), если они с тех пор не сделали ни одного заказа (по нику/телефону/аккаунту; отменённые не считаются).
  * Один раз на каждое напоминание (followup_at). Одно сообщение на клиента, обычный текст, без превью ссылок. Никого нет — ничего не отправляется.
  * Доступ: x-cron-secret = CRON_SECRET (pg_cron) ИЛИ JWT админа; остальные (в т.ч. viewer) — forbidden. Тело (необязательно): {date}.
@@ -34,7 +34,9 @@ Deno.serve(async (req) => {
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   const fail = (code: string, status: number) => json({ ok: false, code }, status);
 
-  const since = new Date(Date.now() - 10 * 86_400_000).toISOString();
+  const { data: fd } = await db.from('settings').select('value').eq('key', 'renewal_followup_days').maybeSingle();
+  const days = followupDays(fd?.value);
+  const since = new Date(Date.now() - (days + 5) * 86_400_000).toISOString(); // срок + догон до +2 дней + запас
   const { data: sent, error: e1 } = await db.from('renewal_sent').select('id, kind, nick, phone, customer_id, order_number, sent_at, followup_at').is('followup_at', null).gte('sent_at', since);
   if (e1) {
     console.error('renewal-followup query failed:', e1.message);
@@ -46,7 +48,7 @@ Deno.serve(async (req) => {
     console.error('renewal-followup orders failed:', e2.message);
     return fail('server_error', 500);
   }
-  const todo = selectFollowups(today, sent as SentReminder[], (ords ?? []) as ClientOrder[]);
+  const todo = selectFollowups(today, sent as SentReminder[], (ords ?? []) as ClientOrder[], days);
 
   const chat = Deno.env.get('RENEWALS_CHAT_ID') ?? '';
   const toSend = todo.filter((f) => !f.skip);

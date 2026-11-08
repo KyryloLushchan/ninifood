@@ -9,7 +9,7 @@ const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'followup-'));
 let fails = 0;
 const ok = (c: boolean, msg: string) => { if (!c) { fails++; console.log('  ❌', msg); } else console.log('  ✅', msg); };
 
-const store: Record<string, any[]> = { renewal_sent: [], orders: [] };
+const store: Record<string, any[]> = { renewal_sent: [], orders: [], settings: [{ key: 'renewal_followup_days', value: '7' }] };
 const get = (r: any, p: string) => p.split('.').reduce((o, k) => o?.[k], r);
 function from(name: string) {
   const filters: ((r: any) => boolean)[] = [];
@@ -22,7 +22,7 @@ function from(name: string) {
     return Promise.resolve({ data: hit, error: null });
   };
   const q: any = {
-    select: () => q, update: (p: any) => ((mode = 'update'), (payload = p), q), limit: () => q,
+    select: () => q, maybeSingle: () => run().then((r: any) => ({ data: r.data[0] ?? null, error: null })), update: (p: any) => ((mode = 'update'), (payload = p), q), limit: () => q,
     eq: (c: string, v: any) => (filters.push((r) => get(r, c) === v), q),
     is: (c: string, v: any) => (filters.push((r) => (get(r, c) ?? null) === v), q),
     gte: (c: string, v: any) => (filters.push((r) => get(r, c) >= v), q),
@@ -57,18 +57,20 @@ const day = (iso: string) => new Date(`${iso}T13:00:00Z`).toISOString(); // 20:0
 // Текущая дата берётся из запроса; sent_at = «06.11 20:00 Дананг» = 13:00 UTC
 const SENT = '2026-11-06T13:00:00.000Z';
 const origNow = Date.now;
-Date.now = () => new Date('2026-11-08T06:00:00Z').getTime(); // 08.11 13:00 Дананг
+Date.now = () => new Date('2026-11-13T06:00:00Z').getTime(); // 13.11 13:00 Дананг (06.11 + 7 дней)
 
-console.log('── сценарии (08.11 13:00, напоминания от 06.11 20:00) ──');
+console.log('── сценарии (13.11 13:00, напоминания от 06.11 20:00, срок 7 дней) ──');
 rem(1, 'renewal', 'anna_ru', 'NF-1001', SENT); ord('@anna_ru', '2026-11-01T05:00:00Z', 'ru');
 rem(2, 'first_single', 'olya_ua', 'NF-1002', SENT); ord('@Olya_UA', '2026-11-05T05:00:00Z', 'ua');
 rem(3, 'renewal', 'john_en', 'NF-1003', SENT); ord('john_en', '2026-11-02T05:00:00Z', 'en'); ord('@john_en', '2026-11-07T03:00:00Z', 'en'); // заказал после напоминания
 rem(4, 'first_single', 'lan_vi', 'NF-1004', SENT); ord('lan_vi', '2026-11-05T05:00:00Z', 'vi'); ord('lan_vi', '2026-11-07T03:00:00Z', 'vi', 'cancelled'); // отменённый не считается
-rem(5, 'renewal', 'late_guy', 'NF-1005', '2026-11-07T13:00:00.000Z'); ord('late_guy', '2026-11-01T05:00:00Z', 'ru'); // ещё рано (07.11 → 09.11)
+rem(5, 'renewal', 'late_guy', 'NF-1005', '2026-11-07T13:00:00.000Z'); ord('late_guy', '2026-11-01T05:00:00Z', 'ru'); // ещё рано (07.11 → 14.11)
 rem(6, 'renewal', 'byphone', 'NF-1006', SENT, { phone: '+84901234567' }); ord('other_nick', '2026-11-01T05:00:00Z', 'ru', 'confirmed', { phone: '+84901234567' }); ord('x', '2026-11-07T04:00:00Z', 'ru', 'new', { phone: '+84901234567' }); // тот же телефон, заказал
 rem(7, 'first_single', 'anna_ru', 'NF-1007', SENT); // второе напоминание того же клиента — повторное одно
 // дата отправки в записях должна попасть в окно «последние 10 дней» от Date.now()
-const r1 = await run('2026-11-08');
+const early6 = await run('2026-11-12'); // 6 дней после 06.11 — рано
+ok(early6.ok && early6.count === 0 && tgCalls.length === 0 && store.renewal_sent.every((r) => r.followup_at == null), 'через 6 дней — ещё рано: ничего не шлём и не помечаем (раньше срок был 2 дня)');
+const r1 = await run('2026-11-13');
 const msgs = tgCalls.filter((c) => c.method === 'sendMessage').map((c) => c.body);
 ok(r1.ok && r1.count === 3, `отправлено 3 (anna_ru ru, olya_ua ua, lan_vi vi); ответ: ${JSON.stringify(r1)}`);
 const by = (n: string) => msgs.find((m) => m.text.includes(n));
@@ -85,25 +87,36 @@ ok(rowOf(1).followup_status === 'sent' && rowOf(3).followup_status === 'skipped'
 
 console.log('\n── повторный запуск и другие языки ──');
 tgCalls.length = 0;
-const r2 = await run('2026-11-08');
+const r2 = await run('2026-11-13');
 ok(r2.ok && r2.count === 0 && tgCalls.length === 0, 'повторный запуск в тот же день — ничего не шлём');
 rem(8, 'renewal', 'sam_en', 'NF-1008', SENT); ord('sam_en', '2026-11-01T05:00:00Z', 'en');
-const r3 = await run('2026-11-08');
+const r3 = await run('2026-11-13');
 const en = tgCalls.find((c) => c.method === 'sendMessage')!.body.text;
 ok(r3.count === 1 && en.includes('Hungry? 😋🍲') && en.includes('?lang=en') && en.includes('Check out what our guests say'), 'EN: текст и ?lang=en');
 tgCalls.length = 0;
 rem(9, 'renewal', 'late_guy', 'NF-1005', SENT); // старая запись догоняется до +2 дней, дальше — нет
-const r4 = await run('2026-11-12');
-ok(r4.count === 0 && tgCalls.length === 0, 'запись старше окна догона (срок 08.11, сегодня 12.11) — не шлём');
+const r4 = await run('2026-11-19');
+ok(r4.count === 0 && tgCalls.length === 0, 'запись старше окна догона (срок 14.11 + догон до 16.11, сегодня 19.11) — не шлём');
 tgCalls.length = 0;
-const r5 = await run('2026-11-09');
-ok(r5.count === 1 && tgCalls[0].body.text.startsWith('@late_guy\n'), 'запись от 07.11 наступает 09.11');
+const r5 = await run('2026-11-14');
+ok(r5.count === 1 && tgCalls[0].body.text.startsWith('@late_guy\n'), 'запись от 07.11 наступает 14.11 (через 7 дней)');
 tgCalls.length = 0;
 store.renewal_sent.length = 0; // никого — не отправлять
-const r6 = await run('2026-11-08');
+const r6 = await run('2026-11-13');
 ok(r6.ok && r6.count === 0 && tgCalls.length === 0, 'никого нет — ничего не отправляется');
 const bad = await handler(new Request('http://x', { method: 'POST', headers: { 'x-cron-secret': 'no' }, body: '{}' }));
 ok(bad.status === 403 || bad.status === 500, 'без секрета cron доступа нет');
+// срок меняется настройкой: 2 дня → запись от 07.11 (late_guy уже отправлена, берём новую)
+store.settings[0].value = '2';
+tgCalls.length = 0;
+rem(20, 'renewal', 'quick_one', 'NF-1020', '2026-11-17T13:00:00.000Z'); ord('quick_one', '2026-11-10T05:00:00Z', 'ru');
+Date.now = () => new Date('2026-11-19T06:00:00Z').getTime();
+const r7 = await run('2026-11-19');
+ok(r7.count === 1 && tgCalls[0].body.text.startsWith('@quick_one\n'), 'настройка «Повторное через» = 2 → через 2 дня; мусор в настройке → 7');
+store.settings[0].value = 'abc';
+rem(21, 'renewal', 'junk_cfg', 'NF-1021', '2026-11-17T13:00:00.000Z'); ord('junk_cfg', '2026-11-10T05:00:00Z', 'ru'); tgCalls.length = 0;
+const r8 = await run('2026-11-19');
+ok(r8.count === 0 && tgCalls.length === 0, 'неверное значение настройки → 7 дней (2 дня прошло — не шлём)');
 Date.now = origNow;
 console.log(fails ? `\nПРОВАЛ: ${fails}` : '\nВсё ок');
 process.exit(fails ? 1 : 0);
