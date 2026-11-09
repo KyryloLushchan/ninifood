@@ -38,8 +38,8 @@ export interface AdminOrder {
   status: OrderStatus;
   lang: string | null;
   cutlery: boolean;
-  /** Флаг «Вне маршрута» (не участвует в рейсах/км, курьеру — отдельным блоком). */
-  off_route?: boolean;
+  /** Флаг «Такси» (не участвует в рейсах/км, курьеру — отдельным блоком). */
+  taxi?: boolean;
   status_changed_at: string | null;
   status_changed_by: string | null;
   tg_message_id: number | null;

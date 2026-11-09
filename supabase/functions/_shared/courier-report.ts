@@ -1,6 +1,6 @@
 import { esc } from './telegram.ts';
 import { labelRu } from './dates.ts';
-import { mapLinkHtml, money, phoneText, subLabel } from './order-text.ts';
+import { mapLinkHtml, mapUrl, money, phoneText, subLabel } from './order-text.ts';
 import type { LatLng } from './route.ts';
 import { hhmm, lateWarning, planDay, type CourierTrips, type RouteOverride, type TripSettings } from './trips.ts';
 
@@ -35,8 +35,8 @@ export interface ReportDelivery {
   cashSince?: string | null;
   /** Язык заказа (ru/ua/en/vi) — сообщения клиенту из группы курьера идут на нём. */
   lang?: string | null;
-  /** Флаг заказа «Вне маршрута»: не участвует в рейсах, ссылках и км, показывается отдельным блоком. */
-  offRoute?: boolean;
+  /** Флаг заказа «Такси»: не участвует в рейсах, ссылках и км, показывается отдельным блоком. */
+  taxi?: boolean;
 }
 
 const TG_LIMIT = 4096;
@@ -99,9 +99,18 @@ export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
   });
 }
 
-/** Доставка «Вне маршрута»: «📦 Вне маршрута: @ник · адрес · порции · оплата» (в рейсах/ссылках/км не участвует). */
-export const offRouteLine = (d: ReportDelivery) =>
-  `📦 <b>Вне маршрута:</b> ${esc(handle(d.telegram))} · ${esc(d.address)} · ${portions(d.qty)} · ${d.status === 'delivered' ? '✅ Доставлено' : paidLine(d, cashDue(d), money)}`;
+/** Доставка «Такси» (клиенту заказ отправляют такси): «🚕 Такси: @ник · адрес (ссылка на карту) · порции · оплата/наличные · телефон»; в рейсах, ссылках и км не участвует. */
+export const taxiLine = (d: ReportDelivery) => {
+  const url = mapUrl(d.lat, d.lng, d.place_id);
+  const addr = esc(d.address);
+  return [
+    `🚕 <b>Такси:</b> ${esc(handle(d.telegram))}`,
+    url ? `<a href="${hrefAmp(url)}">${addr}</a>` : addr,
+    portions(d.qty),
+    d.status === 'delivered' ? '✅ Доставлено' : paidLine(d, cashDue(d), money),
+    ...(d.phone ? [`📞 ${esc(phoneText(d.phone))}`] : []),
+  ].join(' · ');
+};
 
 function entry(d: ReportDelivery, label: string, eta?: number): string {
   const due = cashDue(d);
@@ -189,12 +198,12 @@ export function buildCourierReport(
   const byNumber = (a: ReportDelivery, b: ReportDelivery) => a.order_number.localeCompare(b.order_number);
 
   if (!kitchen || !opts?.trip) {
-    const list = [...deliveries].filter((d) => !d.offRoute).sort(byNumber);
-    const off = mergeSameClient([...deliveries].filter((d) => d.offRoute).sort(byNumber));
-    return pack([[`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, totals(list, list.length)].join('\n'), ...list.map((d, i) => entry(d, String(i + 1))), ...off.map(offRouteLine)]);
+    const list = [...deliveries].filter((d) => !d.taxi).sort(byNumber);
+    const off = mergeSameClient([...deliveries].filter((d) => d.taxi).sort(byNumber));
+    return pack([[`📦 <b>Доставки на ${label} — ${from}–${to}</b>`, totals(list, list.length)].join('\n'), ...list.map((d, i) => entry(d, String(i + 1))), ...off.map(taxiLine)]);
   }
 
-  const plan = planDay([...deliveries].sort(byNumber), { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty, offRoute: (d) => d.offRoute === true }, kitchen, couriers, opts.trip, opts.override);
+  const plan = planDay([...deliveries].sort(byNumber), { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty, taxi: (d) => d.taxi === true }, kitchen, couriers, opts.trip, opts.override);
   const stopsTotal = plan.couriers.reduce((s, c) => s + c.trips.reduce((n, t) => n + t.stops.length, 0), 0) + plan.noPoint.length;
   const placed = plan.couriers.flatMap((c) => c.trips.flatMap((t) => t.stops.flatMap((s) => mergeSameClient(s.stop.items)))).concat(plan.noPoint);
   const tripsTotal = plan.couriers.reduce((n, c) => n + c.trips.length, 0);
@@ -204,8 +213,8 @@ export function buildCourierReport(
   if (plan.noPoint.length) {
     blocks.push([`⚠️ <b>Без точки на карте — распределить/проверить вручную</b> (${plan.noPoint.length})`, ...plan.noPoint.map((d, i) => entry(d, String(i + 1)))]);
   }
-  // «Вне маршрута» — отдельным блоком в конце отчёта (в рейсы, ссылки и км не входит)
-  if (plan.offRoute.length) blocks.push(mergeSameClient(plan.offRoute).map(offRouteLine));
+  // «Такси» — отдельным блоком в конце отчёта (в рейсы, ссылки и км не входит)
+  if (plan.taxi.length) blocks.push(mergeSameClient(plan.taxi).map(taxiLine));
   // Блоки курьеров: при 2 курьерах каждый начинается с нового сообщения, чтобы его можно было переслать целиком.
   if (couriers === 2) return [header, ...blocks.flatMap((b) => pack(b))];
   return pack([header, ...blocks.flat()]);

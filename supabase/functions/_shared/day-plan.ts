@@ -9,7 +9,7 @@ const SETTING_KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capa
 export async function loadDayRows(db: any, date: string): Promise<{ error: string | null; rows: any[] }> {
   const { data, error } = await db
     .from('order_days')
-    .select('id, qty, delivered, courier_marked_at, orders!inner(id, order_number, type, status, off_route, telegram, phone, address, place_id, lat, lng, hotel, comment, payment_method, total, cutlery, lang, order_days(delivery_date, delivered))')
+    .select('id, qty, delivered, courier_marked_at, orders!inner(id, order_number, type, status, taxi, telegram, phone, address, place_id, lat, lng, hotel, comment, payment_method, total, cutlery, lang, order_days(delivery_date, delivered))')
     .eq('delivery_date', date)
     .in('orders.status', ['new', 'confirmed', 'delivered']);
   if (error) return { error: error.message as string, rows: [] };
@@ -63,7 +63,7 @@ export async function loadDayPlan(db: any, date: string, rows: any[], couriersOv
       dayIds: r.id != null ? [Number(r.id)] : [],
       markedAt: r.courier_marked_at ?? null,
       lang: o.lang ?? null,
-      offRoute: o.off_route === true,
+      taxi: o.taxi === true,
     } as ReportDelivery;
   });
   return { kitchen, couriers, trip, override, deliveries };

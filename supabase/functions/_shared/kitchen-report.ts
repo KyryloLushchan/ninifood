@@ -11,10 +11,10 @@ export interface KitchenTrip {
  * «🍱 Порции на Пт, 31.10: 18 + 2 = 20» (+ «🍴 Приборов: N», если есть). Сообщение для повара/компаньона (группа NiniFood Ops).
  * trips — порции по рейсам (по курьерам; рейсы строятся и по неподтверждённым заказам, у них «⏳»): «🚚 Рейс 1 — 9 · Рейс 2 — 2 (⏳ 1)»;
  * unplaced — порции доставок без координат (в рейсы не входят).
- * offRoute — порции заказов «Вне маршрута» (они в итоге уже учтены, но в рейсы не входят).
+ * taxi — порции заказов «Такси» (они в итоге уже учтены, но в рейсы не входят).
  * notes — заметки кухне на эту дату (таблица kitchen_notes): по строке «📝 …» в конце; порции и заказы не меняют.
  */
-export function buildKitchenMessage(date: string, portions: number, extra: number, cutlery: number, trips?: KitchenTrip[][], unplaced = 0, notes: string[] = [], offRoute = 0): string {
+export function buildKitchenMessage(date: string, portions: number, extra: number, cutlery: number, trips?: KitchenTrip[][], unplaced = 0, notes: string[] = [], taxi = 0): string {
   const label = labelRu(date).replace(' ', ', ');
   const lines = [`🍱 <b>Порции на ${label}: ${portions} + ${extra} = ${portions + extra}</b>`];
   if (cutlery > 0) lines.push(`🍴 Приборов: ${cutlery}`);
@@ -22,7 +22,7 @@ export function buildKitchenMessage(date: string, portions: number, extra: numbe
   if (trips && trips.length === 1) lines.push(`🚚 ${trips[0].map(fmt).join(' · ')}`);
   else if (trips && trips.length > 1) trips.forEach((c, ci) => lines.push(`🛵 Курьер ${ci + 1}: ${c.map(fmt).join(' · ')}`));
   if (unplaced > 0) lines.push(`📍 Без точки на карте: ${unplaced}`);
-  if (offRoute > 0) lines.push(`📦 Вне маршрута: ${offRoute}`);
+  if (taxi > 0) lines.push(`🚕 Такси: ${taxi}`);
   for (const n of notes) lines.push(`📝 ${esc(n)}`);
   return lines.join('\n');
 }

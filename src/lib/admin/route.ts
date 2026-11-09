@@ -47,8 +47,8 @@ export interface Access<T> {
   lng: (t: T) => number | null | undefined;
   address: (t: T) => string;
   qty: (t: T) => number;
-  /** «Вне маршрута»: доставка не участвует в планировании (рейсы, ссылки, км) — `planDay` кладёт её в `offRoute`. */
-  offRoute?: (t: T) => boolean;
+  /** «Такси»: доставка не участвует в планировании (рейсы, ссылки, км) — `planDay` кладёт её в `taxi`. */
+  taxi?: (t: T) => boolean;
 }
 
 const normAddr = (s: string) => s.toLowerCase().replace(/[\s,.;]+/g, ' ').trim();

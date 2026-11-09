@@ -13,7 +13,7 @@ import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
 import { Btn, Card, Err, inputCls } from './ui';
 import { PinPoint } from './PinPoint';
 import { AddressEditor } from './AddressEditor';
-import { OffRouteToggle } from './OffRouteToggle';
+import { TaxiToggle } from './TaxiToggle';
 import { useReadOnly } from './role';
 import { PortionsEditor } from './PortionsEditor';
 import { RestoreOrder } from './RestoreOrder';
@@ -227,14 +227,14 @@ export function OrderCard({
               Открыть сообщение в группе Orders →
             </a>
           )}
-          {o.off_route && <div className="font-bold">📦 Вне маршрута — не входит в рейсы курьера</div>}
+          {o.taxi && <div className="font-bold">🚕 Такси — не входит в рейсы курьера</div>}
           {!readOnly && (
             <>
           <div className="mt-2 flex flex-wrap gap-2">
             <PortionsEditor o={o} onChanged={onChanged} onNotice={onNotice} />
             <AddressEditor o={o} onChanged={onChanged} onNotice={onNotice} />
             <RestoreOrder o={o} onChanged={onChanged} onNotice={onNotice} />
-            <OffRouteToggle o={o} onChanged={onChanged} onNotice={onNotice} />
+            <TaxiToggle o={o} onChanged={onChanged} onNotice={onNotice} />
           </div>
           <div className="mt-2">
             <div className="mb-1 text-[13px] font-bold text-ink-muted">Сменить статус вручную</div>

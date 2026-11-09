@@ -2,7 +2,7 @@
 // Тот же план, что у ночного отчёта (`planDay` по данным `day-plan.ts`). Кнопка курьера пишет только отметку (order_days.courier_marked_at) — статус заказа меняет админ.
 // Сообщения без цен и сумм заказа; «Взять наличными» — сумма к получению у курьера. Язык русский.
 import { nowDanang, todayISO as todayISOLocal } from './dates.ts';
-import { cashDue, handle, hrefAmp, kmText, mergeSameClient, offRouteLine, paidLine, portions, tripLinks, type ReportDelivery } from './courier-report.ts';
+import { cashDue, handle, hrefAmp, kmText, mergeSameClient, taxiLine, paidLine, portions, tripLinks, type ReportDelivery } from './courier-report.ts';
 import { loadDayPlan, loadDayRows } from './day-plan.ts';
 import { mapUrl, money, phoneText } from './order-text.ts';
 import { labelRu } from './dates.ts';
@@ -25,11 +25,11 @@ export interface StopMsg {
   /** Язык заказа и ник клиента в Telegram (null — ника нет: кнопки сообщений клиенту не показываем). */
   lang: string;
   nick: string | null;
-  /** «Вне маршрута»: без кнопок курьера (он эту доставку не везёт). */
+  /** «Такси»: без кнопок курьера (он эту доставку не везёт). */
   plain?: boolean;
 }
-/** Метка сообщения «Вне маршрута» в courier_route_msgs.label. */
-export const OFF_LABEL = '📦';
+/** Метка сообщения «Такси» в courier_route_msgs.label. */
+export const TAXI_LABEL = '🚕';
 export interface TripMsg {
   no: number;
   text: string;
@@ -40,8 +40,8 @@ export interface RoutePlan {
   trips: TripMsg[];
   /** Доставки без координат — в маршрут не входят, но курьеру показываются. */
   noPoint: StopMsg[];
-  /** Заказы с флагом «Вне маршрута» — отдельные сообщения без кнопок в конце. */
-  offRoute: StopMsg[];
+  /** Заказы с флагом «Такси» — отдельные сообщения без кнопок в конце. */
+  taxi: StopMsg[];
 }
 
 /** Telegram-ник клиента (без @ и t.me/); null — это не ник (телефон, пусто и т.п.). */
@@ -129,15 +129,15 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
     const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
     return { key: dayIds.join(','), body: sb.body + '|' + sb.head, head: sb.head, eta: 0, dayIds, label: '⚠️', title: `⚠️ <b>Без точки на карте</b> · ${sb.head}\n${sb.body}`, lang: ln(d.lang), nick: nickOf(d.telegram) };
   });
-  const offRoute: StopMsg[] = mergeSameClient(plan.offRoute.map(norm)).map((d) => {
-    const line = offRouteLine(d);
+  const taxi: StopMsg[] = mergeSameClient(plan.taxi.map(norm)).map((d) => {
+    const line = taxiLine(d);
     const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
     const head = `${esc(handle(d.telegram))} · ${esc(d.order_number)}`;
-    return { key: dayIds.join(','), body: line, head, eta: 0, dayIds, label: OFF_LABEL, title: `${line}${d.phone ? `\n📞 ${esc(phoneText(d.phone))}` : ''}`, lang: ln(d.lang), nick: nickOf(d.telegram), plain: true };
+    return { key: dayIds.join(','), body: line, head, eta: 0, dayIds, label: TAXI_LABEL, title: line, lang: ln(d.lang), nick: nickOf(d.telegram), plain: true };
   });
   const stopsTotal = trips.reduce((n, t) => n + t.stops.length, 0);
   const header = `🚚 <b>Маршрут на ${labelRu(date)}</b> — рейсов: ${trips.length} · адресов: ${stopsTotal + noPoint.length} · порций: ${[...trips.flatMap((t) => t.stops), ...noPoint].reduce((n, s) => n + (Number(/🍽 (\d+)/.exec(s.body)?.[1]) || 0), 0)}${warnings.length ? `\n${warnings.join('\n')}` : ''}`;
-  return { header, trips, noPoint, offRoute };
+  return { header, trips, noPoint, taxi };
 }
 
 const doneText = (title: string, at: string) => `${title.split('\n')[0]}\n✅ Доставлено курьером · ${at}`;
@@ -204,7 +204,7 @@ const plainDelivery = async (db: any, date: string) => {
   if (day.error) throw new Error(day.error);
   const p = await loadDayPlan(db, date, day.rows);
   if (!p.kitchen) return null;
-  const plan = planDay(p.deliveries, { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty, offRoute: (d) => d.offRoute === true }, p.kitchen, p.couriers, p.trip, p.override);
+  const plan = planDay(p.deliveries, { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty, taxi: (d) => d.taxi === true }, p.kitchen, p.couriers, p.trip, p.override);
   return buildRoutePlan(date, plan, p.couriers);
 };
 
@@ -305,7 +305,7 @@ export async function publishRoute(db: any, date: string, mode: 'publish' | 'rep
   if ((existing ?? []).length && mode === 'publish') return { ok: true, skipped: 'already_published' };
   const rp = await plainDelivery(db, date);
   if (!rp) return { ok: false, code: 'kitchen_missing' };
-  const total = 1 + rp.trips.reduce((n, t) => n + 1 + t.stops.length, 0) + rp.noPoint.length + rp.offRoute.length;
+  const total = 1 + rp.trips.reduce((n, t) => n + 1 + t.stops.length, 0) + rp.noPoint.length + rp.taxi.length;
   if (!total) return { ok: true, skipped: 'empty' };
 
   await setLock(db, true);
@@ -322,7 +322,7 @@ export async function publishRoute(db: any, date: string, mode: 'publish' | 'rep
       for (const s of t.stops) if (!(await post(db, chat, date, 'stop', s.title, { trip_no: t.no, label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, true))) failed++;
     }
     for (const s of rp.noPoint) if (!(await post(db, chat, date, 'stop', s.title, { label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, true))) failed++;
-    for (const s of rp.offRoute) if (!(await post(db, chat, date, 'stop', s.title, { label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, false))) failed++;
+    for (const s of rp.taxi) if (!(await post(db, chat, date, 'stop', s.title, { label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, false))) failed++;
     if (failed) await warn?.(`Маршрут ${esc(date)} в группу курьера отправлен не полностью: не ушло сообщений — ${failed}.`);
    } finally {
     await setLock(db, false);
@@ -356,7 +356,7 @@ export async function syncRoute(db: any, date: string): Promise<SyncResult> {
   if (!rp) return { ok: true, skipped: 'kitchen_missing' };
 
   const oldStops = rows.filter((r) => r.kind === 'stop');
-  const desired = [...rp.trips.flatMap((t) => t.stops.map((s) => ({ s, trip: t.no }))), ...rp.noPoint.map((s) => ({ s, trip: 0 })), ...rp.offRoute.map((s) => ({ s, trip: 0 }))];
+  const desired = [...rp.trips.flatMap((t) => t.stops.map((s) => ({ s, trip: t.no }))), ...rp.noPoint.map((s) => ({ s, trip: 0 })), ...rp.taxi.map((s) => ({ s, trip: 0 }))];
   const byKey = new Map(oldStops.map((r) => [r.day_ids.join(','), r]));
   const keep = new Set<number>();
   const fresh: { s: StopMsg; trip: number }[] = [];
@@ -590,7 +590,7 @@ export async function refreshKeyboards(db: any, dates: string[]): Promise<{ rows
   const chat = Deno.env.get('COURIER_CHAT_ID') ?? '';
   if (!chat) return { rows: 0 };
   const { data } = await db.from('courier_route_msgs').select('*').in('date', dates).eq('kind', 'stop').eq('status', 'active').eq('is_test', false).order('id');
-  const rows = ((data ?? []) as Row[]).filter((r) => r.message_id && r.label !== OFF_LABEL);
+  const rows = ((data ?? []) as Row[]).filter((r) => r.message_id && r.label !== TAXI_LABEL);
   const run = async () => {
     for (const r of rows) {
       let res = await send(chat, 'editMessageReplyMarkup', { message_id: r.message_id, reply_markup: rowKeyboard(r) });

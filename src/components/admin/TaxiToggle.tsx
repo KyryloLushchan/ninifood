@@ -14,11 +14,11 @@ const ERR: Record<string, string> = {
 };
 
 /**
- * «Вне маршрута» (флаг заказа `orders.off_route`): заказ не участвует в рейсах, ссылках маршрута и км/адресах ЗП, курьеру показывается отдельным блоком
- * «📦 Вне маршрута: …» (отчёт, группа курьера, вкладка «Курьер»); порции кухне считаются как обычно. Окно подтверждения («Отмена» в фокусе; Enter, Esc, клик мимо = отмена).
+ * «Такси» (флаг заказа `orders.taxi`): заказ не участвует в рейсах, ссылках маршрута и км/адресах ЗП, курьеру показывается отдельным блоком
+ * «🚕 Такси: …» (отчёт, группа курьера, вкладка «Курьер»); порции кухне считаются как обычно. Окно подтверждения («Отмена» в фокусе; Enter, Esc, клик мимо = отмена).
  */
-export function OffRouteToggle({ o, onChanged, onNotice }: { o: AdminOrder; onChanged: () => void; onNotice?: (s: string) => void }) {
-  const on = o.off_route === true;
+export function TaxiToggle({ o, onChanged, onNotice }: { o: AdminOrder; onChanged: () => void; onNotice?: (s: string) => void }) {
+  const on = o.taxi === true;
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -27,7 +27,7 @@ export function OffRouteToggle({ o, onChanged, onNotice }: { o: AdminOrder; onCh
   useEffect(() => {
     if (open) cancelRef.current?.focus();
   }, [open]);
-  if (!['new', 'confirmed'].includes(o.status)) return on ? <span className="text-sm font-bold">📦 Вне маршрута</span> : null;
+  if (!['new', 'confirmed'].includes(o.status)) return on ? <span className="text-sm font-bold">🚕 Такси</span> : null;
 
   const close = () => {
     if (busy) return;
@@ -37,24 +37,24 @@ export function OffRouteToggle({ o, onChanged, onNotice }: { o: AdminOrder; onCh
   const save = async () => {
     setBusy(true);
     setError('');
-    const { error } = await adminDb.rpc('admin_set_off_route', { p_order: o.id, p_value: !on });
+    const { error } = await adminDb.rpc('admin_set_taxi', { p_order: o.id, p_value: !on });
     setBusy(false);
     if (error) {
       const code = Object.keys(ERR).find((c) => error.message.includes(c));
       return setError(code ? ERR[code] : ruError(error.message));
     }
     setOpen(false);
-    onNotice?.(on ? `Заказ ${o.order_number} снова в маршруте.` : `Заказ ${o.order_number} теперь вне маршрута: в рейсы не входит, курьеру — отдельным блоком.`);
+    onNotice?.(on ? `Заказ ${o.order_number} снова в маршруте курьера.` : `Заказ ${o.order_number} отправляется такси: в рейсы не входит, курьеру — отдельным блоком «🚕 Такси».`);
     onChanged();
   };
 
   return (
     <>
       <Btn kind={on ? 'outline' : 'ghost'} className="!min-h-9 !px-3 !text-sm" onClick={() => setOpen(true)}>
-        {on ? '📦 Вне маршрута: вкл' : '📦 Вне маршрута'}
+        {on ? '🚕 Такси: вкл' : '🚕 Такси'}
       </Btn>
       {open && (
-        <Modal title={on ? 'Вернуть заказ в маршрут?' : 'Вынести заказ из маршрута?'} onClose={close}>
+        <Modal title={on ? 'Вернуть заказ курьеру?' : 'Отправить заказ такси?'} onClose={close}>
           <div
             className="flex flex-col gap-3"
             onKeyDown={(e) => {
@@ -69,8 +69,8 @@ export function OffRouteToggle({ o, onChanged, onNotice }: { o: AdminOrder; onCh
               Заказ <b>{o.order_number}</b> · {tgLabel(o.telegram)}
               <div className="mt-1 text-ink-muted">
                 {on
-                  ? 'Заказ снова попадёт в рейсы, ссылки маршрута, км и расчёт ЗП курьера.'
-                  : 'Заказ не будет участвовать в рейсах, ссылках маршрута и расчёте км/адресов ЗП. Курьеру он покажется отдельным блоком «📦 Вне маршрута» (отчёт, группа курьера, вкладка «Курьер»). Порции для кухни считаются как обычно. Если маршрут на день уже опубликован, группа обновится сама в течение нескольких минут.'}
+                  ? 'Заказ снова попадёт в рейсы курьера, ссылки маршрута, км и расчёт ЗП.'
+                  : 'Заказ не будет участвовать в рейсах, ссылках маршрута и расчёте км/адресов ЗП. Курьеру он покажется отдельным блоком «🚕 Такси» (отчёт, группа курьера, вкладка «Курьер»). Порции для кухни считаются как обычно. Если маршрут на день уже опубликован, группа обновится сама в течение нескольких минут.'}
               </div>
             </div>
             <Err>{error}</Err>

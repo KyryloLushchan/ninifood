@@ -29,7 +29,7 @@ interface Row {
     order_number: string;
     type: 'single' | 'subscription';
     status: 'new' | 'confirmed' | 'delivered';
-    off_route?: boolean;
+    taxi?: boolean;
     telegram: string;
     phone: string | null;
     address: string;
@@ -95,7 +95,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, courier_marked_at, courier_note, orders!inner(id, order_number, type, status, off_route, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date, delivered))',
+        'id, delivery_date, qty, delivered, courier_marked_at, courier_note, orders!inner(id, order_number, type, status, taxi, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date, delivered))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed', 'delivered']) // доставленные остаются в плане (серыми), чтобы рейсы не «плыли» в течение дня
@@ -160,7 +160,7 @@ export function CourierTab() {
   const plan = useMemo(
     () =>
       kitchen && rows
-        ? planDay([...rows].sort((a, b) => a.orders.order_number.localeCompare(b.orders.order_number)), { lat: (r) => r.orders.lat, lng: (r) => r.orders.lng, address: (r) => r.orders.address, qty: (r) => r.qty, offRoute: (r) => r.orders.off_route === true }, kitchen, couriers, trip, override)
+        ? planDay([...rows].sort((a, b) => a.orders.order_number.localeCompare(b.orders.order_number)), { lat: (r) => r.orders.lat, lng: (r) => r.orders.lng, address: (r) => r.orders.address, qty: (r) => r.qty, taxi: (r) => r.orders.taxi === true }, kitchen, couriers, trip, override)
         : null,
     [rows, kitchen, couriers, trip, override],
   );
@@ -465,15 +465,26 @@ export function CourierTab() {
           {plan.noPoint.map((r, i) => <DeliveryCard key={r.id} r={r} label={String(i + 1)} onSaved={load} />)}
         </section>
       )}
-      {plan && plan.offRoute.length > 0 && (
+      {plan && plan.taxi.length > 0 && (
         <section className="flex flex-col gap-2">
-          <div className="rounded-md2 border border-line bg-card px-4 py-3 text-sm font-extrabold">📦 Вне маршрута ({plan.offRoute.length}) — не входит в рейсы, ссылки и км</div>
-          {plan.offRoute.map((r) => {
+          <div className="rounded-md2 border border-line bg-card px-4 py-3 text-sm font-extrabold">🚕 Такси ({plan.taxi.length}) — не входит в рейсы, ссылки и км (отправляем такси)</div>
+          {plan.taxi.map((r) => {
             const due = cashDue(r);
             return (
               <div key={r.id} className="rounded-md2 border border-line bg-card px-4 py-3 text-sm">
-                <b>📦 Вне маршрута:</b> {tgLabel(r.orders.telegram)} · {r.orders.address} · {r.qty} {plural(r.qty).toLowerCase()} ·{' '}
+                <b>🚕 Такси:</b> {tgLabel(r.orders.telegram)} ·{' '}
+                {r.orders.lat != null && r.orders.lng != null ? (
+                  <a href={`https://www.google.com/maps/search/?api=1&query=${r.orders.lat},${r.orders.lng}`} target="_blank" rel="noreferrer">{r.orders.address}</a>
+                ) : (
+                  r.orders.address
+                )}{' '}
+                · {r.qty} {plural(r.qty).toLowerCase()} ·{' '}
                 {r.delivered ? 'доставлено' : due ? `взять наличными: ${fmtMoney(due)}${cashSinceLabel(r)}` : 'оплачено'}
+                {r.orders.phone && (
+                  <>
+                    {' '}· 📞 <a href={phoneHref(r.orders.phone)}>{formatPhone(r.orders.phone)}</a>
+                  </>
+                )}
                 <div className="mt-0.5 text-xs text-ink-muted">{r.orders.order_number}</div>
               </div>
             );
