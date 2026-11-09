@@ -16,6 +16,7 @@ import { customerDb, fetchProfile, signOutCustomer, type CustomerProfile } from 
 import { phoneDigits } from '@/lib/phone';
 import { DRAFT_ID_RE, fetchDraft } from '@/lib/order-draft';
 import { fetchRenewal, RENEWAL_RE } from '@/lib/renewal';
+import { clearPaySession, readPaySession, writePaySession } from '@/lib/pay-session';
 
 export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks' | 'orders' | 'auth';
 export type Payment = 'qr' | 'cash' | 'other';
@@ -130,6 +131,8 @@ interface AppValue {
   phoneKept: boolean;
   setPhoneKept: (v: boolean) => void;
   dismissDraftStale: () => void;
+  /** Перед уходом в приложение банка (в той же вкладке): запомнить заказ в sessionStorage, при возврате экран оплаты восстановится. */
+  savePaySession: () => void;
   reset: () => void;
 }
 
@@ -263,6 +266,33 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setScreen(d.payment === 'cash' ? 'checkout' : 'payment');
       clean();
     });
+  }, []);
+
+  // Возврат из приложения банка: вкладка могла перезагрузиться — восстанавливаем заказ и экран оплаты (скриншот загружают заново).
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search);
+    if (qs.has('d') || qs.has('r')) return;
+    const snap = readPaySession();
+    if (!snap) return; // снимок живёт до отправки заказа или 30 минут: вкладку могут перезагрузить ещё раз
+    const tomorrow = addDays(todayISO(), 1);
+    const days = snap.days.filter((x) => x >= tomorrow && !isSunday(x));
+    if (days.length < (snap.orderType === 'sub' ? SUB_MIN_DAYS : 1)) return;
+    draftIdRef.current = snap.draftId;
+    if (snap.orderType === 'sub') {
+      setOrderType('sub');
+      setSubDays(days);
+    } else {
+      setOrderType('once');
+      setOnceDays(days);
+    }
+    setPortionsState(snap.portions);
+    setContact(snap.contact);
+    setPlace(snap.place);
+    setPayment(snap.payment);
+    setCutlery(snap.cutlery);
+    setRenewal(snap.renewal);
+    setPhoneKept(snap.phoneKept);
+    setScreen('payment');
   }, []);
 
   // Ссылка продления подписки: ?r=КОД → данные последнего заказа клиента с сервера → оформление «Подписка» (дни — ближайшие 5 рабочих, можно поменять).
@@ -441,10 +471,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubmitError(null);
     setPlaced(null);
     draftIdRef.current = null;
+    clearPaySession();
     setRenewal(null);
     setPhoneKept(false);
     go('home');
   }, [go, customer]);
+
+  const savePaySession = useCallback(() => {
+    writePaySession({ orderType, days, portions, contact, place, payment, cutlery, renewal, phoneKept, draftId: draftIdRef.current });
+  }, [orderType, days, portions, contact, place, payment, cutlery, renewal, phoneKept]);
 
   const placeOrder = useCallback(async () => {
     setSending(true);
@@ -469,6 +504,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         keepPhone: phoneKept,
       });
       draftIdRef.current = null;
+      clearPaySession();
       setPlaced({ orderId: orderNumber, type: orderType, days, portions, total, payment });
       go('thanks');
       if (customer) void loadProfile(); // сервер сохранил телефон и адрес
@@ -544,6 +580,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     phoneKept,
     setPhoneKept,
     dismissDraftStale: () => setDraftStale(false),
+    savePaySession,
     reset,
   };
 

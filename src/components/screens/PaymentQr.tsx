@@ -79,7 +79,7 @@ export function PaymentQr() {
           </div>
           {mobile ? (
             <div className="flex w-full flex-col gap-2.5">
-              <BankPay amount={total} />
+              <BankPay amount={total} qrReady={!!qr} onSaveQr={() => qr && void saveQr(qr)} />
               <button
                 type="button"
                 disabled={!qr}
