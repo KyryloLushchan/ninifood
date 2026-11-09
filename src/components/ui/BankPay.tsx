@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { BANK_APPS, bankLogo } from '@/config/bank-apps';
 import { buildBankDeeplink } from '@/config/site';
 import { useI18n } from '@/i18n';
-import { useApp } from '@/state/app-context';
 
 const KEY = 'ninifood.bank';
 const isIos = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -24,10 +23,9 @@ export function useMobilePay(): boolean {
   return m;
 }
 
-/** Кнопка «Оплатить в приложении банка» + список банков. Deeplink открывается в той же вкладке (без лишнего подтверждения); заказ заранее сохраняется в sessionStorage и при возврате восстанавливается. */
-export function BankPay({ amount, onSaveQr, qrReady }: { amount: number; onSaveQr: () => void; qrReady: boolean }) {
+/** Кнопка «Оплатить в приложении банка» + список банков. Ссылка открывается в новой вкладке: экран оплаты (скриншот) остаётся. */
+export function BankPay({ amount }: { amount: number }) {
   const { t } = useI18n();
-  const { savePaySession } = useApp();
   const [open, setOpen] = useState(false);
   const [ios, setIos] = useState(false);
   const [last, setLast] = useState<string | null>(null);
@@ -36,7 +34,7 @@ export function BankPay({ amount, onSaveQr, qrReady }: { amount: number; onSaveQ
     setLast(lastBank());
   }, []);
 
-  const list = BANK_APPS.filter((b) => b.fill && (!ios || b.ios));
+  const list = BANK_APPS.filter((b) => !ios || b.ios);
   const first = list.find((b) => b.id === last);
   const rows = first ? [first, ...list.filter((b) => b !== first)] : list;
 
@@ -79,33 +77,23 @@ export function BankPay({ amount, onSaveQr, qrReady }: { amount: number; onSaveQ
                 <li key={b.id}>
                   <a
                     href={buildBankDeeplink(b.id, amount)}
-                    onClick={() => {
-                      savePaySession();
-                      pick(b.id);
-                    }}
+                    target="_blank"
+                    rel="noopener"
+                    onClick={() => pick(b.id)}
                     className="flex items-center gap-3 rounded-md2 px-3 py-2.5 active:bg-sand"
                   >
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img src={bankLogo(b.id, ios)} alt="" width={40} height={40} className="h-10 w-10 shrink-0 rounded-lg bg-sand object-contain" />
                     <span className="min-w-0 flex-1">
                       <span className="block text-[15px] font-bold text-ink">{b.name}</span>
-                      <span className="block text-xs leading-snug text-ink-muted">{t('bank.fill')}</span>
+                      <span className={`block text-xs leading-snug text-ink-muted`}>
+                        {t(b.fill ? 'bank.fill' : 'bank.nofill')}
+                      </span>
                     </span>
                   </a>
                 </li>
               ))}
             </ul>
-            <div className="flex flex-col items-center gap-2 border-t border-sand px-5 py-3 text-center">
-              <div className="text-xs leading-snug text-ink-muted">{t('bank.other')}</div>
-              <button
-                type="button"
-                disabled={!qrReady}
-                onClick={onSaveQr}
-                className="h-11 w-full rounded-md2 border-2 border-accent text-[15px] font-extrabold text-accent active:bg-accent-soft disabled:opacity-50"
-              >
-                {t('bank.saveQr')}
-              </button>
-            </div>
           </div>
         </div>
       )}
