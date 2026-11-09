@@ -5,6 +5,7 @@ import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
 import { AddressInput } from './AddressEditor';
 import { DiscountCard } from './DiscountCard';
+import { KitchenNotesCard } from './KitchenNotesCard';
 import { VipCard } from './VipCard';
 import type { PlaceInfo } from '@/lib/places';
 import { Btn, Card, Err, Label, inputCls } from './ui';
@@ -220,6 +221,7 @@ export function SettingsTab() {
           <div className="pb-2 text-[17px] font-extrabold">Рейсы курьера</div>
           {TRIPS.map((f) => row(f.label, values[f.key] ?? TRIP_DEFAULTS[f.key]))}
         </Card>
+        <KitchenNotesCard />
         <VipCard />
         <DiscountCard />
       </div>
@@ -337,6 +339,7 @@ export function SettingsTab() {
         <div className="text-xs text-ink-muted">Расстояние — по прямой × коэффициент, платных карт нет. Рейс — это порции за один выезд; промежуточные рейсы возвращаются на кухню, последний — нет.</div>
         <Btn onClick={saveTrips} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить рейсы'}</Btn>
       </Card>
+      <KitchenNotesCard />
       <VipCard />
       <DiscountCard />
     </div>

@@ -97,7 +97,11 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error('daily-report kitchen trips failed:', (e as Error).message); // сообщение уйдёт без рейсов
     }
-    const res = await tg('sendMessage', { chat_id: kitchenChat, text: buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced), parse_mode: 'HTML', disable_web_page_preview: true });
+    // Заметки кухне на эту дату (kitchen_notes); ошибка чтения сообщение не ломает.
+    const { data: nt, error: ntErr } = await db.from('kitchen_notes').select('text').eq('date', date).order('id');
+    if (ntErr) console.error('daily-report kitchen notes failed:', ntErr.message);
+    const notes = (nt ?? []).map((n: { text: string }) => String(n.text).trim()).filter(Boolean);
+    const res = await tg('sendMessage', { chat_id: kitchenChat, text: buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced, notes), parse_mode: 'HTML', disable_web_page_preview: true });
     if (!res.ok) {
       console.error(`daily-report kitchen telegram failed for ${date}:`, res.description);
       await warnOrders(`Не удалось отправить порции в NiniFood Ops (${esc(String(res.description ?? 'ошибка Telegram'))}). Если группа стала супергруппой, обновите KITCHEN_CHAT_ID.`);

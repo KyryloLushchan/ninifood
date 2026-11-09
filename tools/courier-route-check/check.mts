@@ -375,6 +375,14 @@ console.log('\n── отчёт кухне: доп. порции ──');
   const k0 = await runKitchen();
   console.log('   ' + k0.text.split('\n')[0].replace(/<[^>]+>/g, ''));
   ok(k0.res.kitchen.extra === 2 && k0.res.kitchen.total === total + 2 && new RegExp(`${total} \\+ 2 = ${total + 2}`).test(k0.text), `настройки нет → по умолчанию 2: «${total} + 2 = ${total + 2}»`);
+  ok(!k0.text.includes('📝'), 'заметок на дату нет → в сообщении кухне строки 📝 нет');
+  // заметки кухне по датам (kitchen_notes): только строка-напоминание, порции и заказы не меняются
+  store.kitchen_notes = [{ id: 1, date: DATE, text: '2 окрошки без бульона с <майонезом>' }, { id: 2, date: DATE, text: 'Ещё + 2 обеда' }, { id: 3, date: '2099-01-01', text: 'чужая дата' }];
+  const kn = await runKitchen();
+  const lines = kn.text.split('\n');
+  ok(lines.includes('📝 2 окрошки без бульона с &lt;майонезом&gt;') && lines.includes('📝 Ещё + 2 обеда') && !kn.text.includes('чужая дата'), 'заметки этой даты — по строке «📝 …» (HTML экранируется), чужая дата не попадает');
+  ok(kn.res.kitchen.total === k0.res.kitchen.total && kn.res.kitchen.extra === k0.res.kitchen.extra && lines[0] === k0.text.split('\n')[0], 'порции и итог не изменились: «' + lines[0].replace(/<[^>]+>/g, '') + '»');
+  store.kitchen_notes = [];
   store.settings.push({ key: 'extra_portions', value: '5' });
   const k5 = await runKitchen();
   ok(k5.res.kitchen.extra === 5 && new RegExp(`${total} \\+ 5 = ${total + 5}`).test(k5.text), 'настройка «Доп. порции в день» = 5 → «+ 5»');
