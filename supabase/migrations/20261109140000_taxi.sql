@@ -2,8 +2,8 @@
 alter table public.orders rename column off_route to taxi;
 
 drop function if exists public.admin_set_off_route(uuid, boolean);
-update public.order_edits set kind = 'taxi', changes = jsonb_build_object('taxi_from', changes -> 'off_route_from', 'taxi_to', changes -> 'off_route_to') where kind = 'off_route';
 alter table public.order_edits drop constraint if exists order_edits_kind_check;
+update public.order_edits set kind = 'taxi', changes = jsonb_build_object('taxi_from', changes -> 'off_route_from', 'taxi_to', changes -> 'off_route_to') where kind = 'off_route';
 alter table public.order_edits add constraint order_edits_kind_check check (kind in ('portions', 'address', 'restore', 'courier_note', 'taxi'));
 
 create or replace function public.admin_set_taxi(p_order uuid, p_value boolean)
