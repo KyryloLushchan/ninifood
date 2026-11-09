@@ -2,7 +2,7 @@
 // Тот же план, что у ночного отчёта (`planDay` по данным `day-plan.ts`). Кнопка курьера пишет только отметку (order_days.courier_marked_at) — статус заказа меняет админ.
 // Сообщения без цен и сумм заказа; «Взять наличными» — сумма к получению у курьера. Язык русский.
 import { nowDanang, todayISO as todayISOLocal } from './dates.ts';
-import { cashDue, handle, hrefAmp, kmText, mergeSameClient, paidLine, portions, tripLinks, type ReportDelivery } from './courier-report.ts';
+import { cashDue, handle, hrefAmp, kmText, mergeSameClient, offRouteLine, paidLine, portions, tripLinks, type ReportDelivery } from './courier-report.ts';
 import { loadDayPlan, loadDayRows } from './day-plan.ts';
 import { mapUrl, money, phoneText } from './order-text.ts';
 import { labelRu } from './dates.ts';
@@ -25,7 +25,11 @@ export interface StopMsg {
   /** Язык заказа и ник клиента в Telegram (null — ника нет: кнопки сообщений клиенту не показываем). */
   lang: string;
   nick: string | null;
+  /** «Вне маршрута»: без кнопок курьера (он эту доставку не везёт). */
+  plain?: boolean;
 }
+/** Метка сообщения «Вне маршрута» в courier_route_msgs.label. */
+export const OFF_LABEL = '📦';
 export interface TripMsg {
   no: number;
   text: string;
@@ -36,6 +40,8 @@ export interface RoutePlan {
   trips: TripMsg[];
   /** Доставки без координат — в маршрут не входят, но курьеру показываются. */
   noPoint: StopMsg[];
+  /** Заказы с флагом «Вне маршрута» — отдельные сообщения без кнопок в конце. */
+  offRoute: StopMsg[];
 }
 
 /** Telegram-ник клиента (без @ и t.me/); null — это не ник (телефон, пусто и т.п.). */
@@ -123,9 +129,15 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
     const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
     return { key: dayIds.join(','), body: sb.body + '|' + sb.head, head: sb.head, eta: 0, dayIds, label: '⚠️', title: `⚠️ <b>Без точки на карте</b> · ${sb.head}\n${sb.body}`, lang: ln(d.lang), nick: nickOf(d.telegram) };
   });
+  const offRoute: StopMsg[] = mergeSameClient(plan.offRoute.map(norm)).map((d) => {
+    const line = offRouteLine(d);
+    const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
+    const head = `${esc(handle(d.telegram))} · ${esc(d.order_number)}`;
+    return { key: dayIds.join(','), body: line, head, eta: 0, dayIds, label: OFF_LABEL, title: `${line}${d.phone ? `\n📞 ${esc(phoneText(d.phone))}` : ''}`, lang: ln(d.lang), nick: nickOf(d.telegram), plain: true };
+  });
   const stopsTotal = trips.reduce((n, t) => n + t.stops.length, 0);
   const header = `🚚 <b>Маршрут на ${labelRu(date)}</b> — рейсов: ${trips.length} · адресов: ${stopsTotal + noPoint.length} · порций: ${[...trips.flatMap((t) => t.stops), ...noPoint].reduce((n, s) => n + (Number(/🍽 (\d+)/.exec(s.body)?.[1]) || 0), 0)}${warnings.length ? `\n${warnings.join('\n')}` : ''}`;
-  return { header, trips, noPoint };
+  return { header, trips, noPoint, offRoute };
 }
 
 const doneText = (title: string, at: string) => `${title.split('\n')[0]}\n✅ Доставлено курьером · ${at}`;
@@ -192,7 +204,7 @@ const plainDelivery = async (db: any, date: string) => {
   if (day.error) throw new Error(day.error);
   const p = await loadDayPlan(db, date, day.rows);
   if (!p.kitchen) return null;
-  const plan = planDay(p.deliveries, { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty }, p.kitchen, p.couriers, p.trip, p.override);
+  const plan = planDay(p.deliveries, { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty, offRoute: (d) => d.offRoute === true }, p.kitchen, p.couriers, p.trip, p.override);
   return buildRoutePlan(date, plan, p.couriers);
 };
 
@@ -293,7 +305,7 @@ export async function publishRoute(db: any, date: string, mode: 'publish' | 'rep
   if ((existing ?? []).length && mode === 'publish') return { ok: true, skipped: 'already_published' };
   const rp = await plainDelivery(db, date);
   if (!rp) return { ok: false, code: 'kitchen_missing' };
-  const total = 1 + rp.trips.reduce((n, t) => n + 1 + t.stops.length, 0) + rp.noPoint.length;
+  const total = 1 + rp.trips.reduce((n, t) => n + 1 + t.stops.length, 0) + rp.noPoint.length + rp.offRoute.length;
   if (!total) return { ok: true, skipped: 'empty' };
 
   await setLock(db, true);
@@ -310,6 +322,7 @@ export async function publishRoute(db: any, date: string, mode: 'publish' | 'rep
       for (const s of t.stops) if (!(await post(db, chat, date, 'stop', s.title, { trip_no: t.no, label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, true))) failed++;
     }
     for (const s of rp.noPoint) if (!(await post(db, chat, date, 'stop', s.title, { label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, true))) failed++;
+    for (const s of rp.offRoute) if (!(await post(db, chat, date, 'stop', s.title, { label: s.label, sig: s.body, day_ids: s.dayIds, lang: s.lang, nick: s.nick }, false))) failed++;
     if (failed) await warn?.(`Маршрут ${esc(date)} в группу курьера отправлен не полностью: не ушло сообщений — ${failed}.`);
    } finally {
     await setLock(db, false);
@@ -343,7 +356,7 @@ export async function syncRoute(db: any, date: string): Promise<SyncResult> {
   if (!rp) return { ok: true, skipped: 'kitchen_missing' };
 
   const oldStops = rows.filter((r) => r.kind === 'stop');
-  const desired = [...rp.trips.flatMap((t) => t.stops.map((s) => ({ s, trip: t.no }))), ...rp.noPoint.map((s) => ({ s, trip: 0 }))];
+  const desired = [...rp.trips.flatMap((t) => t.stops.map((s) => ({ s, trip: t.no }))), ...rp.noPoint.map((s) => ({ s, trip: 0 })), ...rp.offRoute.map((s) => ({ s, trip: 0 }))];
   const byKey = new Map(oldStops.map((r) => [r.day_ids.join(','), r]));
   const keep = new Set<number>();
   const fresh: { s: StopMsg; trip: number }[] = [];
@@ -368,7 +381,7 @@ export async function syncRoute(db: any, date: string): Promise<SyncResult> {
   }
   for (const { row, s } of quiet) {
     if (!row.message_id) continue;
-    const r = await send(chat, 'editMessageText', { message_id: row.message_id, text: renderText({ ...row, text: s.title }), parse_mode: 'HTML', disable_web_page_preview: true, reply_markup: rowKeyboard(row) });
+    const r = await send(chat, 'editMessageText', { message_id: row.message_id, text: renderText({ ...row, text: s.title }), parse_mode: 'HTML', disable_web_page_preview: true, ...(s.plain ? {} : { reply_markup: rowKeyboard(row) }) });
     if (r.ok || /not modified/i.test(r.description ?? '')) await db.from('courier_route_msgs').update({ text: s.title, label: s.label }).eq('id', row.id);
   }
 
@@ -392,7 +405,7 @@ export async function syncRoute(db: any, date: string): Promise<SyncResult> {
     if (!haveTrips.has(t.no)) await post(db, chat, date, 'trip', t.text, { trip_no: t.no }, false);
     for (const f of news) await post(db, chat, date, 'stop', f.s.title, { trip_no: t.no, label: f.s.label, sig: f.s.body, day_ids: f.s.dayIds, lang: f.s.lang, nick: f.s.nick }, true);
   }
-  for (const f of fresh.filter((x) => x.trip === 0)) await post(db, chat, date, 'stop', f.s.title, { label: f.s.label, sig: f.s.body, day_ids: f.s.dayIds, lang: f.s.lang, nick: f.s.nick }, true);
+  for (const f of fresh.filter((x) => x.trip === 0)) await post(db, chat, date, 'stop', f.s.title, { label: f.s.label, sig: f.s.body, day_ids: f.s.dayIds, lang: f.s.lang, nick: f.s.nick }, !f.s.plain);
   return { ok: true, changed: true };
 }
 
@@ -577,7 +590,7 @@ export async function refreshKeyboards(db: any, dates: string[]): Promise<{ rows
   const chat = Deno.env.get('COURIER_CHAT_ID') ?? '';
   if (!chat) return { rows: 0 };
   const { data } = await db.from('courier_route_msgs').select('*').in('date', dates).eq('kind', 'stop').eq('status', 'active').eq('is_test', false).order('id');
-  const rows = ((data ?? []) as Row[]).filter((r) => r.message_id);
+  const rows = ((data ?? []) as Row[]).filter((r) => r.message_id && r.label !== OFF_LABEL);
   const run = async () => {
     for (const r of rows) {
       let res = await send(chat, 'editMessageReplyMarkup', { message_id: r.message_id, reply_markup: rowKeyboard(r) });

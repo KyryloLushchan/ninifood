@@ -25,7 +25,7 @@ export async function loadPayroll(db: any, datesIn: string[], opts: { fresh?: bo
 
   const { data: rows, error } = await db
     .from('order_days')
-    .select('delivery_date, qty, orders!inner(status, telegram, address, lat, lng)')
+    .select('delivery_date, qty, orders!inner(status, off_route, telegram, address, lat, lng)')
     .in('delivery_date', dates)
     .in('orders.status', ['confirmed', 'delivered']);
   if (error) throw new Error(error.message);
@@ -36,13 +36,13 @@ export async function loadPayroll(db: any, datesIn: string[], opts: { fresh?: bo
   const pays: PayRow[] = ((payRows ?? []) as PayRow[]).map((r) => (opts.fresh ? { ...r, snap_at: null } : r));
   const days: CourierDayPay[] = [];
   for (const date of dates) {
-    const items = (rows ?? []).filter((r: any) => r.delivery_date === date).map((r: any) => ({ qty: r.qty, telegram: r.orders.telegram, address: r.orders.address, lat: r.orders.lat, lng: r.orders.lng }));
+    const items = (rows ?? []).filter((r: any) => r.delivery_date === date).map((r: any) => ({ qty: r.qty, telegram: r.orders.telegram, address: r.orders.address, lat: r.orders.lat, lng: r.orders.lng, offRoute: r.orders.off_route === true }));
     if (!items.length && !pays.some((r) => r.date === date && r.snap_at)) continue;
     const ov = (ovs ?? []).find((o: any) => o.date === date);
     const override: RouteOverride | null = ov ? { couriers: ov.couriers === 2 ? 2 : 1, assign: ov.assign ?? {} } : null;
     const couriers: 1 | 2 = override?.couriers ?? defCouriers;
     days.push(
-      ...computeDayPay(date, items, { lat: (r) => r.lat, lng: (r) => r.lng, address: (r) => r.address, qty: (r) => r.qty }, (r) => clientKey(r.telegram), kitchen, couriers, trip, override, pay, pays),
+      ...computeDayPay(date, items, { lat: (r) => r.lat, lng: (r) => r.lng, address: (r) => r.address, qty: (r) => r.qty, offRoute: (r) => r.offRoute }, (r) => clientKey(r.telegram), kitchen, couriers, trip, override, pay, pays),
     );
   }
   return { days, pay };

@@ -29,6 +29,7 @@ interface Row {
     order_number: string;
     type: 'single' | 'subscription';
     status: 'new' | 'confirmed' | 'delivered';
+    off_route?: boolean;
     telegram: string;
     phone: string | null;
     address: string;
@@ -94,7 +95,7 @@ export function CourierTab() {
     const { data, error } = await adminDb
       .from('order_days')
       .select(
-        'id, delivery_date, qty, delivered, courier_marked_at, courier_note, orders!inner(id, order_number, type, status, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date, delivered))',
+        'id, delivery_date, qty, delivered, courier_marked_at, courier_note, orders!inner(id, order_number, type, status, off_route, telegram, phone, address, lat, lng, hotel, comment, payment_method, total, cutlery, order_days(delivery_date, delivered))',
       )
       .eq('delivery_date', date)
       .in('orders.status', ['new', 'confirmed', 'delivered']) // доставленные остаются в плане (серыми), чтобы рейсы не «плыли» в течение дня
@@ -159,7 +160,7 @@ export function CourierTab() {
   const plan = useMemo(
     () =>
       kitchen && rows
-        ? planDay([...rows].sort((a, b) => a.orders.order_number.localeCompare(b.orders.order_number)), { lat: (r) => r.orders.lat, lng: (r) => r.orders.lng, address: (r) => r.orders.address, qty: (r) => r.qty }, kitchen, couriers, trip, override)
+        ? planDay([...rows].sort((a, b) => a.orders.order_number.localeCompare(b.orders.order_number)), { lat: (r) => r.orders.lat, lng: (r) => r.orders.lng, address: (r) => r.orders.address, qty: (r) => r.qty, offRoute: (r) => r.orders.off_route === true }, kitchen, couriers, trip, override)
         : null,
     [rows, kitchen, couriers, trip, override],
   );
@@ -462,6 +463,21 @@ export function CourierTab() {
         <section className="flex flex-col gap-3">
           <div className="rounded-md2 border border-danger bg-danger-bg px-4 py-3 text-sm font-extrabold text-danger">⚠️ Без точки на карте — распределить/проверить вручную ({plan.noPoint.length})</div>
           {plan.noPoint.map((r, i) => <DeliveryCard key={r.id} r={r} label={String(i + 1)} onSaved={load} />)}
+        </section>
+      )}
+      {plan && plan.offRoute.length > 0 && (
+        <section className="flex flex-col gap-2">
+          <div className="rounded-md2 border border-line bg-card px-4 py-3 text-sm font-extrabold">📦 Вне маршрута ({plan.offRoute.length}) — не входит в рейсы, ссылки и км</div>
+          {plan.offRoute.map((r) => {
+            const due = cashDue(r);
+            return (
+              <div key={r.id} className="rounded-md2 border border-line bg-card px-4 py-3 text-sm">
+                <b>📦 Вне маршрута:</b> {tgLabel(r.orders.telegram)} · {r.orders.address} · {r.qty} {plural(r.qty).toLowerCase()} ·{' '}
+                {r.delivered ? 'доставлено' : due ? `взять наличными: ${fmtMoney(due)}${cashSinceLabel(r)}` : 'оплачено'}
+                <div className="mt-0.5 text-xs text-ink-muted">{r.orders.order_number}</div>
+              </div>
+            );
+          })}
         </section>
       )}
       {!kitchen && confirmed.map((r, i) => <DeliveryCard key={r.id} r={r} label={String(i + 1)} />)}

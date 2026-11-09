@@ -87,12 +87,14 @@ Deno.serve(async (req) => {
     // Порции по рейсам: тот же план, что у курьера (по подтверждённым + новым; новые — «⏳»).
     let trips: KitchenTrip[][] | undefined;
     let unplaced = 0;
+    let offRouteQty = 0;
     try {
       const p = await loadPlan(rows);
       if (p.kitchen) {
-        const plan = planDay(p.deliveries, { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty }, p.kitchen, p.couriers, p.trip, p.override);
+        const plan = planDay(p.deliveries, { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty, offRoute: (d) => d.offRoute === true }, p.kitchen, p.couriers, p.trip, p.override);
         trips = plan.couriers.map((c) => c.trips.map((t) => ({ portions: t.portions, pending: t.stops.reduce((n, s) => n + s.stop.items.filter((x) => x.status === 'new').reduce((a, x) => a + x.qty, 0), 0) })));
         unplaced = plan.noPoint.reduce((n, d) => n + d.qty, 0);
+        offRouteQty = plan.offRoute.reduce((n, d) => n + d.qty, 0);
       }
     } catch (e) {
       console.error('daily-report kitchen trips failed:', (e as Error).message); // сообщение уйдёт без рейсов
@@ -101,7 +103,7 @@ Deno.serve(async (req) => {
     const { data: nt, error: ntErr } = await db.from('kitchen_notes').select('text').eq('date', date).order('id');
     if (ntErr) console.error('daily-report kitchen notes failed:', ntErr.message);
     const notes = (nt ?? []).map((n: { text: string }) => String(n.text).trim()).filter(Boolean);
-    const res = await tg('sendMessage', { chat_id: kitchenChat, text: buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced, notes), parse_mode: 'HTML', disable_web_page_preview: true });
+    const res = await tg('sendMessage', { chat_id: kitchenChat, text: buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced, notes, offRouteQty), parse_mode: 'HTML', disable_web_page_preview: true });
     if (!res.ok) {
       console.error(`daily-report kitchen telegram failed for ${date}:`, res.description);
       await warnOrders(`Не удалось отправить порции в NiniFood Ops (${esc(String(res.description ?? 'ошибка Telegram'))}). Если группа стала супергруппой, обновите KITCHEN_CHAT_ID.`);

@@ -112,6 +112,8 @@ export interface DayPlan<T> {
   couriers: CourierTrips<T>[];
   /** Доставки без координат — в рейсы не входят. */
   noPoint: T[];
+  /** Доставки «Вне маршрута» (флаг заказа): в рейсах, ссылках и км не участвуют. */
+  offRoute: T[];
   /** Использовано ручное распределение. */
   manual: boolean;
 }
@@ -616,11 +618,13 @@ function planTwo<T>(c: Ctx<T>): CourierTrips<T>[] {
 
 /**
  * План дня: точки (одинаковые координаты/адрес — одна точка, не делится) → 1 или 2 курьера → рейсы у каждого.
- * Есть применимое ручное распределение — оно; иначе авто. Доставки без координат — в noPoint.
+ * Есть применимое ручное распределение — оно; иначе авто. Доставки без координат — в noPoint; «Вне маршрута» (`Access.offRoute`) — в offRoute, в планирование не входят.
  */
-export function planDay<T>(items: T[], a: Access<T>, kitchen: LatLng, couriers: 1 | 2, st: TripSettings, override?: RouteOverride | null): DayPlan<T> {
+export function planDay<T>(all: T[], a: Access<T>, kitchen: LatLng, couriers: 1 | 2, st: TripSettings, override?: RouteOverride | null): DayPlan<T> {
+  const offRoute = a.offRoute ? all.filter((x) => a.offRoute!(x)) : [];
+  const items = a.offRoute ? all.filter((x) => !a.offRoute!(x)) : all;
   const { stops, noPoint } = groupStops(items, a);
-  if (!stops.length) return { couriers: [], noPoint, manual: false };
+  if (!stops.length) return { couriers: [], noPoint, offRoute, manual: false };
   const c = new Ctx(stops, kitchen, st);
   if (overrideApplies(stops, override, couriers)) {
     const asg = assignmentFor(c, override);
@@ -630,10 +634,10 @@ export function planDay<T>(items: T[], a: Access<T>, kitchen: LatLng, couriers: 
       const r = planManual(c, sub, (i) => asg[i].t, ci === 1 && !!c.st.finish);
       if (r) out.push(r);
     }
-    return { couriers: out, noPoint, manual: true };
+    return { couriers: out, noPoint, offRoute, manual: true };
   }
-  if (couriers === 1 || stops.length < 2) return { couriers: [planCourier(c, c.sorted, !!c.st.finish)!], noPoint, manual: false };
-  return { couriers: planTwo(c), noPoint, manual: false };
+  if (couriers === 1 || stops.length < 2) return { couriers: [planCourier(c, c.sorted, !!c.st.finish)!], noPoint, offRoute, manual: false };
+  return { couriers: planTwo(c), noPoint, offRoute, manual: false };
 }
 
 /** Распределение текущего плана (для сохранения ручной правки): ключ точки → курьер и рейс. */

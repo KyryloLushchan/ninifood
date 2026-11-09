@@ -28,11 +28,11 @@ export async function loadPayrollRange(datesIn: string[]): Promise<PayrollData |
   const def: 1 | 2 = cfg.couriers_count === '2' ? 2 : 1;
   const days: CourierDayPay[] = [];
   const PAGE = 1000;
-  const all: { delivery_date: string; qty: number; orders: { status: string; telegram: string; address: string; lat: number | null; lng: number | null } }[] = [];
+  const all: { delivery_date: string; qty: number; orders: { status: string; off_route?: boolean; telegram: string; address: string; lat: number | null; lng: number | null } }[] = [];
   for (let i = 0; ; i += PAGE) {
     const { data, error } = await adminDb
       .from('order_days')
-      .select('delivery_date, qty, orders!inner(status, telegram, address, lat, lng)')
+      .select('delivery_date, qty, orders!inner(status, off_route, telegram, address, lat, lng)')
       .in('delivery_date', dates)
       .in('orders.status', ['confirmed', 'delivered'])
       .order('id')
@@ -43,12 +43,12 @@ export async function loadPayrollRange(datesIn: string[]): Promise<PayrollData |
   }
   const { data: ovs } = await adminDb.from('route_overrides').select('date, couriers, assign').in('date', dates);
   for (const date of dates) {
-    const items = all.filter((r) => r.delivery_date === date).map((r) => ({ qty: r.qty, telegram: r.orders.telegram, address: r.orders.address, lat: r.orders.lat, lng: r.orders.lng }));
+    const items = all.filter((r) => r.delivery_date === date).map((r) => ({ qty: r.qty, telegram: r.orders.telegram, address: r.orders.address, lat: r.orders.lat, lng: r.orders.lng, offRoute: r.orders.off_route === true }));
     if (!items.length && !rows.some((r) => r.date === date && r.snap_at)) continue;
     const ov = (ovs ?? []).find((o) => o.date === date);
     const override: RouteOverride | null = ov ? { couriers: ov.couriers === 2 ? 2 : 1, assign: (ov.assign ?? {}) as RouteOverride['assign'] } : null;
     days.push(
-      ...computeDayPay(date, items, { lat: (r) => r.lat, lng: (r) => r.lng, address: (r) => r.address, qty: (r) => r.qty }, (r) => clientKey(r.telegram), { lat: klat, lng: klng }, override?.couriers ?? def, trip, override, pay, rows),
+      ...computeDayPay(date, items, { lat: (r) => r.lat, lng: (r) => r.lng, address: (r) => r.address, qty: (r) => r.qty, offRoute: (r) => r.offRoute }, (r) => clientKey(r.telegram), { lat: klat, lng: klng }, override?.couriers ?? def, trip, override, pay, rows),
     );
   }
   return { days, pay, rows };

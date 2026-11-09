@@ -399,6 +399,46 @@ ok((await call({}, { action: 'republish', date: DATE })).status === 403 && (awai
 ok((await call({ 'x-cron-secret': 'cron' }, { action: 'sync', date: DATE })).status === 200, 'cron: sync разрешён');
 isAdmin = true;
 ok((await call({ authorization: 'Bearer admin' }, { action: 'sync', date: DATE })).status === 200, 'админ: разрешено');
+
+console.log('\n── «Вне маршрута» (orders.off_route) ──');
+{
+  const D2 = '2026-11-05';
+  const mk = (nick: string, p: { lat: number; lng: number }, o: any = {}) => {
+    const n = `NF-${++ordNo}`;
+    const order = { id: `o${ordNo}`, order_number: n, type: 'single', status: 'confirmed', off_route: false, telegram: nick, phone: '+84901234567', address: `${nick} street`, place_id: null, lat: p.lat, lng: p.lng, hotel: null, comment: null, payment_method: o.pay ?? 'qr', total: 190000, cutlery: false, order_days: [{ delivery_date: D2 }], ...o.fields };
+    store.orders.push(order);
+    store.order_days.push({ id: ++dayId, order_id: order.id, delivery_date: D2, qty: o.qty ?? 1, delivered: false, courier_marked_at: null, orders: order });
+    return order;
+  };
+  const a1 = mk('@alpha', at(-3, 2)), a2 = mk('@beta', at(4, 3)), obr = mk('@OBRRAZ', at(7, -6), { qty: 2, pay: 'cash', fields: { address: '19 Vung Thung 2', off_route: true } });
+  const n0 = sends().length;
+  const pr: any = await publishRoute(client, D2, 'publish', warn);
+  const m2 = sends().slice(n0).map((c) => c.body);
+  const offMsg = m2.find((m) => m.text.includes('Вне маршрута'));
+  ok(pr.ok && !!offMsg, `опубликовано ${m2.length} сообщений, есть блок «Вне маршрута»`);
+  console.log('   ' + strip(offMsg!.text).replace(/\n/g, '\n   '));
+  ok(strip(offMsg!.text).startsWith('📦 Вне маршрута: @OBRRAZ · 19 Vung Thung 2 · 2 порции · 💵 Взять наличными:'), 'формат: «📦 Вне маршрута: @ник · адрес · порции · оплата»');
+  ok(!offMsg!.reply_markup, 'у «Вне маршрута» нет кнопок курьера (он эту доставку не везёт)');
+  ok(m2.indexOf(offMsg!) === m2.length - 1, 'блок — в конце, после рейсов');
+  const tripsTxt = m2.filter((m) => /<b>Рейс \d<\/b>/.test(m.text)).map((m) => m.text).join('\n');
+  ok(!tripsTxt.includes('OBRRAZ') && !m2.filter((m) => m !== offMsg).some((m) => m.text.includes('OBRRAZ')), 'в рейсах, ссылках и точках маршрута его нет');
+  ok(/адресов: 2 · порций: 2/.test(strip(m2[0].text)), `шапка: адресов 2, порций 2 (без «вне маршрута»): «${strip(m2[0].text).split('—')[1]?.trim()}»`);
+  const sy: any = await syncRoute(client, D2);
+  ok(sy.ok && sy.changed === false && sends().length === n0 + m2.length, 'сверка без изменений — ничего не шлёт и не дублирует блок');
+  // вынесли ещё один заказ из маршрута → сверка: старая точка неактуальна, новый блок без кнопок
+  const edits0 = tgCalls.length;
+  a2.off_route = true;
+  const sy2: any = await syncRoute(client, D2);
+  const newMsgs = tgCalls.slice(edits0).filter((c) => c.method === 'sendMessage');
+  const newOff = newMsgs.find((c) => c.body.text.includes('@beta') && c.body.text.includes('Вне маршрута'));
+  ok(sy2.ok && sy2.changed === true && !!newOff && !newOff.body.reply_markup, 'вынесли заказ из маршрута: сверка шлёт «Маршрут изменён» и блок «Вне маршрута» без кнопок');
+  ok(tgCalls.slice(edits0).some((c) => c.method === 'editMessageText' && /Неактуально/.test(c.body.text) && c.body.text.includes('@beta')), 'прежняя точка этого клиента помечена «❌ Неактуально»');
+  a2.off_route = false;
+  const rk: any = await (await import(`${ROOT}/supabase/functions/_shared/courier-route.ts`)).refreshKeyboards(client, [D2]);
+  ok(!tgCalls.some((c) => c.method === 'editMessageReplyMarkup' && c.body.message_id === store.courier_route_msgs.find((r) => r.date === D2 && r.label === '📦' && r.status === 'active')?.message_id), 'обновление кнопок не вешает кнопки на «Вне маршрута»');
+  void a1; void obr; void rk;
+}
+
 delete env.COURIER_CHAT_ID;
 store.courier_route_msgs.length = 0;
 const nc: any = await publishRoute(client, DATE, 'publish', warn);
