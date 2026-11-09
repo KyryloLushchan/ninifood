@@ -105,6 +105,7 @@ const SITE = [
   ['checkout-cash', async (p, l) => { await toOrder(p, l); await click(p, tr(l, 'order.next')); await fillCheckout(p); await p.evaluate(() => document.querySelectorAll('[role=radio]')[1].click()); await sleep(600); }],
   ['thanks', async (p, l) => { await toOrder(p, l); await click(p, tr(l, 'order.next')); await fillCheckout(p); await p.evaluate(() => document.querySelectorAll('[role=radio]')[1].click()); await sleep(600); await click(p, tr(l, 'checkout.send')); await sleep(900); }],
   ['payment-qr', async (p) => { await sleep(1200); }, { draft: 'qr', url: '/?d=AbCdEfGhIjKlMnOpQrStUv' }],
+  ['payment-qr-banks', async (p, l) => { await sleep(1200); await click(p, tr(l, 'payment.bankApp')); await sleep(800); }, { draft: 'qr', url: '/?d=AbCdEfGhIjKlMnOpQrStUv' }],
   ['payment-other', async (p) => { await sleep(800); }, { draft: 'other', url: '/?d=AbCdEfGhIjKlMnOpQrStUv' }],
   ['draft-stale', async (p) => { await sleep(500); }, { url: '/?d=AbCdEfGhIjKlMnOpQrStUv' }],
   // Ссылка продления подписки: данные по коду подставляются (телефон — маской); неверный код — обычный пустой сайт.

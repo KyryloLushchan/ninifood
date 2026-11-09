@@ -35,6 +35,13 @@ export function buildQrUrl(amount: number): string | null {
   return `https://img.vietqr.io/image/${VIETQR.bankId}-${VIETQR.accountNo}-compact2.svg?${q}`;
 }
 
+/** Deeplink VietQR в приложение банка: счёт, банк, получатель и сумма из VIETQR/заказа; без назначения платежа (tn не передаём). */
+export function buildBankDeeplink(appId: string, amount: number): string {
+  const ba = `${VIETQR.accountNo}@${VIETQR.bankId.toLowerCase()}`;
+  const q = `app=${appId}&ba=${encodeURIComponent(ba).replace('%40', '@')}&am=${amount}&bn=${encodeURIComponent(VIETQR.accountName)}&url=https://ninifoodvn.com`;
+  return `https://dl.vietqr.io/pay?${q}`;
+}
+
 /** Группа Orders (id не секретный): нужен для ссылок на сообщения заказов в админке. */
 export const ORDERS_CHAT_ID = -1004499305461;
 export const orderMessageUrl = (messageId: number) =>

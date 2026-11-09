@@ -40,11 +40,13 @@ export async function loadStaticQr(url: string, fileName: string): Promise<QrIma
   return { url: URL.createObjectURL(blob), file: new File([blob], fileName, { type: blob.type || 'image/jpeg' }) };
 }
 
-/** Вызывать синхронно из обработчика нажатия (iOS требует жест пользователя). На телефонах — share с файлом (в меню iOS «Сохранить изображение»), иначе обычное скачивание. */
+/** Вызывать синхронно из обработчика нажатия (iOS требует жест пользователя). На iPhone — share с файлом (в меню iOS «Сохранить изображение»), иначе обычное скачивание. */
 export async function saveQr(img: QrImage): Promise<void> {
   const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
   const touch = window.matchMedia?.('(pointer: coarse)').matches;
-  if (touch && nav.share && nav.canShare?.({ files: [img.file] })) {
+  const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // iPhone: только через меню «Поделиться» → «Сохранить изображение». Android: обычное скачивание — файл сразу попадает в галерею (папка Download).
+  if (touch && ios && nav.share && nav.canShare?.({ files: [img.file] })) {
     try {
       await nav.share({ files: [img.file] });
       return;

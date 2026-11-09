@@ -15,6 +15,7 @@ import { TurnstileWidget } from '../ui/TurnstileWidget';
 import { ContinueOnPhone } from '../ui/ContinueOnPhone';
 import { ScreenshotUpload } from '../ui/ScreenshotUpload';
 import { TwoCol } from '../ui/Layout';
+import { BankPay, useMobilePay } from '../ui/BankPay';
 
 export function PaymentQr() {
   const { t } = useI18n();
@@ -54,6 +55,7 @@ export function PaymentQr() {
     };
   }, [dynamicQr, staticQr, total]);
 
+  const mobile = useMobilePay();
   const ok = !!screenshot;
 
   return (
@@ -75,10 +77,26 @@ export function PaymentQr() {
           <div className="text-center text-[13px] leading-snug text-ink-muted">
             {t('payment.scan')}
           </div>
-          <button type="button" disabled={!qr} onClick={() => qr && void saveQr(qr)} className="text-sm font-bold text-accent hover:underline disabled:opacity-50">
-            {t('payment.save')}
-          </button>
-          <div className="text-center text-xs leading-snug text-ink-muted">{t('payment.saveHint')}</div>
+          {mobile ? (
+            <div className="flex w-full flex-col gap-2.5">
+              <BankPay amount={total} />
+              <button
+                type="button"
+                disabled={!qr}
+                onClick={() => qr && void saveQr(qr)}
+                className="h-[52px] w-full rounded-md2 border-2 border-accent text-base font-extrabold text-accent active:bg-accent-soft disabled:opacity-50"
+              >
+                {t('payment.save')}
+              </button>
+            </div>
+          ) : (
+            <>
+              <button type="button" disabled={!qr} onClick={() => qr && void saveQr(qr)} className="text-sm font-bold text-accent hover:underline disabled:opacity-50">
+                {t('payment.save')}
+              </button>
+              <div className="text-center text-xs leading-snug text-ink-muted">{t('payment.saveHint')}</div>
+            </>
+          )}
         </div>
 
         <ScreenshotUpload />
