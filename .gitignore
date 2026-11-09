@@ -7,3 +7,6 @@ next-env.d.ts
 tsconfig.tsbuildinfo
 out/
 .visual/
+
+# локальные настройки Claude Code (разрешения на деплой и т.п.)
+.claude/settings.local.json
