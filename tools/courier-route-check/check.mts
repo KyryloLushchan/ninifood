@@ -319,6 +319,28 @@ store.route_overrides.push({ date: DATE, couriers: 1, assign: Object.fromEntries
 const s4: any = await syncRoute(client, DATE);
 ok(s4.ok, `ручное распределение (route_overrides): сверка выполнена (${s4.changed ? 'порядок/состав изменился' : 'точки те же, номера/время обновлены молча'}), отправлено сообщений: ${sends().length - n3}`);
 
+// 6) «Доставлено» у наличного заказа меняет только строку оплаты: тихая правка точки на месте, без «Маршрут изменён»
+{
+  await syncRoute(client, DATE); // прежние изменения уже учтены
+  const cashRow = store.courier_route_msgs.find((r) => r.kind === 'stop' && r.status === 'active' && r.text.includes('@east0'))!;
+  ok(/Взять наличными/.test(cashRow.text) && !/Оплачено|Взять наличными/.test(cashRow.sig.replace(/\|.*$/s, '')), 'точка с наличными: строка оплаты в тексте, но не в подписи (sig)');
+  const nC = sends().length, eC = tgCalls.length;
+  E[0].day.delivered = true; E[0].order.order_days[0].delivered = true; E[0].order.status = 'delivered';
+  const sc: any = await syncRoute(client, DATE);
+  ok(sc.ok && !sc.changed && sends().length === nC, '«Доставлено» у наличного заказа: сверка не шлёт «⚠️ Маршрут изменён» и новых сообщений');
+  const edC = tgCalls.slice(eC).filter((c) => c.method === 'editMessageText' && c.body.message_id === cashRow.message_id);
+  ok(edC.length === 1 && edC[0].body.text.includes('✅ Оплачено') && !edC[0].body.text.includes('Взять наличными') && !/Неактуально/.test(edC[0].body.text), 'точка отредактирована на месте: «✅ Оплачено» вместо «Взять наличными»');
+  const afterC = store.courier_route_msgs.find((r) => r.id === cashRow.id)!;
+  ok(afterC.status === 'active' && afterC.text.includes('✅ Оплачено') && !(await syncRoute(client, DATE)).changed, 'строка в базе обновлена (active), повторная сверка — тишина');
+  // старые строки, опубликованные до правила (оплата внутри sig), не считаются изменёнными
+  const legacy = store.courier_route_msgs.find((r) => r.kind === 'stop' && r.status === 'active' && r.sig && r.id !== cashRow.id && r.nick && !r.text.includes('Такси'))!;
+  const trueSig = legacy.sig;
+  legacy.sig = trueSig.replace(/\|/, '\n💵 Взять наличными: <b>190 000 ₫</b>|');
+  const nL = sends().length;
+  const sl2: any = await syncRoute(client, DATE);
+  ok(sl2.ok && !sl2.changed && sends().length === nL && legacy.sig === trueSig, 'строка со старой подписью (оплата внутри sig): не изменение, подпись в базе приведена к новой');
+}
+
 console.log('\n── блокировка сверки во время публикации ──');
 {
   const lockRow = store.settings.find((x) => x.key === 'courier_route_lock') ?? (store.settings.push({ key: 'courier_route_lock', value: '' }), store.settings.at(-1)!);

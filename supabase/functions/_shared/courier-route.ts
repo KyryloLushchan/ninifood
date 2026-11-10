@@ -75,7 +75,8 @@ export const chatUrl = (nick: string, text: string) => `https://t.me/${nick}?tex
 const norm = (d: ReportDelivery): ReportDelivery => ({ ...d, status: d.status === 'new' ? 'new' : 'confirmed' }); // «доставлено» — состояние кнопки курьера/админа, в тексте не участвует
 
 /** Текст одной точки (без номера и времени — они добавляются отдельно). */
-function stopBody(d: ReportDelivery): { head: string; body: string } {
+/** body — полный текст точки; sigBody — тот же без строки оплаты (её смена при «Доставлено» не считается изменением точки, текст правится тихо). */
+function stopBody(d: ReportDelivery): { head: string; body: string; sigBody: string } {
   const due = cashDue(d);
   const addr = esc(d.address);
   const url = mapUrl(d.lat, d.lng, d.place_id);
@@ -88,8 +89,9 @@ function stopBody(d: ReportDelivery): { head: string; body: string } {
   if (d.phone) lines.push(`📞 ${esc(phoneText(d.phone))}`);
   if (!nickOf(d.telegram)) lines.push('⚠️ нет Telegram — позвонить');
   lines.push(`🍽 ${portions(d.qty)}${d.cutlery ? ' · 🍴 приборы: да' : ''}`);
+  const sigBody = lines.join('\n');
   lines.push(paidLine(d, due, money));
-  return { head: `${esc(handle(d.telegram))} · ${esc(d.order_number)}`, body: lines.join('\n') };
+  return { head: `${esc(handle(d.telegram))} · ${esc(d.order_number)}`, body: lines.join('\n'), sigBody };
 }
 
 const fullText = (label: string, s: { head: string; body: string }, eta: number | null) => `<b>${label}.</b> ${s.head}\n${s.body}${eta != null ? `\n🕒 ≈ ${hhmm(eta)}` : ''}`;
@@ -113,7 +115,7 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
           const label = list.length > 1 ? `${stopNo}.${k + 1}` : String(stopNo);
           const sb = stopBody(d);
           const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
-          stops.push({ key: dayIds.join(','), body: sb.body + '|' + sb.head, head: sb.head, eta: ts.arriveMin, dayIds, label, title: fullText(label, sb, ts.arriveMin), lang: ln(d.lang), nick: nickOf(d.telegram) });
+          stops.push({ key: dayIds.join(','), body: sb.sigBody + '|' + sb.head, head: sb.head, eta: ts.arriveMin, dayIds, label, title: fullText(label, sb, ts.arriveMin), lang: ln(d.lang), nick: nickOf(d.telegram) });
         });
       });
       const prefix = plan.couriers.length > 1 ? `🛵 Курьер ${ci + 1} · ` : '';
@@ -127,13 +129,14 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
   const noPoint: StopMsg[] = mergeSameClient(plan.noPoint.map(norm)).map((d) => {
     const sb = stopBody(d);
     const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
-    return { key: dayIds.join(','), body: sb.body + '|' + sb.head, head: sb.head, eta: 0, dayIds, label: '⚠️', title: `⚠️ <b>Без точки на карте</b> · ${sb.head}\n${sb.body}`, lang: ln(d.lang), nick: nickOf(d.telegram) };
+    return { key: dayIds.join(','), body: sb.sigBody + '|' + sb.head, head: sb.head, eta: 0, dayIds, label: '⚠️', title: `⚠️ <b>Без точки на карте</b> · ${sb.head}\n${sb.body}`, lang: ln(d.lang), nick: nickOf(d.telegram) };
   });
   const taxi: StopMsg[] = mergeSameClient(plan.taxi.map(norm)).map((d) => {
     const line = taxiLine(d);
     const dayIds = [...(d.dayIds ?? [])].sort((a, b) => a - b);
     const head = `${esc(handle(d.telegram))} · ${esc(d.order_number)}`;
-    return { key: dayIds.join(','), body: line, head, eta: 0, dayIds, label: TAXI_LABEL, title: line, lang: ln(d.lang), nick: nickOf(d.telegram), plain: true };
+    // подпись такси — с нейтральной оплатой: «Доставлено»/получение наличных точку не меняют
+    return { key: dayIds.join(','), body: taxiLine({ ...d, cashPending: false, cashOverride: undefined, cashSince: null }), head, eta: 0, dayIds, label: TAXI_LABEL, title: line, lang: ln(d.lang), nick: nickOf(d.telegram), plain: true };
   });
   const stopsTotal = trips.reduce((n, t) => n + t.stops.length, 0);
   const header = `🚚 <b>Маршрут на ${labelRu(date)}</b> — рейсов: ${trips.length} · адресов: ${stopsTotal + noPoint.length} · порций: ${[...trips.flatMap((t) => t.stops), ...noPoint].reduce((n, s) => n + (Number(/🍽 (\d+)/.exec(s.body)?.[1]) || 0), 0)}${warnings.length ? `\n${warnings.join('\n')}` : ''}`;
@@ -335,6 +338,14 @@ export async function publishRoute(db: any, date: string, mode: 'publish' | 'rep
   return { ok: true, messages: total };
 }
 
+/** Подпись точки без строки оплаты: у строк, опубликованных до этого правила, оплата ещё внутри sig — приводим к новому виду (иначе первая сверка назвала бы все точки изменёнными). */
+export const canonSig = (sig: string | null): string | null =>
+  sig == null
+    ? sig
+    : sig
+        .replace(/\n(?:💵 Взять наличными[^|\n]*|✅ Оплачено)\|/, '|')
+        .replace(/ · (?:💵 Взять наличными: <b>[^<]*<\/b>(?: \(не оплачено с [^)]*\))?|✅ Оплачено)(?= · 📞|$)/, ' · ✅ Оплачено');
+
 export interface SyncResult {
   ok: boolean;
   changed?: boolean;
@@ -363,9 +374,9 @@ export async function syncRoute(db: any, date: string): Promise<SyncResult> {
   const quiet: { row: Row; s: StopMsg }[] = [];
   for (const d of desired) {
     const row = byKey.get(d.s.key);
-    if (row && row.sig === d.s.body) {
+    if (row && canonSig(row.sig) === d.s.body) {
       keep.add(row.id);
-      if (row.text !== d.s.title && !row.marked_at) quiet.push({ row, s: d.s });
+      if (row.text !== d.s.title || row.sig !== d.s.body) quiet.push({ row, s: d.s });
     } else fresh.push(d);
   }
   const gone = oldStops.filter((r) => !keep.has(r.id));
@@ -380,9 +391,13 @@ export async function syncRoute(db: any, date: string): Promise<SyncResult> {
     }
   }
   for (const { row, s } of quiet) {
-    if (!row.message_id) continue;
+    // Отмеченную курьером точку в группе не трогаем (там «сделано»), но текст и подпись в базе обновляем.
+    if (!row.message_id || row.marked_at || row.text === s.title) {
+      await db.from('courier_route_msgs').update({ text: s.title, label: s.label, sig: s.body }).eq('id', row.id);
+      continue;
+    }
     const r = await send(chat, 'editMessageText', { message_id: row.message_id, text: renderText({ ...row, text: s.title }), parse_mode: 'HTML', disable_web_page_preview: true, ...(s.plain ? {} : { reply_markup: rowKeyboard(row) }) });
-    if (r.ok || /not modified/i.test(r.description ?? '')) await db.from('courier_route_msgs').update({ text: s.title, label: s.label }).eq('id', row.id);
+    if (r.ok || /not modified/i.test(r.description ?? '')) await db.from('courier_route_msgs').update({ text: s.title, label: s.label, sig: s.body }).eq('id', row.id);
   }
 
   if (!fresh.length && !gone.length) {
