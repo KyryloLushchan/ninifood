@@ -471,7 +471,7 @@ export function CourierTab() {
           {plan.taxi.map((r) => {
             const due = cashDue(r);
             return (
-              <div key={r.id} className="rounded-md2 border border-line bg-card px-4 py-3 text-sm">
+              <div key={r.id} className={`rounded-md2 border border-line px-4 py-3 text-sm ${r.delivered ? 'bg-success-bg2 opacity-80' : 'bg-card'}`}>
                 <b>🚕 Такси:</b> {tgLabel(r.orders.telegram)} ·{' '}
                 {r.orders.lat != null && r.orders.lng != null ? (
                   <a href={`https://www.google.com/maps/search/?api=1&query=${r.orders.lat},${r.orders.lng}`} target="_blank" rel="noreferrer">{r.orders.address}</a>
@@ -486,6 +486,11 @@ export function CourierTab() {
                   </>
                 )}
                 <div className="mt-0.5 text-xs text-ink-muted">{r.orders.order_number}</div>
+                {!readOnly && (
+                  <Btn kind={r.delivered ? 'ghost' : 'primary'} className="mt-3 w-full" onClick={() => toggle(r)}>
+                    {r.delivered ? '✓ Доставлено (отменить)' : 'Доставлено'}
+                  </Btn>
+                )}
               </div>
             );
           })}
