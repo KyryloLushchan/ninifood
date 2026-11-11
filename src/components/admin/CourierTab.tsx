@@ -6,7 +6,7 @@ import { fmtMoney } from '@/lib/format';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
 import type { LatLng } from '@/lib/admin/route';
-import { hhmm, lateWarning, parseTripSettings, planAssignment, planDay, stopKey, type CourierTrips, type RouteOverride } from '@/lib/admin/trips';
+import { hhmm, parseTripSettings, planAssignment, planDay, stopKey, type CourierTrips, type RouteOverride } from '@/lib/admin/trips';
 import { subLabel } from '@/lib/admin/sub-label';
 import { formatPhone, phoneHref } from '@/lib/phone';
 import { tgHref, tgLabel } from '@/lib/admin/telegram-link';
@@ -405,7 +405,6 @@ export function CourierTab() {
       {plan?.couriers.map((cr, ri) => {
         const all = cr.trips.flatMap((t) => t.stops.flatMap((st) => st.stop.items));
         const key = `r${ri}`;
-        const warn = lateWarning(cr, couriers, ri);
         let no = 0;
         return (
           <section key={key} className="flex flex-col gap-3">
@@ -414,7 +413,6 @@ export function CourierTab() {
               <div className="text-sm text-ink-2">
                 {cr.trips.reduce((n, t) => n + t.stops.length, 0)} адр. · {sum(all)} порц. · рейсов {cr.trips.length} · приборов: {cutleryCount(all)} · {km(cr.totalKm)}
               </div>
-              {warn && <div className="mt-1 text-sm font-extrabold text-danger">{warn}</div>}
             </div>
             {cr.trips.map((t, ti) => (
               <div key={ti} className="flex flex-col gap-3">

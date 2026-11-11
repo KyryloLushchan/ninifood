@@ -6,7 +6,7 @@ import { cashDue, handle, hrefAmp, kmText, mergeSameClient, taxiLine, paidLine, 
 import { loadDayPlan, loadDayRows } from './day-plan.ts';
 import { mapUrl, money, phoneText } from './order-text.ts';
 import { labelRu } from './dates.ts';
-import { hhmm, lateWarning, planDay, type DayPlan } from './trips.ts';
+import { hhmm, planDay, type DayPlan } from './trips.ts';
 import { esc, tg } from './telegram.ts';
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -99,12 +99,9 @@ const fullText = (label: string, s: { head: string; body: string }, eta: number 
 /** Весь маршрут дня в виде набора сообщений. null — нет координат кухни. */
 export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, couriers: 1 | 2): RoutePlan {
   const trips: TripMsg[] = [];
-  const warnings: string[] = [];
   let tripNo = 0;
   let stopNo = 0;
   plan.couriers.forEach((cr, ci) => {
-    const w = lateWarning(cr, couriers, ci);
-    if (w) warnings.push(w);
     cr.trips.forEach((t, ti) => {
       tripNo++;
       const stops: StopMsg[] = [];
@@ -139,7 +136,7 @@ export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, cour
     return { key: dayIds.join(','), body: taxiLine({ ...d, cashPending: false, cashOverride: undefined, cashSince: null }), head, eta: 0, dayIds, label: TAXI_LABEL, title: line, lang: ln(d.lang), nick: nickOf(d.telegram), plain: true };
   });
   const stopsTotal = trips.reduce((n, t) => n + t.stops.length, 0);
-  const header = `🚚 <b>Маршрут на ${labelRu(date)}</b> — рейсов: ${trips.length} · адресов: ${stopsTotal + noPoint.length} · порций: ${[...trips.flatMap((t) => t.stops), ...noPoint].reduce((n, s) => n + (Number(/🍽 (\d+)/.exec(s.body)?.[1]) || 0), 0)}${warnings.length ? `\n${warnings.join('\n')}` : ''}`;
+  const header = `🚚 <b>Маршрут на ${labelRu(date)}</b> — рейсов: ${trips.length} · адресов: ${stopsTotal + noPoint.length} · порций: ${[...trips.flatMap((t) => t.stops), ...noPoint].reduce((n, s) => n + (Number(/🍽 (\d+)/.exec(s.body)?.[1]) || 0), 0)}`;
   return { header, trips, noPoint, taxi };
 }
 

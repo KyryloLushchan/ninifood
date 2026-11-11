@@ -2,7 +2,7 @@ import { esc } from './telegram.ts';
 import { labelRu } from './dates.ts';
 import { mapLinkHtml, mapUrl, money, phoneText, subLabel } from './order-text.ts';
 import type { LatLng } from './route.ts';
-import { hhmm, lateWarning, planDay, type CourierTrips, type RouteOverride, type TripSettings } from './trips.ts';
+import { hhmm, planDay, type CourierTrips, type RouteOverride, type TripSettings } from './trips.ts';
 
 export interface ReportDelivery {
   order_number: string;
@@ -154,13 +154,11 @@ export const hrefAmp = (u: string) => u.replace(/&/g, '&amp;');
 export const tripLinks = (t: CourierTrips<ReportDelivery>['trips'][number]) =>
   `🗺 ${t.links.length === 1 ? `<a href="${hrefAmp(t.links[0])}">Открыть в Google Maps</a>` : t.links.map((u, i) => `<a href="${hrefAmp(u)}">Часть ${i + 1}/${t.links.length}</a>`).join(' · ')} (${t.closed ? 'кухня → … → кухня' : t.toFinish ? 'кухня → … → 🏠 Финиш' : 'кухня → … → последняя точка'})${t.toFinish ? `\n🏠 Финиш: ≈ ${(Math.round(t.finishKm * 10) / 10).toString().replace('.', ',')} км от последней точки (в ЗП не входит)` : ''}`;
 
-/** Блок курьера: предупреждение, рейсы («🚚 Рейс N — порц. · км · время»), точки со сквозной нумерацией и временем, ссылки рейса в его конце. */
+/** Блок курьера: рейсы («🚚 Рейс N — порц. · км · время»), точки со сквозной нумерацией и временем, ссылки рейса в его конце. */
 function courierBlock(cr: CourierTrips<ReportDelivery>, couriers: 1 | 2, index: number): string[] {
   const block: string[] = [];
   const all = cr.trips.flatMap((t) => t.stops.flatMap((s) => mergeSameClient(s.stop.items)));
   if (couriers === 2) block.push(`🛵 <b>Курьер ${index + 1}</b>\n${totals(all, cr.trips.reduce((n, t) => n + t.stops.length, 0))} · ${kmText(cr.totalKm)}`);
-  const warn = lateWarning(cr, couriers, index);
-  if (warn) block.push(warn);
   let no = 0;
   cr.trips.forEach((t, ti) => {
     // заголовок рейса идёт одним куском с первой точкой — при разбиении на сообщения они не разъезжаются

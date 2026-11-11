@@ -646,11 +646,3 @@ export function planAssignment<T>(p: DayPlan<T>): RouteOverride['assign'] {
   p.couriers.forEach((cr, ci) => cr.trips.forEach((t, ti) => t.stops.forEach((s) => (assign[s.key] = { c: ci + 1, t: ti + 1 }))));
   return assign;
 }
-
-/** Предупреждение по курьеру: не успевает до конца окна. */
-export function lateWarning(cr: CourierTrips<unknown>, couriers: 1 | 2, index: number): string | null {
-  if (cr.onTime) return null;
-  return couriers === 2
-    ? `⚠️ Курьер ${index + 1} не успевает: последний ≈ ${hhmm(cr.lastArrivalMin)}`
-    : `⚠️ Не успевает: последний ≈ ${hhmm(cr.lastArrivalMin)} — нужен 2-й курьер`;
-}
