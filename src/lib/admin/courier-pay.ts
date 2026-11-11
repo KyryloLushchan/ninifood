@@ -104,7 +104,7 @@ export function countAddresses<T>(stops: { stop: { items: T[]; lat: number; lng:
 /**
  * ЗП курьеров за день. items — доставки дня, за которые платим (подтверждённые и доставленные; новые/отменённые не входят).
  * Адреса и км — по тому же плану рейсов, что в отчёте (`planDay`, с ручным распределением); км включают возвраты на кухню между рейсами; отрезок «последний заказ → финиш (дом)» в км не входит
- * (последний рейс — без возврата). rows — ручные правки и выплаты по (дата, курьер).
+ * (последний рейс — без возврата). «Такси» — +1 адрес за клиента, без км. rows — ручные правки и выплаты по (дата, курьер).
  */
 export function computeDayPay<T>(
   date: string,
@@ -119,15 +119,17 @@ export function computeDayPay<T>(
   rows: PayRow[] = [],
 ): CourierDayPay[] {
   const plan = planDay(items, a, kitchen, couriers, trip, override);
+  // «Такси»: платим как обычный адрес (+ставка за клиента), км и бензин не считаем; в ЗП отдельно не выделяется. Относим к первому курьеру.
+  const taxiAddresses = new Set(plan.taxi.map((t) => `${client(t)}|${a.address(t).trim().toLowerCase()}`)).size;
   const out: CourierDayPay[] = [];
   // дни со снимком показываются даже если плана уже нет (например, заказы потом отменили)
   const snapCouriers = rows.filter((r) => r.date === date && r.snap_at).map((r) => r.courier);
-  const n = Math.max(plan.couriers.length, ...snapCouriers, 0);
+  const n = Math.max(plan.couriers.length, ...snapCouriers, taxiAddresses ? 1 : 0, 0);
   for (let courier = 1; courier <= n; courier++) {
     const cr = plan.couriers[courier - 1];
     const row = rows.find((r) => r.date === date && r.courier === courier);
     const snap = row?.snap_at ? row : null;
-    if (!cr && !snap) continue;
+    if (!cr && !snap && !(courier === 1 && taxiAddresses)) continue;
     // со снимком: адреса и км «как посчитано в тот день», ставки — те, что действовали тогда
     const p: PaySettings = snap
       ? {
@@ -139,8 +141,8 @@ export function computeDayPay<T>(
           lunchFrom: '0000-00-00',
         }
       : pay;
-    const autoAddresses = snap && snap.snap_addresses != null ? snap.snap_addresses : countAddresses(cr!.trips.flatMap((t) => t.stops), client);
-    const autoKm = snap && snap.snap_km != null ? roundKm(Number(snap.snap_km)) : roundKm(cr!.totalKm);
+    const autoAddresses = snap && snap.snap_addresses != null ? snap.snap_addresses : (cr ? countAddresses(cr.trips.flatMap((t) => t.stops), client) : 0) + (courier === 1 ? taxiAddresses : 0);
+    const autoKm = snap && snap.snap_km != null ? roundKm(Number(snap.snap_km)) : roundKm(cr?.totalKm ?? 0);
     const paid = !!row?.paid_at;
     const addresses = paid ? (row!.paid_addresses ?? autoAddresses) : (row?.addresses_manual ?? autoAddresses);
     const km = paid ? Number(row!.paid_km ?? autoKm) : Number(row?.km_manual ?? autoKm);

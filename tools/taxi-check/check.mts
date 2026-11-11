@@ -48,7 +48,16 @@ console.log('── ЗП курьера ──');
 const items = [...base, off];
 const run = (xs: ReportDelivery[]) => computeDayPay('2026-11-10', xs, acc, (d) => clientKey(d.telegram), K, 1, DEFAULT_TRIP_SETTINGS, null, parsePaySettings({}))[0];
 const a = run(items), b = run(base);
-ok(a.autoAddresses === 4 && a.autoKm === b.autoKm && a.total === b.total, `адреса и км без заказа вне маршрута: ${a.autoAddresses} адр., ${a.autoKm} км`);
+ok(a.autoAddresses === b.autoAddresses + 1 && a.autoKm === b.autoKm && a.total === b.total + 20_000, `такси: +1 адрес (+20 000 ₫), км и бензин те же: ${b.autoAddresses} → ${a.autoAddresses} адр., ${a.autoKm} км`);
+const off2 = mk(6, '@dzenwarrior', at(-9, 8), { address: '61 Ngo Thi Nham', taxi: true });
+const c = run([...items, off2]), dup = run([...items, mk(7, '@OBRRAZ', at(12, 9), { address: off.address, taxi: true })]);
+ok(c.autoAddresses === b.autoAddresses + 2 && c.autoKm === b.autoKm, 'два клиента на такси — +2 адреса, км прежние');
+ok(dup.autoAddresses === a.autoAddresses, 'тот же клиент на том же адресе (два заказа) — один адрес, как у обычных');
+const only2 = computeDayPay('2026-11-10', [off], acc, (d) => clientKey(d.telegram), K, 1, DEFAULT_TRIP_SETTINGS, null, parsePaySettings({ courier_lunch: '0' }))[0];
+ok(!!only2 && only2.autoAddresses === 1 && only2.autoKm === 0 && only2.total === 20_000, 'день только с такси: 1 адрес, 0 км, 20 000 ₫');
+const snapRow = { date: '2026-11-10', courier: 1, addresses_manual: null, km_manual: null, paid_at: null, paid_addresses: null, paid_km: null, paid_amount: null, snap_at: 'x', snap_addresses: 7, snap_km: 10, snap_per_address: 20000, snap_fuel_l100: 2.2, snap_fuel_price: 26000, snap_lunch: 0 };
+const withSnap = computeDayPay('2026-11-10', items, acc, (d) => clientKey(d.telegram), K, 1, DEFAULT_TRIP_SETTINGS, null, parsePaySettings({}), [snapRow])[0];
+ok(withSnap.autoAddresses === 7 && withSnap.snapshot, 'день со снимком берёт адреса из снимка (такси не прибавляется второй раз)');
 
 console.log(fails ? `\n❌ ПРОВАЛОВ: ${fails}` : '\n✅ все проверки «Такси» пройдены');
 process.exit(fails ? 1 : 0);
