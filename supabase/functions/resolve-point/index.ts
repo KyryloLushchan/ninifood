@@ -3,6 +3,7 @@ import { corsFor } from '../_shared/cors.ts';
 import { geocodeAddress } from '../_shared/geocode.ts';
 import { expandMapsLink } from '../_shared/maps-link.ts';
 import { parsePoint } from '../_shared/point.ts';
+import '../_shared/redact.ts';
 
 /**
  * Админка: «Указать точку». Принимает «lat, lng» или ссылку Google Maps (в т.ч. короткую maps.app.goo.gl — разворачиваем здесь,

@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { notifyRestored } from '../_shared/restore-notice.ts';
+import '../_shared/redact.ts';
 
 /**
  * Восстановление отменённого заказа из админки (verify_jwt = true, админство проверяется внутри; viewer → forbidden).

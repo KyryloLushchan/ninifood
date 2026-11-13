@@ -1,3 +1,4 @@
+import { errMsg } from './redact.ts';
 import { inDanang } from './danang.ts';
 
 const OK_TYPES = new Set(['street_address', 'premise', 'subpremise', 'route', 'establishment', 'point_of_interest', 'intersection']);
@@ -22,7 +23,7 @@ export async function reverseGeocode(lat: number, lng: number): Promise<string |
     const text = String(r?.formatted_address ?? '').trim();
     return text ? text.slice(0, 250) : null;
   } catch (e) {
-    console.error('reverse geocode failed:', (e as Error).message);
+    console.error('reverse geocode failed:', errMsg(e));
     return null;
   }
 }
@@ -56,7 +57,7 @@ export async function geocodeAddress(address: string): Promise<{ lat: number; ln
     const r = (data.results ?? []).find((x: any) => inDanang(x?.geometry?.location?.lat, x?.geometry?.location?.lng) && (x.types ?? []).some((t: string) => OK_TYPES.has(t)));
     return r ? { lat: Number(r.geometry.location.lat), lng: Number(r.geometry.location.lng) } : null;
   } catch (e) {
-    console.error('geocode failed:', (e as Error).message);
+    console.error('geocode failed:', errMsg(e));
     return null;
   }
 }

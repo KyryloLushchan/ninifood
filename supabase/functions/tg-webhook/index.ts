@@ -7,6 +7,7 @@ import { loadPayroll } from '../_shared/payroll.ts';
 import { addExtra, applyNote, courierButton, courierResync, startNote } from '../_shared/courier-route.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, {
   auth: { persistSession: false },
@@ -71,7 +72,7 @@ Deno.serve(async (req) => {
         const acc = await courierAccess();
         if (acc.canNote(String(m.from?.id))) await applyNote(db, m);
       } catch (e) {
-        console.error('courier note failed:', (e as Error).message);
+        console.error('courier note failed:', errMsg(e));
       }
     }
     return ok();
@@ -246,7 +247,7 @@ async function handlePayroll(cb: any, action: 'ok' | 'yes' | 'no', payoutId: num
   try {
     p = await loadPayroll(db, weekDays(po.week_start));
   } catch (e) {
-    console.error('payroll recompute failed:', (e as Error).message);
+    console.error('payroll recompute failed:', errMsg(e));
     await answer('Ошибка, попробуйте ещё раз');
     return ok();
   }

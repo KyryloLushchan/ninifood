@@ -4,6 +4,7 @@ import { isSunday, todayISO } from '../_shared/dates.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 /**
  * Фиксация расчёта дня ЗП курьера (pg_cron каждый день в 23:30 Дананг, воскресенье пропуск): адреса и км по плану дня (без ручных правок), ставки на этот день, вычет обеда и сумма
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
     }
     return json({ ok: true, date, written, kept: kept.length });
   } catch (e) {
-    console.error('courier-pay-snapshot failed:', (e as Error).message);
+    console.error('courier-pay-snapshot failed:', errMsg(e));
     await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text: `⚠️ Не удалось зафиксировать расчёт ЗП курьера за ${date}. Повторить: вкладка «Курьер» → день, либо подождать следующего запуска.`, parse_mode: 'HTML' }).catch(() => {});
     return json({ ok: false, code: 'server_error' }, 500);
   }

@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { clientIp, sha256hex, verifyTurnstile } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 const FAIL_MAX = 5; // неудачных попыток входа/кода с одного IP или на один email
 const FAIL_WINDOW_MIN = 15; // → пауза 15 минут
@@ -138,7 +139,7 @@ Deno.serve(async (req) => {
     if (adm) await notifyAdminLogin(country, 'сброс пароля');
     return json({ ok: true, session: sessionOf(data.session) });
   } catch (e) {
-    console.error('auth-gate failed:', action, (e as Error).message);
+    console.error('auth-gate failed:', action, errMsg(e));
     return json({ ok: false, code: 'server_error' }, 500);
   }
 });
@@ -151,6 +152,6 @@ async function notifyAdminLogin(country: string | null, how = 'вход по п�
     const r = await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text, parse_mode: 'HTML' });
     if (!r.ok) console.error('admin login notify failed:', r.description);
   } catch (e) {
-    console.error('admin login notify error:', (e as Error).message);
+    console.error('admin login notify error:', errMsg(e));
   }
 }

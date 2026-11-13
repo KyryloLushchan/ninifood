@@ -3,7 +3,8 @@ import { corsFor } from '../_shared/cors.ts';
 import { todayISO } from '../_shared/dates.ts';
 import { followupDays, followupMessage, selectFollowups, type ClientOrder, type SentReminder } from '../_shared/renewal.ts';
 import { safeEqual } from '../_shared/security.ts';
-import { esc, tg } from '../_shared/telegram.ts';
+import { chatHint, esc, tg } from '../_shared/telegram.ts';
+import '../_shared/redact.ts';
 
 /**
  * Ежедневно в 13:00 (Дананг, pg_cron): повторное «весёлое» напоминание в группу «NiniFood Renewals» (секрет RENEWALS_CHAT_ID) — клиентам, которым N дня назад ушло напоминание
@@ -65,7 +66,7 @@ Deno.serve(async (req) => {
       if (!r.ok) {
         console.error('renewal-followup telegram failed:', r.description);
         try {
-          await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text: `⚠️ Не удалось отправить повторные напоминания (${esc(String(r.description ?? 'ошибка Telegram'))}). Если группа стала супергруппой, обновите RENEWALS_CHAT_ID.`, parse_mode: 'HTML' });
+          await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text: `⚠️ Не удалось отправить повторные напоминания (${esc(String(r.description ?? 'ошибка Telegram'))}).${chatHint(r.description, 'RENEWALS_CHAT_ID')}`, parse_mode: 'HTML' });
         } catch { /* без паники */ }
         return fail('telegram_failed', 502);
       }

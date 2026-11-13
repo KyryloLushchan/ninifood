@@ -4,6 +4,7 @@ import { buildCashReminder, loadUnclosedCash } from '../_shared/cash-reminder.ts
 import { isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 /**
  * Ежедневно в 17:00 (Дананг, pg_cron) — напоминание в группу Orders о незакрытых СЕГОДНЯ точках с наличными (первый день наличного заказа, не отмечен «Доставлено»).
@@ -35,7 +36,7 @@ Deno.serve(async (req) => {
   try {
     list = await loadUnclosedCash(db, date);
   } catch (e) {
-    console.error('cash-reminder query failed:', (e as Error).message);
+    console.error('cash-reminder query failed:', errMsg(e));
     return json({ ok: false, code: 'server_error' }, 500);
   }
   if (!list.length) return json({ ok: true, count: 0 });

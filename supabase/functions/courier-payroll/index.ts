@@ -5,6 +5,7 @@ import { addDays, todayISO } from '../_shared/dates.ts';
 import { loadPayroll } from '../_shared/payroll.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 const mondayOf = (iso: string) => {
   const dow = new Date(`${iso}T00:00:00Z`).getUTCDay(); // 0 = вс
@@ -44,7 +45,7 @@ Deno.serve(async (req) => {
   try {
     p = await loadPayroll(db, dates);
   } catch (e) {
-    console.error('courier-payroll load failed:', (e as Error).message);
+    console.error('courier-payroll load failed:', errMsg(e));
     return json({ ok: false, code: 'server_error' }, 500);
   }
   if (!p) return json({ ok: false, code: 'kitchen_missing' }, 409);

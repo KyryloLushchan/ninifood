@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { nowDanang } from '../_shared/dates.ts';
 import { esc, tg } from '../_shared/telegram.ts';
+import '../_shared/redact.ts';
 
 /**
  * Полное удаление заказа из админки (orders + order_days каскадом) и правка сообщения в группе Orders.

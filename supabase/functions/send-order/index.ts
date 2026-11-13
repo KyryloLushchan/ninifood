@@ -7,6 +7,7 @@ import { buildOrderText, getDeliveryHours, keyboardNew, plainLength, type OrderR
 import { corsFor } from '../_shared/cors.ts';
 import { clientIp, detectImage, sha256hex, verifyTurnstile } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 const BOOKABLE_DAYS = 6; // как на фронте: ближайшие 6 доступных дней для разового заказа
 const WINDOW_DAYS = 14; // окно для подписки
@@ -43,7 +44,7 @@ Deno.serve(async (req) => {
       if (error) console.error('order_attempts insert failed:', error.message);
       await checkAlerts();
     } catch (e) {
-      console.error('record attempt error:', (e as Error).message);
+      console.error('record attempt error:', errMsg(e));
     }
   };
   const checkAlerts = async () => {
@@ -268,7 +269,7 @@ Deno.serve(async (req) => {
       } else console.error(`telegram sendMessage failed for ${order.order_number}:`, r.description);
     }
   } catch (e) {
-    console.error(`telegram error for ${order.order_number}:`, (e as Error).message);
+    console.error(`telegram error for ${order.order_number}:`, errMsg(e));
   }
 
   if (messageId !== null || fileId !== null) {

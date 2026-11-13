@@ -4,6 +4,7 @@ import { inDanang } from '../_shared/danang.ts';
 import { geocodeAddress } from '../_shared/geocode.ts';
 import { dict } from '../_shared/order-i18n.ts';
 import { esc, tg } from '../_shared/telegram.ts';
+import '../_shared/redact.ts';
 
 /**
  * Смена адреса доставки из админки (у заказа и, по галочке, у других активных заказов того же клиента) — меняются только заказы

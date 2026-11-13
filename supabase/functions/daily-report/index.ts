@@ -7,7 +7,8 @@ import { loadDayPlan, loadDayRows } from '../_shared/day-plan.ts';
 import { hhmm, planDay } from '../_shared/trips.ts';
 import { isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
-import { esc, tg } from '../_shared/telegram.ts';
+import { chatHint, esc, tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 /** Запас порций сверх заказов по умолчанию (повар готовит заказанное + это количество); настройка `extra_portions` (Настройки → Курьеры) важнее. */
 const DEFAULT_EXTRA_PORTIONS = 2;
@@ -59,7 +60,7 @@ Deno.serve(async (req) => {
     try {
       await tg('sendMessage', { chat_id: ordersChat, text: `⚠️ ${text}`, parse_mode: 'HTML' });
     } catch (e) {
-      console.error('warnOrders failed:', (e as Error).message);
+      console.error('warnOrders failed:', errMsg(e));
     }
   };
 
@@ -97,7 +98,7 @@ Deno.serve(async (req) => {
         taxiQty = plan.taxi.reduce((n, d) => n + d.qty, 0);
       }
     } catch (e) {
-      console.error('daily-report kitchen trips failed:', (e as Error).message); // сообщение уйдёт без рейсов
+      console.error('daily-report kitchen trips failed:', errMsg(e)); // сообщение уйдёт без рейсов
     }
     // Заметки кухне на эту дату (kitchen_notes); ошибка чтения сообщение не ломает.
     const { data: nt, error: ntErr } = await db.from('kitchen_notes').select('text').eq('date', date).order('id');
@@ -106,7 +107,7 @@ Deno.serve(async (req) => {
     const res = await tg('sendMessage', { chat_id: kitchenChat, text: buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced, notes, taxiQty), parse_mode: 'HTML', disable_web_page_preview: true });
     if (!res.ok) {
       console.error(`daily-report kitchen telegram failed for ${date}:`, res.description);
-      await warnOrders(`Не удалось отправить порции в NiniFood Ops (${esc(String(res.description ?? 'ошибка Telegram'))}). Если группа стала супергруппой, обновите KITCHEN_CHAT_ID.`);
+      await warnOrders(`Не удалось отправить порции в NiniFood Ops (${esc(String(res.description ?? 'ошибка Telegram'))}).${chatHint(res.description, 'KITCHEN_CHAT_ID')}`);
       return { ok: false as const, code: 'telegram_failed' };
     }
     return { ok: true as const, portions, extra: EXTRA_PORTIONS, total: portions + EXTRA_PORTIONS, cutlery };
@@ -140,7 +141,7 @@ Deno.serve(async (req) => {
     try {
       route = await publishRoute(db, date, 'publish', warnOrders);
     } catch (e) {
-      console.error('daily-report route failed:', (e as Error).message);
+      console.error('daily-report route failed:', errMsg(e));
       await warnOrders(`Маршрут ${esc(date)} в группу курьера не отправлен (ошибка). Кнопка «Отправить маршрут курьеру сейчас» в админке повторит.`);
     }
   }

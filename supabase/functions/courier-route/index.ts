@@ -4,6 +4,7 @@ import { publishRoute, purgeObsolete, refreshKeyboards, syncRoute } from '../_sh
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 /**
  * Маршрут дня в группе курьера (COURIER_CHAT_ID). Тело: { action: 'sync' | 'publish' | 'republish', date? }.
@@ -47,7 +48,7 @@ Deno.serve(async (req) => {
     const r = await publishRoute(db, date, action, warn);
     return json(r, r.ok ? 200 : 409);
   } catch (e) {
-    console.error('courier-route failed:', (e as Error).message);
+    console.error('courier-route failed:', errMsg(e));
     await warn(`Маршрут курьера (${esc(date)}): ошибка. Проверьте группу и повторите «Отправить маршрут курьеру».`).catch(() => {});
     return json({ ok: false, code: 'server_error' }, 500);
   }

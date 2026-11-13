@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { dict, diffLine } from '../_shared/order-i18n.ts';
 import { esc, tg } from '../_shared/telegram.ts';
+import '../_shared/redact.ts';
 
 /**
  * Изменение порций в заказе из админки. Всё в БД делает RPC admin_change_portions от имени вызывающего (его JWT):

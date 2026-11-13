@@ -3,6 +3,7 @@ import { corsFor } from '../_shared/cors.ts';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { clientIp, sha256hex, verifyTurnstile } from '../_shared/security.ts';
+import '../_shared/redact.ts';
 
 const WINDOW_DAYS = 14;
 const BOOKABLE_DAYS = 6;

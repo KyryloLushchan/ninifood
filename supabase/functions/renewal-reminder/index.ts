@@ -3,13 +3,15 @@ import { corsFor } from '../_shared/cors.ts';
 import { todayISO } from '../_shared/dates.ts';
 import { entryMessage, firstSingleMessage, isSubscriptionSized, nickKey, selectEntries, selectFirstSingle, type AnyOrder, type EndingOrder, type FirstNotice, type FutureOrder } from '../_shared/renewal.ts';
 import { safeEqual } from '../_shared/security.ts';
-import { esc, tg } from '../_shared/telegram.ts';
+import { chatHint, esc, tg } from '../_shared/telegram.ts';
+import { errMsg } from '../_shared/redact.ts';
 
 /**
  * Ежедневно в 20:00 (Дананг, pg_cron): в группу «NiniFood Renewals» (секрет RENEWALS_CHAT_ID) — по отдельному сообщению на клиента: (1) у кого СЕГОДНЯ последний день подписки
  * и нет заказа/подписки на ближайшие дни (продление + приглашение в группу отзывов); (2) «🆕 Первый разовый» — сегодня доставка самого первого (разового) заказа клиента, других заказов на ближайшие дни нет, один раз за всё время
  * (таблица renewal_first_notices). Готовый текст на языке заказа, без превью ссылок. Никого нет — ничего не отправляется.
- * Доступ: x-cron-secret = CRON_SECRET (pg_cron) ИЛИ JWT админа; остальные (в т.ч. viewer) — forbidden. Тело (необязательно): {date}.
+ * Доступ: x-cron-secret = CRON_SECRET (pg_cron) ИЛИ JWT админа; остальные (в т.ч. viewer) — forbidden. Тело (необязательно): {date}, {only: ['NF-1100']} — отправить только эти заказы (ручная досылка).
+ Один сбой отправки не прерывает остальных: сообщение об ошибке одно, с перечнем тех, кому не ушло; уже отправленным сегодня («renewal» в renewal_sent) повтор не шлётся.
  */
 Deno.serve(async (req) => {
   const cors = { ...corsFor(req.headers.get('origin')), 'Access-Control-Allow-Headers': 'authorization, apikey, content-type, x-client-info, x-cron-secret' };
@@ -26,9 +28,11 @@ Deno.serve(async (req) => {
   if (!allowed) return json({ ok: false, code: 'forbidden' }, 403);
 
   let today = todayISO();
+  let only: string[] | null = null;
   try {
     const b = await req.json();
     if (typeof b?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) today = b.date;
+    if (Array.isArray(b?.only) && b.only.length) only = b.only.map((x: unknown) => String(x).trim().toUpperCase());
   } catch { /* без тела — сегодня */ }
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
@@ -36,7 +40,7 @@ Deno.serve(async (req) => {
     try {
       await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text: `⚠️ ${text}`, parse_mode: 'HTML' });
     } catch (e) {
-      console.error('renewal warn failed:', (e as Error).message);
+      console.error('renewal warn failed:', errMsg(e));
     }
   };
 
@@ -88,7 +92,7 @@ Deno.serve(async (req) => {
     return fail('server_error', 500);
   }
   const all: AnyOrder[] = (allRows ?? []).map((o: any) => ({ id: o.id, order_number: o.order_number, telegram: o.telegram, phone: o.phone, customer_id: o.customer_id, created_at: o.created_at, lang: o.lang, status: o.status, type: o.type, days: o.order_days ?? [] }));
-  const firsts = selectFirstSingle(today, all, (noticeRows ?? []) as FirstNotice[]);
+  let firsts = selectFirstSingle(today, all, (noticeRows ?? []) as FirstNotice[]);
   let perLunch = 150_000;
   if (firsts.length) {
     const { data: pr } = await db.from('settings').select('value').eq('key', 'price_subscription').maybeSingle();
@@ -96,29 +100,46 @@ Deno.serve(async (req) => {
     if (Number.isFinite(n) && n > 0) perLunch = Math.round(n / 5);
   }
 
+  // Уже отправленные сегодня «продления» (повторный запуск cron/ручной вызов) повторно не шлём; «первый разовый» защищён renewal_first_notices.
+  const { data: sentToday } = await db.from('renewal_sent').select('order_number').eq('kind', 'renewal').gte('sent_at', `${today}T00:00:00+07:00`).lt('sent_at', `${today}T24:00:00+07:00`);
+  const sentSet = new Set((sentToday ?? []).map((r: any) => String(r.order_number)));
+  if (only) {
+    entries = entries.filter((e) => e.orders.some((n) => only!.includes(n.toUpperCase())));
+    firsts = firsts.filter((f) => only!.includes(f.order_number.toUpperCase()));
+  } else {
+    entries = entries.filter((e) => !sentSet.has(e.orders[0]));
+  }
+
   if (!entries.length && !firsts.length) return json({ ok: true, count: 0, first: 0 });
   if (!chat) {
     await warn('Напоминания (продление / первый разовый) не отправлены: не задан RENEWALS_CHAT_ID.');
     return fail('chat_missing', 409);
   }
-  const send = async (text: string) => {
+  // Один сбой Telegram не прерывает остальных клиентов (раньше цикл обрывался и все следующие оставались без напоминания).
+  const failed: { who: string; order: string; why: string }[] = [];
+  const send = async (text: string, who: string, order: string) => {
     const r = await tg('sendMessage', { chat_id: chat, text, parse_mode: 'HTML', disable_web_page_preview: true });
     if (!r.ok) {
-      console.error('renewal-reminder telegram failed:', r.description);
-      await warn(`Не удалось отправить напоминания (${esc(String(r.description ?? 'ошибка Telegram'))}). Если группа стала супергруппой, обновите RENEWALS_CHAT_ID.`);
+      console.error(`renewal-reminder telegram failed for ${order}:`, r.description);
+      failed.push({ who, order, why: String(r.description ?? 'ошибка Telegram') });
     }
     return r.ok;
   };
   // Одно сообщение на клиента (несколько заказов одного клиента — уже одна запись).
   for (const e of entries) {
-    if (!(await send(entryMessage(e)))) return fail('telegram_failed', 502);
+    if (!(await send(entryMessage(e), e.nick, e.orders[0]))) continue;
     // запоминаем отправку: через 2 дня к ней вернётся renewal-followup (повторное напоминание)
     await db.from('renewal_sent').insert({ kind: 'renewal', nick: nickKey(e.nick) || null, phone: e.phone, customer_id: e.customer_id, order_number: e.orders[0] });
   }
   for (const f of firsts) {
-    if (!(await send(firstSingleMessage(f, perLunch)))) return fail('telegram_failed', 502);
+    if (!(await send(firstSingleMessage(f, perLunch), f.nick, f.order_number))) continue;
     await db.from('renewal_sent').insert({ kind: 'first_single', nick: nickKey(f.nick) || null, phone: f.phone, customer_id: f.customer_id, order_number: f.order_number });
     await db.from('renewal_first_notices').insert({ nick: nickKey(f.nick) || null, phone: f.phone, customer_id: f.customer_id, order_number: f.order_number });
+  }
+  if (failed.length) {
+    const list = failed.map((x) => `${esc(x.who)} (${esc(x.order)})`).join(', ');
+    await warn(`Напоминание не отправлено: ${list}. Причина: ${esc(failed[0].why)}.${chatHint(failed[0].why, 'RENEWALS_CHAT_ID')} Остальным отправлено; недостающим — вручную или повторным запуском с {"only":["${esc(failed[0].order)}"]}.`);
+    return json({ ok: false, code: 'telegram_failed', sent: entries.length + firsts.length - failed.length, failed: failed.map((x) => x.order) }, 502);
   }
   return json({ ok: true, count: entries.length, first: firsts.length });
 });

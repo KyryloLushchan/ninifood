@@ -1,3 +1,4 @@
+import { errMsg } from './redact.ts';
 import { geocodeAddress, reverseGeocode } from './geocode.ts';
 import { inDanang } from './danang.ts';
 import { isGoogleHost, parsePoint } from './point.ts';
@@ -54,7 +55,7 @@ export async function expandMapsLink(input: string): Promise<{ point: { lat: num
       break;
     }
   } catch (e) {
-    console.error('maps link expand failed:', (e as Error).message);
+    console.error('maps link expand failed:', errMsg(e));
   }
   return { point, query };
 }

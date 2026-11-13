@@ -1,3 +1,4 @@
+import { errMsg } from './redact.ts';
 const enc = new TextEncoder();
 
 export async function sha256hex(s: string): Promise<string> {
@@ -45,7 +46,7 @@ export async function verifyTurnstile(token: string, ip: string): Promise<boolea
     if (!data.success) console.warn('turnstile rejected:', JSON.stringify(data['error-codes'] ?? []));
     return data.success === true;
   } catch (e) {
-    console.error('turnstile verify error:', (e as Error).message);
+    console.error('turnstile verify error:', errMsg(e));
     return false;
   }
 }
