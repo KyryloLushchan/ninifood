@@ -16,6 +16,7 @@ import { customerDb, fetchProfile, signOutCustomer, type CustomerProfile } from 
 import { phoneDigits } from '@/lib/phone';
 import { DRAFT_ID_RE, fetchDraft } from '@/lib/order-draft';
 import { fetchRenewal, RENEWAL_RE } from '@/lib/renewal';
+import { clearOrderState, loadOrderState, saveOrderState } from '@/lib/order-state';
 
 export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks' | 'orders' | 'auth';
 export type Payment = 'qr' | 'cash' | 'other';
@@ -227,6 +228,35 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setScreen((s) => (s === 'orders' ? 'home' : s));
   }, []);
 
+  // Незавершённое оформление (localStorage, моложе 2 часов): клиент уходил в банк/галерею, вкладку перезагрузили — возвращаем на тот же шаг. Ссылки ?d=, ?r= и #subscription приоритетнее.
+  const [stateReady, setStateReady] = useState(false);
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    const snap = q.has('d') || q.has('r') || window.location.hash === '#subscription' ? null : loadOrderState();
+    if (snap) {
+      const tomorrow = addDays(todayISO(), 1);
+      const keep = (xs: string[]) => xs.filter((x) => x >= tomorrow && !isSunday(x)); // прошедшие дни убираем
+      const once = keep(snap.onceDays);
+      const sub = snap.subDays ? keep(snap.subDays) : null;
+      const daysOk = snap.orderType === 'sub' ? (sub ?? []).length >= SUB_MIN_DAYS || sub === null : once.length >= 1;
+      setOrderType(snap.orderType);
+      setAutoSub(snap.autoSub);
+      setOnceDays(once);
+      setSubDays(sub && sub.length >= SUB_MIN_DAYS ? sub : null);
+      setPortionsState(Math.max(1, Math.round(snap.portions)));
+      setContact({ ...EMPTY_CONTACT, ...snap.contact });
+      setPlace(snap.place && typeof snap.place.lat === 'number' && typeof snap.place.lng === 'number' ? snap.place : null);
+      setCutlery(snap.cutlery === true);
+      setPayment(snap.payment);
+      setRenewal(snap.renewal);
+      setPhoneKept(snap.phoneKept === true);
+      draftIdRef.current = snap.draftId && DRAFT_ID_RE.test(snap.draftId) ? snap.draftId : null;
+      // дней не осталось — только выбор дней, дальше по шагам
+      setScreen(daysOk ? snap.screen : 'order');
+    }
+    setStateReady(true);
+  }, []);
+
   // Ссылка «Продолжить на телефоне»: ?d=ID → черновик → заполняем заказ и открываем экран оплаты.
   useEffect(() => {
     const id = new URLSearchParams(window.location.search).get('d');
@@ -378,6 +408,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [subDays, autoSub],
   );
 
+  // Сохранение оформления при каждом изменении (после восстановления). Вернулись на главную — незавершённого оформления нет.
+  useEffect(() => {
+    if (!stateReady || placed) return;
+    if (screen === 'home') return clearOrderState();
+    if (screen !== 'order' && screen !== 'checkout' && screen !== 'payment') return;
+    saveOrderState({ screen, orderType, autoSub, onceDays: onceDaysRaw, subDays: subDaysRaw, portions, contact, place, cutlery, payment, renewal, phoneKept, draftId: draftIdRef.current });
+  }, [stateReady, placed, screen, orderType, autoSub, onceDaysRaw, subDaysRaw, portions, contact, place, cutlery, payment, renewal, phoneKept]);
+
   const go = useCallback((s: Screen) => {
     setScreen(s);
     window.scrollTo(0, 0);
@@ -441,6 +479,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSubmitError(null);
     setPlaced(null);
     draftIdRef.current = null;
+    clearOrderState();
     setRenewal(null);
     setPhoneKept(false);
     go('home');
@@ -469,6 +508,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         keepPhone: phoneKept,
       });
       draftIdRef.current = null;
+      clearOrderState();
       setPlaced({ orderId: orderNumber, type: orderType, days, portions, total, payment });
       go('thanks');
       if (customer) void loadProfile(); // сервер сохранил телефон и адрес
