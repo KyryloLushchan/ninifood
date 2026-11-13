@@ -35,6 +35,8 @@ jobs:
           DB_URL: ${{ secrets.BACKUP_DB_URL }}
         run: |
           set -euo pipefail
+          export PATH=/usr/lib/postgresql/17/bin:$PATH # обёртка Ubuntu по умолчанию берёт pg_dump 16 (сервер 17 → version mismatch)
+          pg_dump --version
           stamp=$(date -u +%Y-%m-%d_%H%M)
           mkdir dump
           # public: схема и данные (заказы, меню, настройки, касса, admins, журнал попыток)
