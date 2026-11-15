@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "NEXT_FONT_GOOGLE_MOCKED_RESPONSES=$PWD/tools/fonts/mock.cjs next build",
+    "build": "NEXT_FONT_GOOGLE_MOCKED_RESPONSES=$PWD/tools/fonts/mock.cjs next build && node tools/short-links/generate.mjs",
     "start": "next start",
     "lint": "tsc --noEmit",
     "prepare": "git config core.hooksPath .githooks || true"
