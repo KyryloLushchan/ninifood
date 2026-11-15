@@ -29,6 +29,8 @@ const ORDERS = [
   ord(26, { type: 'subscription', total: 1700000 }, days(60, ['2026-10-23', '2026-10-24', '2026-10-26', '2026-10-27', '2026-10-28'], [0, 1, 2, 3, 4])),
   ord(27, { type: 'single', tg_message_id: null }, days(70, ['2026-10-30'])),
 ];
+// Рекламные источники для вкладки «Реклама» (только поля JSON, другие экраны не затрагиваются).
+ORDERS.forEach((o, i) => { if (i < 2) o.source_first = 'ub-pin'; else if (i === 2) o.source_first = 'ig-nov'; });
 const courierRows = ORDERS.filter((o) => ['confirmed', 'new'].includes(o.status)).flatMap((o) =>
   o.order_days.filter((d) => d.delivery_date === '2026-10-29').map((d) => ({ ...d, courier_marked_at: d.id === 1 ? '2026-10-29T06:42:00Z' : null, courier_note: d.id === 60 ? 'Оставить у охраны, позвонить за 5 минут' : null, eta_minutes: d.id === 1 || d.id === 60 ? 5 : null, eta_at: d.id === 1 || d.id === 60 ? '2026-10-29T06:35:00Z' : null, orders: { ...o, order_days: o.order_days.map((x) => ({ delivery_date: x.delivery_date })) } })),
 );
@@ -67,6 +69,7 @@ exports.respond = (req, state) => {
   }
   if (/functions\/v1\/send-order/.test(u)) return ok({ ok: true, orderNumber: 'NF-9999' });
   if (/functions\/v1\/(auth-gate|resolve-point|daily-report|delete-order)/.test(u)) return ok({ ok: false, code: 'locked' }, 429);
+  if (/rpc\/ad_visit_stats/.test(u)) return ok([{ code: 'ub-pin', visits: 42, opens: 11 }, { code: 'ig-nov', visits: 18, opens: 3 }]);
   if (/rpc\/is_admin/.test(u)) return ok(state.mode === 'admin');
   if (/rpc\/my_admin_role/.test(u)) return ok(JSON.stringify(state.mode === 'admin' ? (process.env.VISUAL_ROLE === 'viewer' ? 'viewer' : 'admin') : null));
   if (/rpc\/my_is_vip/.test(u)) return ok(false);

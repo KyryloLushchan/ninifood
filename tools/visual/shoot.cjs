@@ -119,7 +119,7 @@ const SITE = [
   ['my-orders', async (p, l) => { await p.evaluate(() => document.querySelector('header button[aria-expanded]').click()); await sleep(200); await click(p, tr(l, 'auth.myOrders')); await sleep(500); }, { session: 'customer', discount: 30 }],
   ['checkout-logged', async (p, l) => { await toOrder(p, l); await click(p, tr(l, 'order.next')); await sleep(500); }, { session: 'customer', discount: 30 }],
 ];
-const ADMIN_TABS = [['courier', 'Курьер'], ['orders', 'Заказы'], ['subs', 'Подписки'], ['menu', 'Меню'], ['cash', 'Касса'], ['money', 'Деньги'], ['settings', 'Настройки']];
+const ADMIN_TABS = [['courier', 'Курьер'], ['orders', 'Заказы'], ['subs', 'Подписки'], ['menu', 'Меню'], ['cash', 'Касса'], ['money', 'Деньги'], ['ads', 'Реклама'], ['settings', 'Настройки']];
 const ADMIN = [
   ['admin-login', async () => { await sleep(500); }, { noSession: true }],
   ...ADMIN_TABS.map(([id, label]) => [`admin-${id}`, async (p) => { await p.evaluate((label) => [...document.querySelectorAll('nav button')].find((b) => b.textContent.trim().endsWith(label)).click(), label); await sleep(900); }]),
