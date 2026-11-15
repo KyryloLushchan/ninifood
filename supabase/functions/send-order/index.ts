@@ -77,20 +77,34 @@ Deno.serve(async (req) => {
   };
 
   // Тело больше файла + текстовых полей не разбираем вообще.
-  if (Number(req.headers.get('content-length') ?? 0) > MAX_FILE + 200_000) return fail('screenshot_size', 413);
+  if (Number(req.headers.get('content-length') ?? 0) > Math.ceil((MAX_FILE * 4) / 3) + 200_000) return fail('screenshot_size', 413);
 
-  let form: FormData;
-  try {
-    form = await req.formData();
-  } catch {
-    return fail('bad_request');
-  }
-
+  // Основной формат — multipart (payload + файл screenshot). Запасной — application/json { payload, screenshot: base64 }:
+  // для WebView, где загрузка файла через FormData обрывается ещё на клиенте (Failed to fetch). Дальше логика одна и та же.
+  let form: FormData | null = null;
   let p: any;
-  try {
-    p = JSON.parse(String(form.get('payload') ?? ''));
-  } catch {
-    return fail('bad_request');
+  let jsonShot: File | null = null;
+  if ((req.headers.get('content-type') ?? '').toLowerCase().includes('application/json')) {
+    try {
+      const j = await req.json();
+      p = typeof j?.payload === 'string' ? JSON.parse(j.payload) : j?.payload;
+      if (typeof j?.screenshot === 'string' && j.screenshot.length > 0 && j.screenshot.length <= Math.ceil((MAX_FILE * 4) / 3) + 8) {
+        const bin = atob(j.screenshot);
+        const bytes = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        jsonShot = new File([bytes], 'payment.jpg');
+      }
+    } catch {
+      return fail('bad_request');
+    }
+    if (!p || typeof p !== 'object') return fail('bad_request');
+  } else {
+    try {
+      form = await req.formData();
+      p = JSON.parse(String(form.get('payload') ?? ''));
+    } catch {
+      return fail('bad_request');
+    }
   }
 
   // ── повтор с тем же ключом: заказ уже создан → возвращаем его номер (без капчи, лимитов и второго заказа) ──
@@ -173,7 +187,7 @@ Deno.serve(async (req) => {
 
   let shot: File | null = null;
   if (payment !== 'cash') {
-    const f = form.get('screenshot');
+    const f = form ? form.get('screenshot') : jsonShot;
     if (!(f instanceof File) || f.size === 0) return fail('screenshot_required');
     if (f.size > MAX_FILE) return fail('screenshot_size');
     const kind = await detectImage(f); // по сигнатуре файла, не по расширению и Content-Type

@@ -76,7 +76,7 @@ function snapshot(r: NetReport) {
     ua: navigator.userAgent.slice(0, 300),
     conn: (nav.connection?.effectiveType ?? '').slice(0, 20) || null,
     in_telegram: !!tgWebApp,
-    err: r.err.slice(0, 120),
+    err: r.err.slice(0, 300),
   };
 }
 
@@ -116,4 +116,33 @@ export async function flushNetworkReports() {
   } catch {
     /* ок */
   }
+}
+
+/**
+ * Диагностика после сетевого сбоя отправки: (1) «пробный» маленький JSON-запрос на тот же адрес — отвечает ли вообще путь /functions/v1/send-order
+ * (ожидаем http:400 bad_request; fail:… — путь/preflight блокируется); (2) читается ли файл скриншота (NotReadableError и т. п.).
+ * Результат кладётся в err отчёта. Вместе с transport=form|json это показывает, ломается ли именно multipart-тело с файлом.
+ */
+export async function diagnoseFailure(requestId: string, shot: Blob | null): Promise<string> {
+  let probe: string;
+  try {
+    const r = await fetch(`${SUPABASE_URL}/functions/v1/send-order`, {
+      method: 'POST',
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', 'x-request-id': requestId },
+      body: '{}',
+      signal: AbortSignal.timeout(6000),
+    });
+    probe = `http:${r.status}`;
+  } catch (e) {
+    probe = `fail:${e instanceof Error ? e.name : 'err'}`;
+  }
+  let read = 'none';
+  if (shot) {
+    try {
+      read = `ok:${(await shot.arrayBuffer()).byteLength}`;
+    } catch (e) {
+      read = `fail:${e instanceof Error ? e.name : 'err'}`;
+    }
+  }
+  return `probe=${probe} read=${read}`;
 }

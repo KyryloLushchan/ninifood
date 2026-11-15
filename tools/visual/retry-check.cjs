@@ -31,13 +31,14 @@ async function scenario(browser, name, plan) {
     window.turnstile = { render: (el, o) => { window.__cb = o.callback; const give = () => { n++; window.__tokens.push('tok' + n); setTimeout(() => o.callback('tok' + n), 30); }; window.__give = give; el.innerHTML = '<div style="height:65px"></div>'; give(); return 'w'; }, reset() { window.__give(); }, remove() {} };
   }, FIXED);
   await page.setRequestInterception(true);
-  const sends = []; const reports = [];
+  const sends = []; const reports = []; let probes = 0;
   page.on('request', (r) => {
     const u = r.url();
     if (/functions\/v1\/send-order/.test(u) && r.method() === 'POST') {
       const i = sends.length;
       const body = r.postData() || '';
-      sends.push({ rid: r.headers()['x-request-id'], captcha: (/"captcha":"([^"]*)"/.exec(body) || [])[1] });
+      if (body === '{}') { probes++; return r.respond({ status: 400, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: '{"ok":false,"code":"bad_request"}' }); } // диагностический пробный запрос
+      sends.push({ ct: r.headers()['content-type'] || '', rid: r.headers()['x-request-id'], captcha: (/captcha\\?":\\?"([^"\\]*)/.exec(body) || [])[1] });
       const act = plan[Math.min(i, plan.length - 1)];
       if (act === 'fail') return r.abort('failed');
       if (act === 'hang') return; // не отвечаем
@@ -59,7 +60,7 @@ async function scenario(browser, name, plan) {
   await sleep(600);
   console.log('--', name);
   await click(ru['checkout.send']);
-  return { page, sends, reports, click };
+  return { page, sends, reports, click, probes: () => probes };
 }
 const text = (page) => page.evaluate(() => document.body.innerText);
 
@@ -73,6 +74,8 @@ const text = (page) => page.evaluate(() => document.body.innerText);
     assert(s.sends[0].rid && s.sends[0].rid === s.sends[1].rid, `один x-request-id: ${s.sends.map((x) => (x.rid || '').slice(0, 8))}`);
     assert(s.sends[0].captcha !== s.sends[1].captcha, `свежий Turnstile: ${s.sends.map((x) => x.captcha)}`);
     assert((await text(s.page)).includes('NF-9999'), 'экран «Спасибо» с номером заказа');
+    assert(s.sends[0].ct.includes('multipart') && s.sends[1].ct.includes('application/json'), `транспорт: ${s.sends[0].ct.slice(0, 20)} → ${s.sends[1].ct.slice(0, 20)} (форма, затем JSON)`);
+    assert(s.probes() >= 1 && /tr=form probe=http:400/.test(s.reports[0][0].err), `диагностика в отчёте: ${s.reports[0][0].err}`);
     assert(s.reports.length >= 1 && s.reports[0][0].kind === 'network', `отчёт клиента: ${JSON.stringify(s.reports[0] && Object.keys(s.reports[0][0]))}`);
     await s.page._ctx?.close?.();
   }

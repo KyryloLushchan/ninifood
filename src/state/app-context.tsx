@@ -9,7 +9,7 @@ import { addDays, isSunday, todayISO } from '@/lib/dates';
 import { onceTotals, subTotals, type OrderType, type Totals } from '@/lib/pricing';
 import { DEFAULT_SETTINGS, fetchSiteSettings, type SiteSettings } from '@/lib/site-settings';
 import { compressToJpeg } from '@/lib/compress-image';
-import { clearRequestId, fingerprint, flushNetworkReports, reportNetworkError, requestIdFor } from '@/lib/order-request';
+import { clearRequestId, diagnoseFailure, fingerprint, flushNetworkReports, reportNetworkError, requestIdFor } from '@/lib/order-request';
 import type { PlaceInfo } from '@/lib/places';
 import { OrderError, submitOrder } from '@/lib/submit-order';
 import type { GateSession } from '@/lib/auth-gate';
@@ -171,6 +171,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [captcha, setCaptcha] = useState<string | null>(null);
   const [captchaReset, setCaptchaReset] = useState(0);
   const captchaRef = useRef<string | null>(null);
+  const transportRef = useRef<'form' | 'json'>('form'); // после первого сетевого сбоя переходим на запасной JSON-канал
   captchaRef.current = captcha;
   const [cutlery, setCutlery] = useState(false);
   const [payment, setPayment] = useState<Payment>('qr');
@@ -545,11 +546,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
             renewalCode: renewal?.code ?? null,
             keepPhone: phoneKept,
             requestId,
+            transport: transportRef.current,
           }));
           break;
         } catch (e) {
           if (!(e instanceof OrderError) || e.code !== 'network') throw e;
-          void reportNetworkError({ request_id: requestId, attempt, kind: e.detail?.kind ?? 'network', elapsed_ms: e.detail?.elapsedMs ?? 0, screenshot_bytes: shot?.size ?? 0, total, lang, err: e.detail?.err ?? 'network' });
+          const used = transportRef.current;
+          transportRef.current = 'json'; // следующая попытка (и «Попробовать ещё раз») — запасным каналом без multipart
+          const diag = await diagnoseFailure(requestId, shot);
+          void reportNetworkError({ request_id: requestId, attempt, kind: e.detail?.kind ?? 'network', elapsed_ms: e.detail?.elapsedMs ?? 0, screenshot_bytes: shot?.size ?? 0, total, lang, err: `${e.detail?.err ?? 'network'} | tr=${used} ${diag}` });
           if (attempt >= MAX_ATTEMPTS) throw e;
           await new Promise((r) => setTimeout(r, 2000 * attempt)); // пауза 2 с, 4 с
           token = await refreshCaptcha(); // свежий Turnstile на каждую повторную попытку

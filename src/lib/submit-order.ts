@@ -35,6 +35,16 @@ export interface OrderPayload {
   keepPhone?: boolean;
   /** Ключ запроса (uuid): повтор с тем же ключом не создаёт второй заказ. */
   requestId?: string | null;
+  /** 'form' — multipart с файлом (по умолчанию); 'json' — запасной: тело JSON, скриншот в base64 (для WebView, где загрузка файла через FormData обрывается). */
+  transport?: 'form' | 'json';
+}
+
+/** Файл → base64 (для запасного JSON-канала). */
+async function fileToBase64(f: Blob): Promise<string> {
+  const buf = new Uint8Array(await f.arrayBuffer());
+  let bin = '';
+  for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
 
 /** Таймаут одной попытки отправки: дольше — считаем сетевой ошибкой и (если остались попытки) повторяем. */
@@ -56,12 +66,11 @@ export class OrderError extends Error {
  * Сумму и номер заказа определяет сервер; здесь они не передаются.
  */
 export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber: string }> {
+  const jsonMode = payload.transport === 'json';
   const form = new FormData();
   const src = currentSources(); // рекламный источник (30 дней в localStorage); нет — поля не отправляем
   const vid = src.first || src.last ? visitorId() : '';
-  form.set(
-    'payload',
-    JSON.stringify({
+  const payloadJson = JSON.stringify({
       type: payload.type,
       days: payload.days,
       portions: payload.portions,
@@ -77,9 +86,19 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
       ...payload.contact,
       phone: payload.keepPhone && payload.renewalCode ? '' : `${PHONE_PREFIX}${payload.contact.phone}`,
       ...(payload.place ? { place_id: payload.place.placeId, lat: payload.place.lat, lng: payload.place.lng } : {}),
-    }),
-  );
-  if (payload.screenshot) form.set('screenshot', payload.screenshot, payload.screenshot.name);
+  });
+  let body: FormData | string;
+  if (jsonMode) {
+    try {
+      body = JSON.stringify({ payload: payloadJson, screenshot: payload.screenshot ? await fileToBase64(payload.screenshot) : '' });
+    } catch (e) {
+      throw new OrderError('network', { kind: 'network', err: `file read: ${e instanceof Error ? e.name : String(e)}`, elapsedMs: 0 });
+    }
+  } else {
+    form.set('payload', payloadJson);
+    if (payload.screenshot) form.set('screenshot', payload.screenshot, payload.screenshot.name);
+    body = form;
+  }
 
   const started = Date.now();
   const ctl = new AbortController();
@@ -93,11 +112,12 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
     res = await fetch(`${SUPABASE_URL}/functions/v1/send-order`, {
       method: 'POST',
       headers: {
+        ...(jsonMode ? { 'Content-Type': 'application/json' } : {}),
         apikey: SUPABASE_ANON_KEY,
         Authorization: `Bearer ${payload.accessToken ?? SUPABASE_ANON_KEY}`,
         ...(payload.requestId ? { 'x-request-id': payload.requestId } : {}),
       },
-      body: form,
+      body,
       signal: ctl.signal,
     });
   } catch (e) {
