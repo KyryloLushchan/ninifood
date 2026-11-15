@@ -121,7 +121,10 @@ export const ru = {
 
   'payment.title': 'Оплата',
   'payment.due': 'К оплате',
-  'payment.scan': 'Отсканируйте в приложении банка.',
+  'payment.scan': 'Отсканируйте QR и введите сумму вручную.',
+  'payment.amountDue': 'Сумма к оплате:',
+  'payment.copyAmount': 'Скопировать сумму',
+  'payment.copied': 'Сумма скопирована',
   'payment.save': 'Сохранить QR в галерею',
   'phone.continue': "Продолжить на телефоне",
   'phone.title': "Продолжить на телефоне",

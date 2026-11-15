@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { fmtMoney } from '@/lib/format';
 import { buildQrUrl } from '@/config/site';
 import { PHOTOS } from '@/config/photos';
 import { withBasePath } from '@/lib/base-path';
@@ -20,7 +21,7 @@ export function PaymentQr() {
   const { t } = useI18n();
   const { go, total, sum, screenshot, captcha, placeOrder, sending, submitError } = useApp();
   const staticQr = withBasePath(PHOTOS.paymentQr);
-  const dynamicQr = buildQrUrl(total);
+  const dynamicQr = buildQrUrl();
 
   // PNG готовим заранее: share() должен вызываться сразу по нажатию, иначе iOS его блокирует.
   // Не получилось (сеть/сервис) — статичный QR.
@@ -29,7 +30,7 @@ export function PaymentQr() {
     let dead = false;
     let made: QrImage | null = null;
     setQr(null);
-    const name = `ninifood-qr-${total}`;
+    const name = 'ninifood-qr';
     (async () => {
       try {
         if (!dynamicQr) throw new Error('no vietqr');
@@ -52,9 +53,39 @@ export function PaymentQr() {
       dead = true;
       if (made) URL.revokeObjectURL(made.url);
     };
-  }, [dynamicQr, staticQr, total]);
+  }, [dynamicQr, staticQr]);
 
   const ok = !!screenshot;
+
+  // Копируется только число (без пробелов и ₫): клиент вставляет его в банковское приложение.
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef<ReturnType<typeof setTimeout>>();
+  useEffect(() => () => clearTimeout(copyTimer.current), []);
+  const copyAmount = async () => {
+    const text = String(total);
+    let done = false;
+    try {
+      await navigator.clipboard.writeText(text);
+      done = true;
+    } catch {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.cssText = 'position:fixed;top:0;left:0;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        done = document.execCommand('copy');
+      } catch {
+        done = false;
+      }
+      ta.remove();
+    }
+    if (!done) return;
+    setCopied(true);
+    clearTimeout(copyTimer.current);
+    copyTimer.current = setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <>
@@ -62,9 +93,15 @@ export function PaymentQr() {
       <TwoCol>
       <div className="flex flex-1 flex-col gap-[18px] px-5 pb-6 lg:px-0 lg:pb-0">
         <div className="flex flex-col items-center gap-3 rounded-xl2 bg-card p-5">
-          <div className="text-sm text-ink-2">{t('payment.due')}</div>
+          <div className="text-center">
+            <div className="text-sm text-ink-2">{t('payment.amountDue')}</div>
+            <div className="font-serif text-[32px] font-bold leading-tight">{fmtMoney(total)}</div>
+          </div>
+          <button type="button" onClick={() => void copyAmount()} className="rounded-md2 border border-accent px-4 py-2 text-sm font-bold text-accent">
+            {copied ? `✓ ${t('payment.copied')}` : t('payment.copyAmount')}
+          </button>
           <div className="w-full">
-            <OrderSummary sum={sum} big />
+            <OrderSummary sum={sum} />
           </div>
           {qr ? (
             // eslint-disable-next-line @next/next/no-img-element

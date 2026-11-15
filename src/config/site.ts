@@ -28,10 +28,10 @@ export const VIETQR = {
   accountName: 'LE NU NGOC HA',
 };
 
-/** QR: банк, счёт, получатель и сумма (шаблон compact2), без назначения платежа. Формат svg: png сервис теперь редиректит на svg. */
-export function buildQrUrl(amount: number): string | null {
+/** QR: только реквизиты — банк, счёт, получатель (шаблон compact2), без суммы и назначения платежа (сумму клиент вводит сам). Формат svg: png сервис теперь редиректит на svg. */
+export function buildQrUrl(): string | null {
   if (!VIETQR.bankId || !VIETQR.accountNo) return null;
-  const q = `amount=${amount}&accountName=${encodeURIComponent(VIETQR.accountName)}`;
+  const q = `accountName=${encodeURIComponent(VIETQR.accountName)}`;
   return `https://img.vietqr.io/image/${VIETQR.bankId}-${VIETQR.accountNo}-compact2.svg?${q}`;
 }
 
