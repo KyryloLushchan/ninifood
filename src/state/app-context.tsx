@@ -9,6 +9,7 @@ import { addDays, isSunday, todayISO } from '@/lib/dates';
 import { onceTotals, subTotals, type OrderType, type Totals } from '@/lib/pricing';
 import { DEFAULT_SETTINGS, fetchSiteSettings, type SiteSettings } from '@/lib/site-settings';
 import { compressToJpeg } from '@/lib/compress-image';
+import { clearRequestId, fingerprint, flushNetworkReports, reportNetworkError, requestIdFor } from '@/lib/order-request';
 import type { PlaceInfo } from '@/lib/places';
 import { OrderError, submitOrder } from '@/lib/submit-order';
 import type { GateSession } from '@/lib/auth-gate';
@@ -109,6 +110,8 @@ interface AppValue {
   /** Токен Cloudflare Turnstile для текущей отправки (null — проверка не пройдена). */
   captcha: string | null;
   setCaptcha: (t: string | null) => void;
+  /** Счётчик запросов нового токена Turnstile (виджет сбрасывается при каждом изменении). */
+  captchaReset: number;
   /** Одноразовые приборы (по умолчанию выключено; у вошедшего — последнее значение из профиля). */
   cutlery: boolean;
   setCutlery: (v: boolean) => void;
@@ -166,6 +169,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const contactRef = useRef(contact);
   contactRef.current = contact;
   const [captcha, setCaptcha] = useState<string | null>(null);
+  const [captchaReset, setCaptchaReset] = useState(0);
+  const captchaRef = useRef<string | null>(null);
+  captchaRef.current = captcha;
   const [cutlery, setCutlery] = useState(false);
   const [payment, setPayment] = useState<Payment>('qr');
   const [screenshot, setScreenshot] = useState<File | null>(null);
@@ -494,29 +500,63 @@ export function AppProvider({ children }: { children: ReactNode }) {
     go('home');
   }, [go, customer]);
 
+  /** Новый токен Turnstile (токен одноразовый): сбрасываем виджет и ждём новый до 25 с; не пришёл — null (сервер ответит captcha_failed, если заказа ещё нет). */
+  const refreshCaptcha = useCallback(async (): Promise<string | null> => {
+    captchaRef.current = null;
+    setCaptcha(null);
+    setCaptchaReset((k) => k + 1);
+    for (let i = 0; i < 100; i++) {
+      await new Promise((r) => setTimeout(r, 250));
+      if (captchaRef.current) return captchaRef.current;
+    }
+    return null;
+  }, []);
+
+  useEffect(() => {
+    void flushNetworkReports(); // отчёты о сбоях, которые не ушли при отсутствии сети
+  }, []);
+
   const placeOrder = useCallback(async () => {
     setSending(true);
     setSubmitError(null);
     try {
       const shot = payment !== 'cash' && screenshot ? await compressToJpeg(screenshot) : null;
       const accessToken = customer ? (await customerDb.auth.getSession()).data.session?.access_token ?? null : null;
-      const { orderNumber } = await submitOrder({
-        type: orderType,
-        days,
-        portions,
-        payment,
-        contact,
-        place,
-        captcha,
-        cutlery,
-        screenshot: shot,
-        lang,
-        accessToken,
-        draftId: draftIdRef.current,
-        renewalCode: renewal?.code ?? null,
-        keepPhone: phoneKept,
-      });
+      // Ключ запроса: одинаков для всех попыток этого заказа (и для «Попробовать ещё раз»), пока состав заказа не изменился.
+      const requestId = requestIdFor(fingerprint({ orderType, days, portions, payment, contact, place: place?.placeId ?? null, cutlery, shot: shot ? [shot.name, shot.size] : null, renewal: renewal?.code ?? null }));
+      const MAX_ATTEMPTS = 3;
+      let token = captcha;
+      let orderNumber = '';
+      for (let attempt = 1; ; attempt++) {
+        try {
+          ({ orderNumber } = await submitOrder({
+            type: orderType,
+            days,
+            portions,
+            payment,
+            contact,
+            place,
+            captcha: token,
+            cutlery,
+            screenshot: shot,
+            lang,
+            accessToken,
+            draftId: draftIdRef.current,
+            renewalCode: renewal?.code ?? null,
+            keepPhone: phoneKept,
+            requestId,
+          }));
+          break;
+        } catch (e) {
+          if (!(e instanceof OrderError) || e.code !== 'network') throw e;
+          void reportNetworkError({ request_id: requestId, attempt, kind: e.detail?.kind ?? 'network', elapsed_ms: e.detail?.elapsedMs ?? 0, screenshot_bytes: shot?.size ?? 0, total, lang, err: e.detail?.err ?? 'network' });
+          if (attempt >= MAX_ATTEMPTS) throw e;
+          await new Promise((r) => setTimeout(r, 2000 * attempt)); // пауза 2 с, 4 с
+          token = await refreshCaptcha(); // свежий Turnstile на каждую повторную попытку
+        }
+      }
       draftIdRef.current = null;
+      clearRequestId();
       clearOrderState();
       setPlaced({ orderId: orderNumber, type: orderType, days, portions, total, payment });
       go('thanks');
@@ -527,7 +567,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     } finally {
       setSending(false);
     }
-  }, [orderType, days, portions, total, payment, contact, place, captcha, cutlery, screenshot, lang, go, customer, loadProfile, renewal, phoneKept]);
+  }, [orderType, days, portions, total, payment, contact, place, captcha, cutlery, screenshot, lang, go, customer, loadProfile, renewal, phoneKept, refreshCaptcha]);
 
   const value: AppValue = {
     screen,
@@ -575,6 +615,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setCutlery,
     captcha,
     setCaptcha,
+    captchaReset,
     selectPlace: (pl) => {
       setContact((c) => ({ ...c, address: pl.text }));
       setPlace(pl);

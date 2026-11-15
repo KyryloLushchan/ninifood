@@ -7,6 +7,7 @@ import { isValidPhone, PHONE_PREFIX, formatDigits, parsePhoneInput, phoneDigits 
 import { useApp, type Contact, type Payment } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
+import { SubmitError } from '../ui/SubmitError';
 import { AddressField } from '../ui/AddressField';
 import { DiscountBadge } from '../ui/DiscountBadge';
 import { Field } from '../ui/Field';
@@ -161,7 +162,7 @@ export function Checkout() {
       <div className="flex-1 lg:hidden" />
       <BottomBar>
         <OrderSummary sum={sum} />
-        {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}
+        <SubmitError />
         <Button disabled={sending || (payment === 'cash' && !captcha)} onClick={submit}>
           {sending ? t('checkout.sending') : payment !== 'cash' ? t('checkout.toPayment') : t('checkout.send')}
         </Button>

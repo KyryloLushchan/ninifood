@@ -100,7 +100,7 @@ export const turnstileLang = (lang: Lang) => WIDGET_LANG[lang];
 /** Turnstile перед отправкой заказа: токен уходит в send-order, сервер проверяет его через siteverify. */
 export function TurnstileWidget() {
   const { t, lang } = useI18n();
-  const { setCaptcha, submitError } = useApp();
+  const { setCaptcha, submitError, captchaReset } = useApp();
   const [resetKey, setResetKey] = useState(0);
 
   // Токен одноразовый: после любой ошибки отправки просим новый.
@@ -108,5 +108,5 @@ export function TurnstileWidget() {
     if (submitError) setResetKey((k) => k + 1);
   }, [submitError]);
 
-  return <TurnstileBox language={WIDGET_LANG[lang]} onToken={setCaptcha} resetKey={resetKey} failedText={t('error.captcha_failed')} />;
+  return <TurnstileBox language={WIDGET_LANG[lang]} onToken={setCaptcha} resetKey={resetKey + captchaReset} failedText={t('error.captcha_failed')} />;
 }

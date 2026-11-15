@@ -36,11 +36,14 @@ Deno.serve(async (req) => {
   const ipHash = ip ? await sha256hex(`${SALT}:${ip}`) : null;
   const country = (req.headers.get('cf-ipcountry') ?? '').slice(0, 8) || null; // гео-фильтра нет — только лог
   const who: { phone: string | null; telegram: string | null } = { phone: null, telegram: null };
+  // Ключ запроса (uuid из заголовка x-request-id): один ключ = один заказ; повтор после обрыва возвращает уже созданный заказ.
+  const rid = (req.headers.get('x-request-id') ?? '').trim().toLowerCase();
+  const requestId: string | null = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(rid) ? rid : null;
 
   // Каждая попытка пишется в order_attempts: по ней — лимиты и мониторинг (>20 заказов/ошибок за час → алерт в группу).
   const record = async (outcome: string, orderNumber?: string) => {
     try {
-      const { error } = await db.from('order_attempts').insert({ ip_hash: ipHash, phone: who.phone, telegram: who.telegram, country, outcome, order_number: orderNumber ?? null });
+      const { error } = await db.from('order_attempts').insert({ ip_hash: ipHash, phone: who.phone, telegram: who.telegram, country, outcome, order_number: orderNumber ?? null, request_id: requestId });
       if (error) console.error('order_attempts insert failed:', error.message);
       await checkAlerts();
     } catch (e) {
@@ -51,7 +54,7 @@ Deno.serve(async (req) => {
     const since = new Date(Date.now() - 3600_000).toISOString();
     const count = async (ok: boolean) => {
       const q = db.from('order_attempts').select('id', { count: 'exact', head: true }).gte('created_at', since);
-      return (await (ok ? q.eq('outcome', 'ok') : q.neq('outcome', 'ok'))).count ?? 0;
+      return (await (ok ? q.eq('outcome', 'ok') : q.neq('outcome', 'ok').neq('outcome', 'received'))).count ?? 0;
     };
     const [orders, errors] = await Promise.all([count(true), count(false)]);
     for (const [kind, n, what] of [['orders_spike', orders, 'заказов'], ['errors_spike', errors, 'ошибок send-order']] as const) {
@@ -61,6 +64,13 @@ Deno.serve(async (req) => {
       if (data?.length) await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text: `⚠️ <b>Подозрительная активность</b>\nЗа последний час ${n} ${esc(what)} (порог ${ALERT_THRESHOLD}).`, parse_mode: 'HTML' });
     }
   };
+  // «received»: запрос дошёл до функции (до разбора тела) — по строке без финала видно обрыв загрузки/падение. Алерты её не считают.
+  try {
+    const { error } = await db.from('order_attempts').insert({ ip_hash: ipHash, country, outcome: 'received', request_id: requestId });
+    if (error) console.error('order_attempts received insert failed:', error.message);
+  } catch (e) {
+    console.error('record received error:', errMsg(e));
+  }
   const fail = async (code: string, status = 400) => {
     await record(code);
     return json({ ok: false, code }, status);
@@ -81,6 +91,21 @@ Deno.serve(async (req) => {
     p = JSON.parse(String(form.get('payload') ?? ''));
   } catch {
     return fail('bad_request');
+  }
+
+  // ── повтор с тем же ключом: заказ уже создан → возвращаем его номер (без капчи, лимитов и второго заказа) ──
+  if (requestId) {
+    const { data: prev } = await db.from('orders').select('id, order_number, created_at').eq('request_id', requestId).maybeSingle();
+    if (prev) {
+      const { count } = await db.from('order_days').select('order_id', { count: 'exact', head: true }).eq('order_id', prev.id);
+      if (count) {
+        console.log(`replay request ${requestId} → ${prev.order_number}`);
+        return json({ ok: true, orderNumber: prev.order_number });
+      }
+      // заказ без дней — недоделанный остаток упавшего запроса: старше 30 с удаляем и создаём заново, моложе — просим повторить позже
+      if (Date.now() - new Date(prev.created_at).getTime() < 30_000) return fail('server_error', 500);
+      await db.from('orders').delete().eq('id', prev.id);
+    }
   }
 
   // ── вход по email: JWT пользователя (anon-ключ — гость). VIP — только по email из JWT (auth.getUser), не по полям формы. ──
@@ -227,9 +252,15 @@ Deno.serve(async (req) => {
       is_vip: vip,
       source_first,
       source_last,
+      request_id: requestId,
     })
     .select('id, order_number')
     .single();
+  if (oErr?.code === '23505' && requestId) {
+    // параллельный запрос с тем же ключом успел раньше — отдаём его заказ
+    const { data: dup } = await db.from('orders').select('order_number').eq('request_id', requestId).maybeSingle();
+    if (dup) return json({ ok: true, orderNumber: dup.order_number });
+  }
   if (oErr || !order) {
     console.error('insert order error', oErr?.message);
     return fail('server_error', 500);

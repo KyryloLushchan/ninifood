@@ -33,11 +33,20 @@ export interface OrderPayload {
   /** Код ссылки продления: после заказа сервер гасит ссылку; при keepPhone полный номер подставляется на сервере по коду. */
   renewalCode?: string | null;
   keepPhone?: boolean;
+  /** Ключ запроса (uuid): повтор с тем же ключом не создаёт второй заказ. */
+  requestId?: string | null;
 }
+
+/** Таймаут одной попытки отправки: дольше — считаем сетевой ошибкой и (если остались попытки) повторяем. */
+export const SUBMIT_TIMEOUT_MS = 60_000;
 
 /** Код ошибки от сервера (или 'network' / 'generic') — фронт превращает в текст на языке клиента. */
 export class OrderError extends Error {
-  constructor(public code: string) {
+  constructor(
+    public code: string,
+    /** Для code='network': 'timeout' (60 с без ответа) или имя/текст сбоя fetch; elapsedMs — сколько ждали. */
+    public detail?: { kind: 'network' | 'timeout'; err: string; elapsedMs: number },
+  ) {
     super(code);
   }
 }
@@ -72,15 +81,30 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
   );
   if (payload.screenshot) form.set('screenshot', payload.screenshot, payload.screenshot.name);
 
+  const started = Date.now();
+  const ctl = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    ctl.abort();
+  }, SUBMIT_TIMEOUT_MS);
   let res: Response;
   try {
     res = await fetch(`${SUPABASE_URL}/functions/v1/send-order`, {
       method: 'POST',
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${payload.accessToken ?? SUPABASE_ANON_KEY}` },
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${payload.accessToken ?? SUPABASE_ANON_KEY}`,
+        ...(payload.requestId ? { 'x-request-id': payload.requestId } : {}),
+      },
       body: form,
+      signal: ctl.signal,
     });
-  } catch {
-    throw new OrderError('network');
+  } catch (e) {
+    const err = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+    throw new OrderError('network', { kind: timedOut ? 'timeout' : 'network', err: timedOut ? 'timeout' : err, elapsedMs: Date.now() - started });
+  } finally {
+    clearTimeout(timer);
   }
   let data: { ok?: boolean; code?: string; orderNumber?: string } = {};
   try {

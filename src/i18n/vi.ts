@@ -168,6 +168,8 @@ export const vi: Record<TKey, string> = {
   'error.screenshot_size': 'Ảnh chụp quá lớn (tối đa 5 MB).',
   'error.network': 'Không có kết nối. Hãy kiểm tra mạng và thử lại.',
   'error.generic': 'Không thể gửi đơn hàng. Hãy thử lại hoặc nhắn Telegram cho chúng tôi.',
+  'error.retry': 'Thử lại',
+  'error.writeUs': 'hoặc nhắn Telegram cho chúng tôi',
   'auth.login': 'Đăng nhập',
   'auth.loginFull': 'Đăng nhập hoặc đăng ký',
   'auth.register': 'Đăng ký',

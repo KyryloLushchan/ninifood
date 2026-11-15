@@ -10,6 +10,7 @@ import { useI18n, type TKey } from '@/i18n';
 import { useApp } from '@/state/app-context';
 import { BottomBar } from '../ui/BottomBar';
 import { Button } from '../ui/Button';
+import { SubmitError } from '../ui/SubmitError';
 import { OrderSummary } from '../ui/OrderSummary';
 import { ScreenHeader } from '../ui/ScreenHeader';
 import { TurnstileWidget } from '../ui/TurnstileWidget';
@@ -126,7 +127,7 @@ export function PaymentQr() {
         <Button disabled={!ok || sending || !captcha} onClick={() => void placeOrder()}>
           {t('payment.send')}
         </Button>
-        {submitError && <div className="text-center text-[13px] font-bold text-accent">{t(submitError as TKey)}</div>}
+        <SubmitError />
         {!ok && <div className="text-center text-[13px] text-ink-muted">{t('payment.needUpload')}</div>}
       </BottomBar>
       </TwoCol>

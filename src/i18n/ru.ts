@@ -178,6 +178,8 @@ export const ru = {
   'error.screenshot_size': 'Скриншот слишком большой (максимум 5 МБ).',
   'error.network': 'Нет соединения. Проверьте интернет и попробуйте ещё раз.',
   'error.generic': 'Не удалось отправить заказ. Попробуйте ещё раз или напишите нам в Telegram.',
+  'error.retry': 'Попробовать ещё раз',
+  'error.writeUs': 'или напишите нам в Telegram',
   'auth.login': 'Войти',
   'auth.loginFull': 'Войти или зарегистрироваться',
   'auth.register': 'Регистрация',

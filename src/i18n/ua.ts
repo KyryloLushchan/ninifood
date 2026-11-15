@@ -168,6 +168,8 @@ export const ua: Record<TKey, string> = {
   'error.screenshot_size': 'Скріншот завеликий (максимум 5 МБ).',
   'error.network': 'Немає з’єднання. Перевірте інтернет і спробуйте ще раз.',
   'error.generic': 'Не вдалося надіслати замовлення. Спробуйте ще раз або напишіть нам у Telegram.',
+  'error.retry': 'Спробувати ще раз',
+  'error.writeUs': 'або напишіть нам у Telegram',
   'auth.login': 'Увійти',
   'auth.loginFull': 'Увійти або зареєструватися',
   'auth.register': 'Реєстрація',

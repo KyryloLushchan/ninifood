@@ -168,6 +168,8 @@ export const en: Record<TKey, string> = {
   'error.screenshot_size': 'The screenshot is too large (5 MB max).',
   'error.network': 'No connection. Check your internet and try again.',
   'error.generic': 'Could not place the order. Please try again or message us on Telegram.',
+  'error.retry': 'Try again',
+  'error.writeUs': 'or message us on Telegram',
   'auth.login': 'Log in',
   'auth.loginFull': 'Log in or sign up',
   'auth.register': 'Sign up',
