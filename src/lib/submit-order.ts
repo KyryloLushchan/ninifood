@@ -1,4 +1,5 @@
 import { SUPABASE_ANON_KEY, SUPABASE_URL } from '@/config/supabase';
+import { currentSources, visitorId } from './ad-source';
 import { PHONE_PREFIX } from './phone';
 import type { PlaceInfo } from './places';
 import type { OrderType } from './pricing';
@@ -47,6 +48,8 @@ export class OrderError extends Error {
  */
 export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber: string }> {
   const form = new FormData();
+  const src = currentSources(); // рекламный источник (30 дней в localStorage); нет — поля не отправляем
+  const vid = src.first || src.last ? visitorId() : '';
   form.set(
     'payload',
     JSON.stringify({
@@ -57,6 +60,9 @@ export async function submitOrder(payload: OrderPayload): Promise<{ orderNumber:
       lang: payload.lang,
       captcha: payload.captcha,
       cutlery: payload.cutlery === true,
+      ...(src.first ? { source_first: src.first } : {}),
+      ...(src.last ? { source_last: src.last } : {}),
+      ...(vid ? { visitor_id: vid } : {}),
       ...(payload.draftId ? { draft_id: payload.draftId } : {}),
       ...(payload.renewalCode ? { renewal: payload.renewalCode } : {}),
       ...payload.contact,

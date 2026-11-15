@@ -44,6 +44,9 @@ export interface AdminOrder {
   status_changed_by: string | null;
   tg_message_id: number | null;
   receipt_file_id: string | null;
+  /** Рекламный источник (код ?s=): первый и последний на момент заказа. */
+  source_first?: string | null;
+  source_last?: string | null;
   order_days: OrderDay[];
   /** Доплаты/возвраты после изменения порций (подгружается в списках Заказы/Подписки). */
   order_surcharges?: { id: number; amount: number; status: 'pending' | 'paid' | 'cash' }[];

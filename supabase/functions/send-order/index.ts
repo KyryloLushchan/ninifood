@@ -123,6 +123,11 @@ Deno.serve(async (req) => {
   let lng: number | null = geoOk ? Number(p.lng) : null;
   const lang = ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? p.lang : null;
   const cutlery = p.cutlery === true; // одноразовые приборы (бесплатно), одно значение на все дни
+  // Источник рекламы (ссылка с ?s=код): формат ^[a-z0-9-]{1,40}$, иначе игнорируем.
+  const srcOk = (v: unknown) => (typeof v === 'string' && /^[a-z0-9-]{1,40}$/.test(v) ? v : null);
+  const source_first = srcOk(p.source_first);
+  const source_last = srcOk(p.source_last);
+  const visitorId = typeof p.visitor_id === 'string' && /^[A-Za-z0-9-]{8,64}$/.test(p.visitor_id) ? p.visitor_id : null;
   const qty = Number(p.portions);
   who.phone = /^\+84\d{9}$/.test(phone) ? phone : null;
   who.telegram = telegram.toLowerCase().replace(/^https?:\/\/(www\.)?t\.me\//, '').replace(/^t\.me\//, '').replace(/^@/, '').slice(0, 64) || null;
@@ -220,6 +225,8 @@ Deno.serve(async (req) => {
       cutlery,
       customer_id: customerId,
       is_vip: vip,
+      source_first,
+      source_last,
     })
     .select('id, order_number')
     .single();
@@ -232,6 +239,13 @@ Deno.serve(async (req) => {
     console.error(`insert order_days error for ${order.order_number}:`, dErr.message);
     await db.from('orders').delete().eq('id', order.id);
     return fail('server_error', 500);
+  }
+
+  // Воронка рекламы: шаг «создан заказ» (сервер пишет сам; ошибка записи на заказ не влияет).
+  const adCode = source_last ?? source_first;
+  if (adCode && visitorId) {
+    const { error } = await db.from('ad_visits').insert({ code: adCode, visitor_id: visitorId, page: '/', step: 'order_created' });
+    if (error) console.error(`ad_visits insert failed for ${order.order_number}:`, error.message);
   }
 
   // ── Telegram ──

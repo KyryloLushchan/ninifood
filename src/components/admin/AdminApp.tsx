@@ -6,6 +6,7 @@ import { adminDb } from '@/lib/admin/client';
 import { RoleContext, type AdminRole } from './role';
 import { callGate } from '@/lib/auth-gate';
 import { TurnstileBox } from '@/components/ui/TurnstileWidget';
+import { AdsTab } from './AdsTab';
 import { CashTab } from './CashTab';
 import { CourierTab } from './CourierTab';
 import { MenuTab } from './MenuTab';
@@ -22,6 +23,7 @@ const TABS = [
   ['menu', 'Меню', '🍲'],
   ['cash', 'Касса', '🧾'],
   ['money', 'Деньги', '💰'],
+  ['ads', 'Реклама', '📣'],
   ['settings', 'Настройки', '⚙️'],
 ] as const;
 type Tab = (typeof TABS)[number][0];
@@ -123,10 +125,11 @@ export function AdminApp() {
         {tab === 'menu' && <MenuTab />}
         {tab === 'cash' && <CashTab />}
         {tab === 'money' && <MoneyTab />}
+        {tab === 'ads' && <AdsTab />}
         {tab === 'settings' && <SettingsTab />}
       </main>
       <nav className="fixed bottom-0 left-0 right-0 z-40 border-t border-line bg-card lg:right-auto lg:top-0 lg:w-[220px] lg:border-r lg:border-t-0">
-        <div className="mx-auto grid max-w-[640px] grid-cols-7 pb-[env(safe-area-inset-bottom)] md:max-w-[900px] lg:max-w-none lg:grid-cols-1 lg:content-start lg:gap-1 lg:p-3">
+        <div className="mx-auto grid max-w-[640px] grid-cols-8 pb-[env(safe-area-inset-bottom)] md:max-w-[900px] lg:max-w-none lg:grid-cols-1 lg:content-start lg:gap-1 lg:p-3">
           {TABS.map(([id, label, icon]) => (
             <button key={id} onClick={() => setTab(id)} aria-current={tab === id} className={`flex flex-col items-center gap-0.5 py-2 text-[9px] font-extrabold min-[420px]:text-[10px] md:text-xs lg:flex-row lg:justify-start lg:gap-3 lg:rounded-md2 lg:px-4 lg:py-3 lg:text-[15px] ${tab === id ? 'text-accent lg:bg-accent-soft' : 'text-ink-muted lg:hover:bg-sand'}`}>
               <span className="text-[18px] leading-none">{icon}</span>

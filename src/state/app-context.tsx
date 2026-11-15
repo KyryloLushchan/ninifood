@@ -17,6 +17,7 @@ import { phoneDigits } from '@/lib/phone';
 import { DRAFT_ID_RE, fetchDraft } from '@/lib/order-draft';
 import { fetchRenewal, RENEWAL_RE } from '@/lib/renewal';
 import { clearOrderState, loadOrderState, saveOrderState } from '@/lib/order-state';
+import { captureSource, trackCheckoutOpen } from '@/lib/ad-source';
 
 export type Screen = 'home' | 'order' | 'checkout' | 'payment' | 'thanks' | 'orders' | 'auth';
 export type Payment = 'qr' | 'cash' | 'other';
@@ -227,6 +228,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setPlace(null);
     setScreen((s) => (s === 'orders' ? 'home' : s));
   }, []);
+
+  // Рекламная ссылка (?s=код): источник в localStorage на 30 дней + визит в ad_visits. Адрес и остальные параметры не трогаем.
+  useEffect(() => {
+    captureSource();
+  }, []);
+  useEffect(() => {
+    if (screen === 'checkout') trackCheckoutOpen(); // открыта форма заказа (раз за сессию на код)
+  }, [screen]);
 
   // Незавершённое оформление (localStorage, моложе 2 часов): клиент уходил в банк/галерею, вкладку перезагрузили — возвращаем на тот же шаг. Ссылки ?d=, ?r= и #subscription приоритетнее.
   const [stateReady, setStateReady] = useState(false);
