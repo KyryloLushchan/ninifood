@@ -17,7 +17,7 @@ const BATCH = 10;
  * Досылка в группу Orders заказов без сообщения (`orders.tg_message_id is null`): cron каждые 5 минут (`tg-resend`), до 5 попыток на заказ.
  * Без дублей: попытка «занимается» атомарно (tg_attempts+1 только если tg_message_id всё ещё null и счётчик не менялся), id сообщения пишется
  * условно (`is null`). Скриншот оплаты берётся из закрытого бакета pending-receipts (его кладёт send-order до отправки) и удаляется после успеха.
- * Отменённые заказы не досылаются. Тело `{"only":["NF-1117"]}` — разово, в обход возраста/интервала/лимита попыток (вручную).
+ * После 5 неудач — одно предупреждение в Orders «⚠ NF-… не удалось отправить, смотрите в админке» (orders.tg_alerted_at). Отменённые заказы не досылаются. Тело `{"only":["NF-1117"]}` — разово, в обход возраста/интервала/лимита попыток (вручную).
  * Доступ: заголовок x-cron-secret (verify_jwt выключен).
  */
 Deno.serve(async (req) => {
@@ -115,6 +115,36 @@ Deno.serve(async (req) => {
     } catch (e) {
       console.error(`tg-resend error for ${o.order_number}:`, errMsg(e));
       result[o.order_number] = 'error';
+    }
+  }
+
+  // После MAX_ATTEMPTS неудачных попыток — одно короткое предупреждение в Orders текстом без фото (tg_alerted_at не даёт слать его повторно).
+  if (!only) {
+    const { data: dead } = await db
+      .from('orders')
+      .select('id, order_number')
+      .is('tg_message_id', null)
+      .is('tg_alerted_at', null)
+      .neq('status', 'cancelled')
+      .gte('tg_attempts', MAX_ATTEMPTS)
+      .gt('created_at', new Date(now - MAX_AGE_MS).toISOString())
+      .order('created_at')
+      .limit(BATCH);
+    for (const o of dead ?? []) {
+      try {
+        const { data: claimed } = await db.from('orders').update({ tg_alerted_at: new Date().toISOString() }).eq('id', o.id).is('tg_alerted_at', null).is('tg_message_id', null).select('id');
+        if (!claimed?.length) continue;
+        const r = await tg('sendMessage', { chat_id, text: `⚠ ${o.order_number} не удалось отправить, смотрите в админке` });
+        if (r.ok) {
+          result[`${o.order_number}`] = 'alerted';
+        } else {
+          console.error(`tg-resend: alert for ${o.order_number} failed:`, r.description);
+          await db.from('orders').update({ tg_alerted_at: null }).eq('id', o.id); // не получилось — повторим на следующем запуске
+        }
+      } catch (e) {
+        console.error(`tg-resend alert error for ${o.order_number}:`, errMsg(e));
+        await db.from('orders').update({ tg_alerted_at: null }).eq('id', o.id);
+      }
     }
   }
   return Response.json({ ok: true, result });

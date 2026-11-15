@@ -18,6 +18,7 @@ const RATE_IP = { max: 3, windowMin: 10 }; // заказов с одного IP 
 const RATE_CONTACT = { max: 5, windowH: 24 }; // заказов с одного телефона / Telegram за сутки
 const ALERT_THRESHOLD = 20; // заказов или ошибок за час → «подозрительная активность»
 const SALT = Deno.env.get('IP_HASH_SALT') ?? '';
+const TG_BUDGET_MS = 15_000; // сколько ждём отправку в Telegram, прежде чем ответить клиенту
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
 
@@ -309,46 +310,58 @@ Deno.serve(async (req) => {
   const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, discount_percent, discount_amount, lang, cutlery, is_vip: vip };
   const text = buildOrderText(row, days, undefined, await getDeliveryHours(db));
   const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
-  let messageId: number | null = null;
-  let fileId: string | null = null;
+  // Отправка в Telegram — с бюджетом 15 с (TG_BUDGET_MS): не успела — клиенту сразу успех, отправка доезжает в фоне (waitUntil и пишет id сообщения сама),
+  // а если и так не ушла — досылает cron tg-resend (он не трогает заказы моложе 2 минут, так что с фоновой отправкой не пересекается).
+  const tgWork = (async () => {
+    let messageId: number | null = null;
+    let fileId: string | null = null;
 
-  const photoForm = (extra: Record<string, string>) => {
-    const fd = new FormData();
-    fd.set('chat_id', chat_id);
-    fd.set('photo', shot!, shot!.name || 'payment.jpg');
-    for (const [k, v] of Object.entries(extra)) fd.set(k, v);
-    return fd;
-  };
-  const pickFileId = (r: any) => (r?.photo?.length ? r.photo[r.photo.length - 1].file_id : null);
+    const photoForm = (extra: Record<string, string>) => {
+      const fd = new FormData();
+      fd.set('chat_id', chat_id);
+      fd.set('photo', shot!, shot!.name || 'payment.jpg');
+      for (const [k, v] of Object.entries(extra)) fd.set(k, v);
+      return fd;
+    };
+    const pickFileId = (r: any) => (r?.photo?.length ? r.photo[r.photo.length - 1].file_id : null);
 
-  try {
-    if (shot && plainLength(text) <= 1024) {
-      const r = await tg('sendPhoto', photoForm({ caption: text, parse_mode: 'HTML', reply_markup: JSON.stringify(keyboardNew(order.order_number)) }));
-      if (r.ok) {
-        messageId = r.result.message_id;
-        fileId = pickFileId(r.result);
-      } else console.error(`telegram sendPhoto failed for ${order.order_number}:`, r.description);
-    } else {
-      const r = await tg('sendMessage', { chat_id, text, parse_mode: 'HTML', reply_markup: keyboardNew(order.order_number), disable_web_page_preview: true });
-      if (r.ok) {
-        messageId = r.result.message_id;
-        if (shot) {
-          const pr = await tg('sendPhoto', photoForm({ reply_to_message_id: String(messageId) }));
-          if (pr.ok) fileId = pickFileId(pr.result);
-          else console.error(`telegram sendPhoto (reply) failed for ${order.order_number}:`, pr.description);
-        }
-      } else console.error(`telegram sendMessage failed for ${order.order_number}:`, r.description);
+    try {
+      if (shot && plainLength(text) <= 1024) {
+        const r = await tg('sendPhoto', photoForm({ caption: text, parse_mode: 'HTML', reply_markup: JSON.stringify(keyboardNew(order.order_number)) }));
+        if (r.ok) {
+          messageId = r.result.message_id;
+          fileId = pickFileId(r.result);
+        } else console.error(`telegram sendPhoto failed for ${order.order_number}:`, r.description);
+      } else {
+        const r = await tg('sendMessage', { chat_id, text, parse_mode: 'HTML', reply_markup: keyboardNew(order.order_number), disable_web_page_preview: true });
+        if (r.ok) {
+          messageId = r.result.message_id;
+          if (shot) {
+            const pr = await tg('sendPhoto', photoForm({ reply_to_message_id: String(messageId) }));
+            if (pr.ok) fileId = pickFileId(pr.result);
+            else console.error(`telegram sendPhoto (reply) failed for ${order.order_number}:`, pr.description);
+          }
+        } else console.error(`telegram sendMessage failed for ${order.order_number}:`, r.description);
+      }
+    } catch (e) {
+      console.error(`telegram error for ${order.order_number}:`, errMsg(e));
     }
-  } catch (e) {
-    console.error(`telegram error for ${order.order_number}:`, errMsg(e));
-  }
 
-  if (messageId !== null || fileId !== null) {
-    const { error } = await db.from('orders').update({ tg_message_id: messageId, receipt_file_id: fileId, receipt_path: null }).eq('id', order.id);
-    if (error) console.error(`update tg ids failed for ${order.order_number}:`, error.message);
-    if (receiptPath && messageId !== null) await db.storage.from('pending-receipts').remove([receiptPath]);
-  } else {
-    console.error(`order ${order.order_number} saved but NOT delivered to Telegram (tg_message_id = null)`);
+    if (messageId !== null || fileId !== null) {
+      const { error } = await db.from('orders').update({ tg_message_id: messageId, receipt_file_id: fileId, receipt_path: null }).eq('id', order.id);
+      if (error) console.error(`update tg ids failed for ${order.order_number}:`, error.message);
+      if (receiptPath && messageId !== null) await db.storage.from('pending-receipts').remove([receiptPath]);
+    } else {
+      console.error(`order ${order.order_number} saved but NOT delivered to Telegram (tg_message_id = null)`);
+    }
+
+  })().catch((e) => console.error(`telegram step failed for ${order.order_number}:`, errMsg(e)));
+  let budgetTimer: ReturnType<typeof setTimeout> | undefined;
+  const tgDone = await Promise.race([tgWork.then(() => true), new Promise<boolean>((r) => (budgetTimer = setTimeout(() => r(false), TG_BUDGET_MS)))]);
+  clearTimeout(budgetTimer);
+  if (!tgDone) {
+    console.warn(`telegram is slow for ${order.order_number} (> ${TG_BUDGET_MS} ms): answering success, sending continues in background; tg-resend will deliver if it fails`);
+    (globalThis as any).EdgeRuntime?.waitUntil?.(tgWork);
   }
 
   // Запоминаем контакты клиента для автозаполнения (только у вошедшего).
