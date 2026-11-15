@@ -16,6 +16,36 @@ const ADMINS = new Set((Deno.env.get('ADMIN_TG_IDS') ?? '').split(',').map((s) =
 
 const ok = () => new Response('ok');
 
+/** Единственная реакция в личке: /start → приветствие по имени + кнопка web_app. Остальное игнорируется, в БД ничего не пишем. */
+const GREET: Record<string, (n: string) => string> = {
+  ru: (n) => `Привет, ${n}! 👋 Это NiniFood — домашние обеды с доставкой в Дананге 🍲 Нажмите кнопку ниже, чтобы посмотреть меню и заказать 👇`,
+  uk: (n) => `Привіт, ${n}! 👋 Це NiniFood — домашні обіди з доставкою в Дананзі 🍲 Натисніть кнопку нижче, щоб переглянути меню та замовити 👇`,
+  en: (n) => `Hi, ${n}! 👋 This is NiniFood — home-cooked lunches delivered in Da Nang 🍲 Tap the button below to see the menu and order 👇`,
+  vi: (n) => `Xin chào, ${n}! 👋 Đây là NiniFood — bữa trưa nhà làm giao tận nơi ở Đà Nẵng 🍲 Nhấn nút bên dưới để xem thực đơn và đặt món 👇`,
+};
+const lastGreet = new Map<string, number>(); // user id → время последнего ответа (в памяти, не в БД)
+async function handlePrivateStart(m: any) {
+  try {
+    if (!m || m.chat?.type !== 'private' || typeof m.text !== 'string' || !/^\/start(@\w+)?(\s|$)/.test(m.text)) return;
+    const uid = String(m.from?.id ?? '');
+    if (!uid || m.from?.is_bot) return;
+    const now = Date.now();
+    if (now - (lastGreet.get(uid) ?? 0) < 60_000) return;
+    lastGreet.set(uid, now);
+    if (lastGreet.size > 5000) for (const [k, t] of lastGreet) if (now - t > 60_000) lastGreet.delete(k);
+    const code = String(m.from?.language_code ?? '').toLowerCase().split('-')[0];
+    const lang = code in GREET ? code : 'en';
+    const name = String(m.from?.first_name ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 64) || (lang === 'ru' ? 'друг' : lang === 'uk' ? 'друже' : lang === 'vi' ? 'bạn' : 'friend');
+    await tg('sendMessage', {
+      chat_id: m.chat.id,
+      text: GREET[lang](name),
+      reply_markup: { inline_keyboard: [[{ text: '🍽 Открыть меню', web_app: { url: `https://ninifoodvn.com/?lang=${lang}` } }]] },
+    });
+  } catch (e) {
+    console.error('private start failed:', errMsg(e));
+  }
+}
+
 /**
  * Доступ в группе курьера по Telegram user id (не по нику): courier_tg_ids — кнопки маршрута; courier_note_ids — ещё и «📝 Комментарий»; админы (ADMIN_TG_IDS) — всё.
  * Списки лежат в settings (Настройки → Курьеры), не в коде. На права в других группах не влияет.
@@ -46,7 +76,10 @@ Deno.serve(async (req) => {
   const ours = new Set(['ORDERS_CHAT_ID', 'KITCHEN_CHAT_ID', 'COURIER_CHAT_ID', 'RENEWALS_CHAT_ID'].map((k) => Deno.env.get(k) ?? '').filter(Boolean));
   const chat = update.message?.chat ?? update.edited_message?.chat ?? update.callback_query?.message?.chat ?? update.my_chat_member?.chat ?? update.channel_post?.chat ?? null;
   if (chat) {
-    if (chat.type === 'private') return ok();
+    if (chat.type === 'private') {
+      await handlePrivateStart(update.message);
+      return ok();
+    }
     if (!ours.has(String(chat.id))) {
       // Наша группа стала супергруппой (новый chat_id): запоминаем новый id в settings.extra_chat_ids (чтобы не выйти из своей группы) и просим обновить секрет.
       const from = String(update.message?.migrate_from_chat_id ?? '');
