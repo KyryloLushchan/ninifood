@@ -293,6 +293,18 @@ Deno.serve(async (req) => {
     if (error) console.error(`ad_visits insert failed for ${order.order_number}:`, error.message);
   }
 
+  // Копия скриншота в закрытом бакете: если отправка в Telegram сорвётся, tg-resend досылет заказ вместе со скриншотом (после успеха объект удаляется).
+  let receiptPath: string | null = null;
+  if (shot) {
+    const path = `${order.id}.${shot.type === 'image/png' ? 'png' : 'jpg'}`;
+    const { error: upErr } = await db.storage.from('pending-receipts').upload(path, shot, { contentType: shot.type, upsert: true });
+    if (upErr) console.error(`receipt backup failed for ${order.order_number}:`, upErr.message);
+    else {
+      receiptPath = path;
+      await db.from('orders').update({ receipt_path: path }).eq('id', order.id);
+    }
+  }
+
   // ── Telegram ──
   const row: OrderRow = { order_number: order.order_number, type, telegram, phone, address, place_id, lat, lng, hotel: hotel || null, comment: comment || null, payment_method: payment, qty, total, delivery_total, discount_percent, discount_amount, lang, cutlery, is_vip: vip };
   const text = buildOrderText(row, days, undefined, await getDeliveryHours(db));
@@ -332,8 +344,9 @@ Deno.serve(async (req) => {
   }
 
   if (messageId !== null || fileId !== null) {
-    const { error } = await db.from('orders').update({ tg_message_id: messageId, receipt_file_id: fileId }).eq('id', order.id);
+    const { error } = await db.from('orders').update({ tg_message_id: messageId, receipt_file_id: fileId, receipt_path: null }).eq('id', order.id);
     if (error) console.error(`update tg ids failed for ${order.order_number}:`, error.message);
+    if (receiptPath && messageId !== null) await db.storage.from('pending-receipts').remove([receiptPath]);
   } else {
     console.error(`order ${order.order_number} saved but NOT delivered to Telegram (tg_message_id = null)`);
   }
