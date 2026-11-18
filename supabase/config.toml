@@ -432,3 +432,6 @@ verify_jwt = false
 
 [functions.resolve-point]
 verify_jwt = true
+
+[functions.kitchen-note-notify]
+verify_jwt = true

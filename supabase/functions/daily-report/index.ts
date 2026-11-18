@@ -4,6 +4,7 @@ import { buildCourierReport } from '../_shared/courier-report.ts';
 import { buildKitchenMessage, type KitchenTrip } from '../_shared/kitchen-report.ts';
 import { publishRoute } from '../_shared/courier-route.ts';
 import { loadDayPlan, loadDayRows } from '../_shared/day-plan.ts';
+import { loadSpecialNotes, routePlanFromRows, specialNoteLine } from '../_shared/client-notes.ts';
 import { hhmm, planDay } from '../_shared/trips.ts';
 import { isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
@@ -45,11 +46,13 @@ Deno.serve(async (req) => {
   let date = todayISO();
   let couriersOverride: 1 | 2 | null = null;
   let parts: 'courier' | 'kitchen' | 'both' = 'both';
+  let dry = false; // только cron-секрет: вернуть текст сообщения кухне, не отправляя (проверка)
   try {
     const body = await req.json();
     if (typeof body?.date === 'string') date = body.date;
     if (body?.couriers === 1 || body?.couriers === 2) couriersOverride = body.couriers;
     if (body?.parts === 'courier' || body?.parts === 'kitchen') parts = body.parts;
+    dry = viaCron && body?.dry === true && body?.parts === 'kitchen';
   } catch { /* без тела — сегодня, число курьеров из настроек */ }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ ok: false, code: 'bad_request' }, 400);
   if (isSunday(date)) return json({ ok: true, skipped: 'sunday' });
@@ -89,6 +92,7 @@ Deno.serve(async (req) => {
     let trips: KitchenTrip[][] | undefined;
     let unplaced = 0;
     let taxiQty = 0;
+    let routePlan: ReturnType<typeof routePlanFromRows> = null;
     try {
       const p = await loadPlan(rows);
       if (p.kitchen) {
@@ -96,6 +100,7 @@ Deno.serve(async (req) => {
         trips = plan.couriers.map((c) => c.trips.map((t) => ({ portions: t.portions, pending: t.stops.reduce((n, s) => n + s.stop.items.filter((x) => x.status === 'new').reduce((a, x) => a + x.qty, 0), 0) })));
         unplaced = plan.noPoint.reduce((n, d) => n + d.qty, 0);
         taxiQty = plan.taxi.reduce((n, d) => n + d.qty, 0);
+        routePlan = routePlanFromRows(p);
       }
     } catch (e) {
       console.error('daily-report kitchen trips failed:', errMsg(e)); // сообщение уйдёт без рейсов
@@ -104,7 +109,10 @@ Deno.serve(async (req) => {
     const { data: nt, error: ntErr } = await db.from('kitchen_notes').select('text').eq('date', date).order('id');
     if (ntErr) console.error('daily-report kitchen notes failed:', ntErr.message);
     const notes = (nt ?? []).map((n: { text: string }) => String(n.text).trim()).filter(Boolean);
-    const res = await tg('sendMessage', { chat_id: kitchenChat, text: buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced, notes, taxiQty), parse_mode: 'HTML', disable_web_page_preview: true });
+    const special = (await loadSpecialNotes(db, rows, routePlan)).map(specialNoteLine); // постоянные комментарии клиентов; ошибка → без блока
+    const kitchenText = buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced, notes, taxiQty, special);
+    if (dry) return { ok: true as const, dry: kitchenText };
+    const res = await tg('sendMessage', { chat_id: kitchenChat, text: kitchenText, parse_mode: 'HTML', disable_web_page_preview: true });
     if (!res.ok) {
       console.error(`daily-report kitchen telegram failed for ${date}:`, res.description);
       await warnOrders(`Не удалось отправить порции в NiniFood Ops (${esc(String(res.description ?? 'ошибка Telegram'))}).${chatHint(res.description, 'KITCHEN_CHAT_ID')}`);

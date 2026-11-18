@@ -17,6 +17,7 @@ import { TaxiToggle } from './TaxiToggle';
 import { useReadOnly } from './role';
 import { PortionsEditor } from './PortionsEditor';
 import { RestoreOrder } from './RestoreOrder';
+import { ClientKitchenNote } from './ClientKitchenNote';
 
 interface Surcharge { id: number; amount: number; status: 'pending' | 'paid' | 'cash'; created_at: string; paid_at: string | null }
 interface Edit { id: number; created_at: string; created_by_email: string | null; kind: 'portions' | 'address'; changes: { address_from?: string; address_to?: string }; old_portions: number; new_portions: number; old_total: number; new_total: number }
@@ -228,6 +229,7 @@ export function OrderCard({
             </a>
           )}
           {o.taxi && <div className="font-bold">🚕 Такси — не входит в рейсы курьера</div>}
+          <ClientKitchenNote o={o} onNotice={onNotice} />
           {!readOnly && (
             <>
           <div className="mt-2 flex flex-wrap gap-2">

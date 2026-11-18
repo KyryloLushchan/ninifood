@@ -12,9 +12,10 @@ export interface KitchenTrip {
  * trips — порции по рейсам (по курьерам; рейсы строятся и по неподтверждённым заказам, у них «⏳»): «🚚 Рейс 1 — 9 · Рейс 2 — 2 (⏳ 1)»;
  * unplaced — порции доставок без координат (в рейсы не входят).
  * taxi — порции заказов «Такси» (они в итоге уже учтены, но в рейсы не входят).
+ * special — «Особые пометки» (постоянные комментарии клиентов, `_shared/client-notes.ts`): отдельный блок в самом конце.
  * notes — заметки кухне на эту дату (таблица kitchen_notes): по строке «📝 …» в конце; порции и заказы не меняют.
  */
-export function buildKitchenMessage(date: string, portions: number, extra: number, cutlery: number, trips?: KitchenTrip[][], unplaced = 0, notes: string[] = [], taxi = 0): string {
+export function buildKitchenMessage(date: string, portions: number, extra: number, cutlery: number, trips?: KitchenTrip[][], unplaced = 0, notes: string[] = [], taxi = 0, special: string[] = []): string {
   const label = labelRu(date).replace(' ', ', ');
   const lines = [`🍱 <b>Порции на ${label}: ${portions} + ${extra} = ${portions + extra}</b>`];
   if (cutlery > 0) lines.push(`🍴 Приборов: ${cutlery}`);
@@ -24,5 +25,6 @@ export function buildKitchenMessage(date: string, portions: number, extra: numbe
   if (unplaced > 0) lines.push(`📍 Без точки на карте: ${unplaced}`);
   if (taxi > 0) lines.push(`🚕 Такси: ${taxi}`);
   for (const n of notes) lines.push(`📝 ${esc(n)}`);
+  if (special.length) lines.push('', '📝 <b>Особые пометки:</b>', ...special); // special — уже готовые экранированные строки (client-notes.ts)
   return lines.join('\n');
 }
