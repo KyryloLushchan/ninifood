@@ -1,6 +1,7 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
+import { loadLastDay } from '../_shared/last-day.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { clientIp, sha256hex, verifyTurnstile } from '../_shared/security.ts';
 import '../_shared/redact.ts';
@@ -122,12 +123,13 @@ Deno.serve(async (req) => {
 
   // Окно с сегодняшнего дня (VIP видит сегодня); точную проверку по правам всё равно делает send-order.
   const today = todayISO();
-  const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i)).filter((d) => !isSunday(d));
+  const lastDay = await loadLastDay(db);
+  const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i)).filter((d) => !isSunday(d) && (!lastDay || d <= lastDay));
   const allowed = new Set(window);
   const days: string[] = Array.isArray(p.days) ? [...new Set<string>(p.days.map(String))].sort() : [];
   if (days.length < 1 || days.length > WINDOW_DAYS || !days.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && allowed.has(d))) return json({ ok: false, code: 'bad_days' }, 400);
   if (type === 'single' && days.length > BOOKABLE_DAYS + 1) return json({ ok: false, code: 'bad_days' }, 400);
-  if (type === 'subscription' && days.length < SUB_MIN_DAYS) return json({ ok: false, code: 'bad_days' }, 400);
+  if (type === 'subscription' && days.length < Math.min(SUB_MIN_DAYS, window.filter((d) => d > today).length)) return json({ ok: false, code: 'bad_days' }, 400);
 
   const geoOk = inDanang(Number(p.lat), Number(p.lng));
   const payload = {

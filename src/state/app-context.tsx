@@ -84,6 +84,8 @@ interface AppValue {
   nearestDay: string | null;
   /** Дни Пн–Сб ближайших 2 недель (кроме сегодня) — кандидаты для подписки, независимо от наличия меню. */
   subscriptionDays: string[];
+  /** Минимум дней подписки: 5, а в конце срока доставки (до «последнего дня» осталось меньше) — сколько осталось. */
+  subMinDays: number;
 
   orderType: OrderType;
   setOrderType: (t: OrderType) => void;
@@ -360,12 +362,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [today]);
 
   // Доступные дни — по календарю (не сегодня, не воскресенье), независимо от наличия меню.
+  const lastDay = siteSettings.lastDeliveryDate; // «Последний день доставки» (админка → Настройки): дни позже не показываем
   const availableDays = useMemo(
     () =>
       today
-        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + (isVip ? 0 : 1))).filter((d) => !isSunday(d))
+        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + (isVip ? 0 : 1))).filter((d) => !isSunday(d) && (!lastDay || d <= lastDay))
         : [],
-    [today, isVip],
+    [today, isVip, lastDay],
   );
   const bookableDays = useMemo(() => availableDays.slice(0, BOOKABLE_DAYS), [availableDays]);
   const nearestDay = availableDays[0] ?? null;
@@ -375,16 +378,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const subscriptionDays = useMemo(
     () =>
       today
-        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + (isVip ? 0 : 1))).filter((d) => !isSunday(d))
+        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + (isVip ? 0 : 1))).filter((d) => !isSunday(d) && (!lastDay || d <= lastDay))
         : [],
-    [today, isVip],
+    [today, isVip, lastDay],
   );
+  // Подписка — от 5 дней, но если до последнего дня доставки осталось меньше — достаточно оставшихся (минимум 1).
+  const subMinDays = Math.max(1, Math.min(SUB_MIN_DAYS, subscriptionDays.length));
   const subscriptionSet = useMemo(() => new Set(subscriptionDays), [subscriptionDays]);
 
   const onceDays = useMemo(() => onceDaysRaw.filter((d) => bookableSet.has(d)).sort(), [onceDaysRaw, bookableSet]);
   const subDays = useMemo(
-    () => (subDaysRaw ? subDaysRaw.filter((d) => subscriptionSet.has(d)) : subscriptionDays.slice(0, SUB_MIN_DAYS)).sort(),
-    [subDaysRaw, subscriptionSet, subscriptionDays],
+    () => (subDaysRaw ? subDaysRaw.filter((d) => subscriptionSet.has(d)) : subscriptionDays.slice(0, subMinDays)).sort(),
+    [subDaysRaw, subscriptionSet, subscriptionDays, subMinDays],
   );
 
   const days = orderType === 'once' ? onceDays : subDays;
@@ -589,6 +594,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     menuLoaded,
     settings: siteSettings,
     availableDays,
+    subMinDays,
     bookableDays,
     nearestDay,
     subscriptionDays,

@@ -46,7 +46,7 @@ function HeroCollage({ dishes }: { dishes?: { photo: string | null }[] }) {
 
 export function Home() {
   const { t, lang } = useI18n();
-  const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub, isVip } = useApp();
+  const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub, isVip, subscriptionDays } = useApp();
   const hours = { from: settings.deliveryFrom, to: settings.deliveryTo };
   const [tab, setTab] = useState<string | null>(null);
   const wide = useWide();
@@ -283,7 +283,7 @@ export function Home() {
           <div className="text-[15px] leading-normal text-ink-onDark">
             {t('sub.cardText')}
           </div>
-          <Button variant="light" size="md" className="mt-1" onClick={startSub}>
+          <Button variant="light" size="md" className="mt-1" disabled={!!today && !subscriptionDays.length} onClick={startSub}>
             {t('sub.cardCta')}
           </Button>
         </div>

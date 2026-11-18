@@ -128,7 +128,7 @@ function OnceDays() {
 
 function SubDays() {
   const { t, lang } = useI18n();
-  const { subscriptionDays, subDays, toggleSubDay } = useApp();
+  const { subscriptionDays, subDays, toggleSubDay, subMinDays } = useApp();
   const count = subDays.length;
 
 
@@ -137,7 +137,7 @@ function SubDays() {
       <div className="flex items-center justify-between">
         <div className="text-[17px] font-extrabold">{t('sub.pickTitle')}</div>
         <div className="flex items-center gap-2">
-          <div className={`text-[15px] font-extrabold ${count >= SUB_MIN_DAYS ? 'text-success' : 'text-accent'}`}>{t('sub.count', { n: count })}</div>
+          <div className={`text-[15px] font-extrabold ${count >= subMinDays ? 'text-success' : 'text-accent'}`}>{t('sub.count', { n: count })}</div>
         </div>
       </div>
       <div className="-mt-1 text-[13px] text-ink-muted">{t('sub.autoHint')}</div>
@@ -148,7 +148,7 @@ function SubDays() {
 
 function OrderBar() {
   const { t, pl } = useI18n();
-  const { orderType, onceDays, subDays, portions, sum, go } = useApp();
+  const { orderType, onceDays, subDays, portions, sum, go, subMinDays } = useApp();
 
   if (orderType === 'once') {
     const n = onceDays.length;
@@ -161,7 +161,7 @@ function OrderBar() {
       </BottomBar>
     );
   }
-  const left = SUB_MIN_DAYS - subDays.length;
+  const left = subMinDays - subDays.length;
   return (
     <BottomBar compact>
       <OrderSummary compact sum={sum} title={`${t('summary.food')} · ${subDays.length} ${pl('unit.day', subDays.length)} × ${portions} ${pl('unit.portion', portions)}`} />

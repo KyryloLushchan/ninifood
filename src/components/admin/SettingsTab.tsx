@@ -180,8 +180,10 @@ export function SettingsTab() {
       return +h * 60 + +m;
     };
     if (mins('delivery_from') >= mins('delivery_to')) return setError('«Доставка с» должна быть раньше «Доставка до».');
+    const last = (values.last_delivery_date ?? '').trim();
+    if (last && (!/^\d{4}-\d{2}-\d{2}$/.test(last) || Number.isNaN(Date.parse(last)))) return setError('Проверьте поле: Последний день доставки');
     setBusy(true);
-    const rows = FIELDS.map((f) => ({ key: f.key, value: values[f.key].trim(), is_public: true }));
+    const rows = [...FIELDS.map((f) => ({ key: f.key, value: values[f.key].trim(), is_public: true })), { key: 'last_delivery_date', value: last, is_public: true }];
     const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
     setBusy(false);
     if (error) setError(ruError(error.message));
@@ -199,7 +201,7 @@ export function SettingsTab() {
     );
     return (
       <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
-        <Card className="divide-y divide-line">{FIELDS.map((f) => row(f.label, values[f.key]))}</Card>
+        <Card className="divide-y divide-line">{FIELDS.map((f) => row(f.label, values[f.key]))}{row('Последний день доставки', values.last_delivery_date)}</Card>
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">Курьеры</div>
           {KITCHEN.map((f) => row(f.label, values[f.key]))}
@@ -243,6 +245,10 @@ export function SettingsTab() {
             />
           </div>
         ))}
+        <div>
+          <Label>Последний день доставки (дни позже нельзя заказать; пусто — без ограничения)</Label>
+          <input className={inputCls} type="date" value={values.last_delivery_date ?? ''} onChange={(e) => setValues({ ...values, last_delivery_date: e.target.value })} />
+        </div>
       </Card>
       <Err>{error}</Err>
       {msg && <div className="rounded-chip bg-success-bg px-3 py-2 text-sm font-bold text-success">{msg}</div>}

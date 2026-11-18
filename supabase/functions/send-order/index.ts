@@ -1,6 +1,7 @@
 import { discountAmount } from '../_shared/discount.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
+import { loadLastDay } from '../_shared/last-day.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { resolveOrderPoint } from '../_shared/maps-link.ts';
 import { buildOrderText, getDeliveryHours, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
@@ -180,11 +181,12 @@ Deno.serve(async (req) => {
 
   const today = todayISO();
   // VIP (вошёл по email из списка): окно начинается с сегодняшнего дня, без ограничения по времени; воскресенье — нельзя.
-  const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i + (vip ? 0 : 1))).filter((d) => !isSunday(d));
+  const lastDay = await loadLastDay(db); // «Последний день доставки»: дни позже него не принимаем, даже в обход сайта
+  const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i + (vip ? 0 : 1))).filter((d) => !isSunday(d) && (!lastDay || d <= lastDay));
   const days: string[] = Array.isArray(p.days) ? [...new Set<string>(p.days.map(String))].sort() : [];
   const allowed = new Set(type === 'single' ? window.slice(0, BOOKABLE_DAYS) : window);
   if (days.length < 1 || !days.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && allowed.has(d))) return fail('bad_days');
-  if (type === 'subscription' && days.length < SUB_MIN_DAYS) return fail('bad_days');
+  if (type === 'subscription' && days.length < Math.min(SUB_MIN_DAYS, window.length)) return fail('bad_days'); // в конце срока — только оставшиеся дни (меньше 5)
 
   let shot: File | null = null;
   if (payment !== 'cash') {

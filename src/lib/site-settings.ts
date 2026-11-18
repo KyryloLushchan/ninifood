@@ -11,6 +11,8 @@ export interface SiteSettings {
   telegramUrl: string;
   /** @username из telegramUrl (t.me/username) — для подписи ссылок. */
   telegramHandle: string;
+  /** Последний день доставки «ГГГГ-ММ-ДД» (settings.last_delivery_date); null — без ограничения. Дни позже в календаре не показываются. */
+  lastDeliveryDate: string | null;
 }
 
 export function handleFromUrl(url: string, fallback: string): string {
@@ -27,6 +29,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   deliveryTo: DELIVERY_TO,
   telegramUrl: CONTACTS.telegramUrl,
   telegramHandle: CONTACTS.telegramHandle,
+  lastDeliveryDate: null,
 };
 
 /** Публичные настройки из таблицы settings (anon видит только is_public). */
@@ -48,5 +51,6 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
     deliveryTo: time(m.delivery_to, DEFAULT_SETTINGS.deliveryTo),
     telegramUrl: m.telegram_url || DEFAULT_SETTINGS.telegramUrl,
     telegramHandle: handleFromUrl(m.telegram_url || '', DEFAULT_SETTINGS.telegramHandle),
+    lastDeliveryDate: /^\d{4}-\d{2}-\d{2}$/.test((m.last_delivery_date ?? '').trim()) ? m.last_delivery_date.trim() : null,
   };
 }
