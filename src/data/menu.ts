@@ -34,7 +34,6 @@ interface DishRow {
   name_ua: string;
   name_ru: string;
   name_en: string;
-  name_vi: string;
   photo_url: string | null;
   weight_label: string | null;
   kcal: number | null;
@@ -52,7 +51,7 @@ interface DishRow {
 export async function fetchMenu(today: string): Promise<Menu> {
   const { data, error } = await supabase
     .from('menu_dishes')
-    .select('weekday, position, name_ua, name_ru, name_en, name_vi, photo_url, weight_label, kcal, protein, fat, carbs')
+    .select('weekday, position, name_ua, name_ru, name_en, photo_url, weight_label, kcal, protein, fat, carbs')
     .order('weekday')
     .order('position');
   if (error || !data) {
@@ -66,7 +65,7 @@ export async function fetchMenu(today: string): Promise<Menu> {
     const full = r.kcal != null && r.protein != null && r.fat != null && r.carbs != null;
     (byWeekday[r.weekday] ??= []).push({
       type,
-      name: { ua: r.name_ua, ru: r.name_ru, en: r.name_en, vi: r.name_vi },
+      name: { ua: r.name_ua, ru: r.name_ru, en: r.name_en },
       photo: r.photo_url ?? PHOTOS.dishFallback,
       weight: r.weight_label,
       nutrition: full ? { kcal: r.kcal!, protein: r.protein!, fat: r.fat!, carbs: r.carbs! } : null,

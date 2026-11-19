@@ -9,20 +9,20 @@ const base: OrderRow = { order_number: 'NF-1099', type: 'subscription', telegram
 const days = ['2026-11-04', '2026-11-05', '2026-11-06', '2026-11-07', '2026-11-09', '2026-11-10'];
 const H = '13:00–16:00';
 const strip = (t: string) => t.replace(/<[^>]+>/g, '');
-for (const lang of ['ru', 'ua', 'en', 'vi']) {
+for (const lang of ['ru', 'ua', 'en']) {
   console.log(`\n━━ ${lang.toUpperCase()} ━━`);
   const text = buildOrderText({ ...base, lang }, days, `${statusLabel('confirmed', lang)} — @boss, 03.11 21:00`);
   console.log(strip(text).split('\n').map((l) => '   ' + l).join('\n'));
   ok(!/Язык|Language|Ngôn ngữ|Мова|🌐/.test(text) && !/\b(RU|UA|EN|VI)\b$/m.test(strip(text)), `${lang}: строки с языком нет`);
   if (lang === 'en' || lang === 'vi') ok(!/Заказ|Тип|Дни|Порций|Приборы|Обеды|Доставка|Итого|Оплата|Адрес|Отель|Комментарий|Подписка|Спасибо|открыть|Карта/.test(text.replace(/Hotel Sun|Call me/g, '')), `${lang}: русских подписей в тексте нет`);
 }
-for (const [lang, word] of [['ru', 'доставка'], ['ua', 'доставка'], ['en', 'delivery'], ['vi', 'giao hàng']]) {
+for (const [lang, word] of [['ru', 'доставка'], ['ua', 'доставка'], ['en', 'delivery']]) {
   const line = strip(buildOrderText({ ...base, lang }, days.slice(0, 2), undefined, H)).split('\n').find((l) => l.startsWith('📅')) ?? '';
   console.log('   ' + line);
   ok(line.endsWith(` — ${word} ${H}`), `${lang}: время доставки в строке дней`);
 }
 ok(!/доставка 13|delivery 13/.test(buildOrderText(base, days)), 'без настроек времени нет');
-for (const [lang, w] of [['ru', 'адрес без точки на карте — проверьте'], ['ua', 'адреса без точки на мапі — перевірте'], ['en', 'address has no map point — please check'], ['vi', 'địa chỉ chưa có điểm trên bản đồ']]) {
+for (const [lang, w] of [['ru', 'адрес без точки на карте — проверьте'], ['ua', 'адреса без точки на мапі — перевірте'], ['en', 'address has no map point — please check']]) {
   const noPt = buildOrderText({ ...base, lang, lat: null, lng: null, place_id: null }, days.slice(0, 1));
   ok(noPt.includes('⚠️ ' + w) && !buildOrderText({ ...base, lang }, days.slice(0, 1)).includes('⚠️'), `${lang}: без координат — «⚠️ ${w}», с координатами предупреждения нет`);
 }
@@ -31,12 +31,11 @@ ok(t(null) === t('ru') && t('xx') === t('ru'), 'нет языка / неизве
 const one = buildOrderText({ ...base, lang: 'en', type: 'single', discount_amount: 0, cutlery: false, payment_method: 'cash', hotel: null, comment: null, lat: null, lng: null }, ['2026-11-04']);
 console.log('\n━━ EN, разовый, наличные ━━\n' + strip(one).split('\n').map((l) => '   ' + l).join('\n'));
 ok(/Type: One-time/.test(one) && /Payment: cash — to collect: <b>/.test(one), 'EN разовый и наличные');
-const five = buildOrderText({ ...base, lang: 'vi' }, days.slice(0, 5));
-ok(/Gói 5 ngày/.test(five) && /Gói 5 ngày \+ 1 ngày thêm \(tổng 6\)/.test(t('vi')), 'VI подписка 5 и 5+доп');
+ok(t('vi') === t('en') && dict('vi') === dict('en'), 'vi → английский (вьетнамского нет)');
 const kb = JSON.stringify([keyboardNew('NF-1'), keyboardConfirmed('NF-1')]);
 ok(kb.includes('✅ Подтвердить') && kb.includes('❌ Отклонить') && kb.includes('↩️ Отменить'), 'кнопки управления — по-русски, как раньше');
 console.log('\n━━ уведомления ━━');
-for (const l of ['ru', 'ua', 'en', 'vi']) {
+for (const l of ['ru', 'ua', 'en']) {
   const d = dict(l);
   const p = d.portionsChanged('NF-1099', 2, 3, diffLine(150_000, '150 000 ₫', l));
   const r = d.portionsChanged('NF-1099', 3, 2, diffLine(-150_000, '-150 000 ₫', l));

@@ -13,10 +13,10 @@ const ok = (c, m) => { if (!c) { fails++; console.log('  ❌', m); } else consol
 (async () => {
   const browser = await puppeteer.launch({ executablePath: '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless: 'new', args: ['--no-sandbox'] });
   const cases = [];
-  for (const lang of ['ua', 'ru', 'en', 'vi']) for (const [w, mobile] of [[390, true], [360, true], [1280, false]]) cases.push({ lang, w, mobile, firstVisit: false });
+  for (const lang of ['ua', 'ru', 'en']) for (const [w, mobile] of [[390, true], [360, true], [1280, false]]) cases.push({ lang, w, mobile, firstVisit: false });
   cases.push({ lang: 'ru', w: 390, mobile: true, firstVisit: true }, { lang: 'en', w: 1280, mobile: false, firstVisit: true });
   // ссылка из напоминания: /?lang=xx#subscription на чистом браузере — язык выставлен и сохранён, шторки языка нет
-  for (const [q, lang] of [['uk', 'ua'], ['ua', 'ua'], ['ru', 'ru'], ['en', 'en'], ['vi', 'vi']]) for (const [w, mobile] of [[390, true], [1280, false]]) cases.push({ lang, q, w, mobile, firstVisit: true, viaUrl: true });
+  for (const [q, lang] of [['uk', 'ua'], ['ua', 'ua'], ['ru', 'ru'], ['en', 'en'], ['vi', 'en']]) for (const [w, mobile] of [[390, true], [1280, false]]) cases.push({ lang, q, w, mobile, firstVisit: true, viaUrl: true });
   cases.push({ lang: 'ua', q: 'xx', w: 390, mobile: true, firstVisit: true, viaUrl: true, invalid: true });
   for (const c of cases) {
     const ctx = await browser.createBrowserContext();
@@ -35,7 +35,7 @@ const ok = (c, m) => { if (!c) { fails++; console.log('  ❌', m); } else consol
     await sleep(1500);
     if (c.viaUrl && !c.invalid) {
       const v = await page.evaluate(() => ({ dialog: !!document.querySelector('[role=dialog]'), saved: localStorage.getItem('ninifood.lang'), search: location.search, hash: location.hash, html: document.documentElement.lang, tab: (document.querySelector('[role=tab][aria-selected=true]') || {}).textContent }));
-      const rx = { ua: /Підписка/, ru: /Подписка/, en: /subscription/i, vi: /Gói/ }[c.lang];
+      const rx = { ua: /Підписка/, ru: /Подписка/, en: /subscription/i }[c.lang];
       ok(!v.dialog && v.saved === c.lang && v.search === '' && rx.test(v.tab || ''), `?lang=${c.q}/${c.w}: язык ${c.lang} выставлен и сохранён, шторки нет, параметр убран, «Подписка» («${(v.tab || '').trim()}»)`);
     } else if (c.invalid) {
       const v = await page.evaluate(() => ({ dialog: !!document.querySelector('[role=dialog]'), saved: localStorage.getItem('ninifood.lang') }));
@@ -44,7 +44,7 @@ const ok = (c, m) => { if (!c) { fails++; console.log('  ❌', m); } else consol
       continue;
     } else if (c.firstVisit) {
       // шторка выбора языка поверх экрана заказа: выбираем язык — тип «Подписка» остаётся
-      await page.evaluate((lang) => { const flag = { ua: '🇺🇦', ru: '🇷🇺', en: '🇬🇧', vi: '🇻🇳' }[lang]; const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim().startsWith(flag)); b && b.click(); }, c.lang);
+      await page.evaluate((lang) => { const flag = { ua: '🇺🇦', ru: '🇷🇺', en: '🇬🇧' }[lang]; const b = [...document.querySelectorAll('button')].find((x) => x.textContent.trim().startsWith(flag)); b && b.click(); }, c.lang);
       await sleep(300);
       await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((x) => /(Продовжити|Продолжить|Continue|Tiếp tục|Підтвердити|Подтвердить|Confirm|Xác nhận)/i.test(x.textContent)); b && b.click(); });
       await sleep(800);

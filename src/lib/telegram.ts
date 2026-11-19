@@ -57,9 +57,9 @@ export function telegramLaunch(): { inside: boolean; user: TgUser | null } {
 }
 
 /** Язык сайта по language_code пользователя Telegram (uk → ua); неизвестный — undefined (тогда обычный выбор языка). */
-export const telegramLang = (code?: string): 'ua' | 'ru' | 'en' | 'vi' | undefined => {
+export const telegramLang = (code?: string): 'ua' | 'ru' | 'en' | undefined => {
   const c = (code ?? '').toLowerCase().slice(0, 2);
-  return c === 'uk' ? 'ua' : c === 'ru' ? 'ru' : c === 'en' ? 'en' : c === 'vi' ? 'vi' : undefined;
+  return c === 'uk' ? 'ua' : c === 'ru' ? 'ru' : c === 'en' || c === 'vi' ? 'en' : undefined;
 };
 
 /** Ник пользователя Telegram («@name») для автозаполнения; нет ника — пустая строка. */

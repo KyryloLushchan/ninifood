@@ -1,7 +1,7 @@
 import { TIMEZONE } from '@/config/site';
 import type { Lang } from '@/i18n';
 
-const LOCALES: Record<Lang, string> = { ua: 'uk', ru: 'ru', en: 'en', vi: 'vi' };
+const LOCALES: Record<Lang, string> = { ua: 'uk', ru: 'ru', en: 'en' };
 
 /** Сегодняшняя дата YYYY-MM-DD в часовом поясе Дананга. */
 export function todayISO(now: Date = new Date()): string {

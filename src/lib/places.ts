@@ -16,7 +16,7 @@ export interface PlaceInfo {
 }
 
 const BASE = 'https://places.googleapis.com/v1';
-const API_LANG: Record<Lang, string> = { ua: 'en', ru: 'ru', en: 'en', vi: 'vi' };
+const API_LANG: Record<Lang, string> = { ua: 'en', ru: 'ru', en: 'en' };
 
 /** После 403/429 (квота, ключ) больше не дёргаем API до перезагрузки страницы. */
 let disabled = false;

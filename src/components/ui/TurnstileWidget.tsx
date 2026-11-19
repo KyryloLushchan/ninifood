@@ -17,7 +17,7 @@ declare global {
 }
 
 const SCRIPT = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
-const WIDGET_LANG: Record<Lang, string> = { ua: 'uk-ua', ru: 'ru-ru', en: 'en', vi: 'vi-vn' };
+const WIDGET_LANG: Record<Lang, string> = { ua: 'uk-ua', ru: 'ru-ru', en: 'en' };
 
 let scriptPromise: Promise<TurnstileApi> | null = null;
 function loadTurnstile(): Promise<TurnstileApi> {

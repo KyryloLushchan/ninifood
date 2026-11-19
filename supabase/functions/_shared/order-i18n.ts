@@ -1,9 +1,9 @@
-// Тексты сообщения о заказе в группе Orders и уведомлений по заказу — на языке заказа (orders.lang: ru/ua/en/vi; нет языка — ru).
+// Тексты сообщения о заказе в группе Orders и уведомлений по заказу — на языке заказа (orders.lang: ru/ua/en (vi → en); нет языка — ru).
 // Кнопки управления (✅ Подтвердить / ❌ Отклонить / ↩️ Отменить) и отчёты курьеру/кухне — по-русски, здесь их нет.
 import { dayOfWeek } from './dates.ts';
 
-export type OrderLang = 'ru' | 'ua' | 'en' | 'vi';
-export const orderLang = (l: string | null | undefined): OrderLang => (l === 'ua' || l === 'en' || l === 'vi' ? l : 'ru');
+export type OrderLang = 'ru' | 'ua' | 'en';
+export const orderLang = (l: string | null | undefined): OrderLang => (l === 'ua' || l === 'en' ? l : l === 'vi' ? 'en' : 'ru');
 
 interface Dict {
   wd: string[];
@@ -155,42 +155,6 @@ const D: Record<OrderLang, Dict> = {
     refund: 'refund',
     noSurcharge: 'no surcharge',
     addressChanged: (n, f, t) => `📍 Address changed ${n}: ${f} → ${t}`,
-  },
-  vi: {
-    wd: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-    title: 'Đơn hàng',
-    type: 'Loại',
-    once: 'Đặt lẻ',
-    sub: (n) => `Gói ${n} ngày`,
-    subExtra: (n) => `Gói 5 ngày + ${n - 5} ngày thêm (tổng ${n})`,
-    days: 'Ngày',
-    deliveryWord: 'giao hàng',
-    portions: (q, t) => `Số suất: <b>${q} mỗi ngày</b> (tổng ${t})`,
-    cutlery: 'Dụng cụ ăn: có',
-    lunches: 'Bữa trưa',
-    discount: (p) => `Giảm giá ${p}%`,
-    delivery: 'Giao hàng',
-    total: 'Tổng cộng',
-    payQr: 'Thanh toán: QR (đã đính kèm ảnh chụp)',
-    payOther: 'Thanh toán: cách khác (đã đính kèm ảnh chụp)',
-    payCash: 'Thanh toán: tiền mặt — cần thu:',
-    telegram: 'Telegram',
-    open: 'mở',
-    address: 'Địa chỉ',
-    map: 'Bản đồ',
-    noPoint: '⚠️ địa chỉ chưa có điểm trên bản đồ — vui lòng kiểm tra',
-    hotel: 'Khách sạn',
-    comment: 'Ghi chú',
-    confirmed: '✅ Đã xác nhận',
-    cancelled: '❌ Đã hủy',
-    rejected: '❌ Đã từ chối',
-    restored: '♻️ Đã khôi phục',
-    thanks: 'Cảm ơn bạn đã đặt hàng! 🙏',
-    portionsChanged: (n, a, b, m) => `✏️ Đã đổi đơn ${n}: ${a} → ${b} suất, ${m}`,
-    surcharge: 'phụ thu',
-    refund: 'hoàn tiền',
-    noSurcharge: 'không phụ thu',
-    addressChanged: (n, f, t) => `📍 Đã đổi địa chỉ ${n}: ${f} → ${t}`,
   },
 };
 

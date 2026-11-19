@@ -162,7 +162,7 @@ Deno.serve(async (req) => {
   const place_id = geoOk ? str(p.place_id, 300) || null : null;
   let lat: number | null = geoOk ? Number(p.lat) : null;
   let lng: number | null = geoOk ? Number(p.lng) : null;
-  const lang = ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? p.lang : null;
+  const lang = ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? (p.lang === 'vi' ? 'en' : p.lang) : null;
   const cutlery = p.cutlery === true; // одноразовые приборы (бесплатно), одно значение на все дни
   // Источник рекламы (ссылка с ?s=код): формат ^[a-z0-9-]{1,40}$, иначе игнорируем.
   const srcOk = (v: unknown) => (typeof v === 'string' && /^[a-z0-9-]{1,40}$/.test(v) ? v : null);

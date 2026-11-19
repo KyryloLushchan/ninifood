@@ -90,7 +90,7 @@ export function selectEntries(today: string, ending: EndingOrder[], future: Futu
 }
 
 /** Код языка в ссылке: ?lang=ru|uk|en|vi (`ua` в заказах → `uk`); нет языка — ru. */
-export const linkLang = (lang: string | null | undefined) => (lang === 'ua' || lang === 'uk' ? 'uk' : lang === 'en' ? 'en' : lang === 'vi' ? 'vi' : 'ru');
+export const linkLang = (lang: string | null | undefined) => (lang === 'ua' || lang === 'uk' ? 'uk' : lang === 'en' || lang === 'vi' ? 'en' : 'ru');
 
 /** Ссылка клиенту: сайт на языке заказа, сразу экран заказа «Подписка». */
 export const renewalLink = (lang?: string | null) => `${SITE_URL}/?lang=${linkLang(lang)}#subscription`;
@@ -100,30 +100,27 @@ const CLIENT_TEXT: Record<string, string> = {
   ru: 'Привет! Спасибо, что были с нами эту неделю 💛 Сегодня последний день вашей подписки NiniFood.\nНе оставайтесь без домашнего обеда — продлите подписку 👇',
   ua: 'Привіт! Дякуємо, що були з нами цього тижня 💛 Сьогодні останній день вашої підписки NiniFood.\nНе залишайтеся без домашнього обіду — продовжте підписку 👇',
   en: "Hi! Thanks for being with us this week 💛 Today is the last day of your NiniFood subscription.\nDon't miss out on a home-cooked lunch — renew your subscription 👇",
-  vi: 'Xin chào! Cảm ơn bạn đã đồng hành cùng NiniFood tuần này 💛 Hôm nay là ngày cuối cùng của gói đăng ký.\nĐừng bỏ lỡ bữa trưa nhà làm — hãy gia hạn gói nhé 👇',
 };
 /** Группа отзывов NiniFood — одна константа на все сообщения (продление и «первый разовый»). */
 export const REVIEWS_URL = 'https://t.me/+5WmNqxOYJuJhOWU6';
-const lk = (lang?: string | null): 'ru' | 'ua' | 'en' | 'vi' => (lang === 'ua' || lang === 'uk' ? 'ua' : lang === 'en' ? 'en' : lang === 'vi' ? 'vi' : 'ru');
-const REVIEWS_ASK: Record<'ru' | 'ua' | 'en' | 'vi', string> = {
+const lk = (lang?: string | null): 'ru' | 'ua' | 'en' => (lang === 'ua' || lang === 'uk' ? 'ua' : lang === 'en' || lang === 'vi' ? 'en' : 'ru');
+const REVIEWS_ASK: Record<'ru' | 'ua' | 'en', string> = {
   ru: 'Будем рады вашему отзыву 🙏 Присоединяйтесь к нашей группе: ',
   ua: 'Будемо раді вашому відгуку 🙏 Приєднуйтесь до нашої групи: ',
   en: "We'd love your feedback 🙏 Join our group: ",
-  vi: 'Rất mong nhận được đánh giá của bạn 🙏 Tham gia nhóm của chúng tôi: ',
 };
 /** Текст продления подписки: приглашение + ссылка + пустая строка и абзац про отзывы. */
-export const clientText = (lang?: string | null) => `${CLIENT_TEXT[lang === 'uk' ? 'ua' : (lang ?? '')] ?? CLIENT_TEXT.ru}\n${renewalLink(lang)}\n\n${REVIEWS_ASK[lk(lang)]}${REVIEWS_URL}`;
+export const clientText = (lang?: string | null) => `${CLIENT_TEXT[lk(lang)]}\n${renewalLink(lang)}\n\n${REVIEWS_ASK[lk(lang)]}${REVIEWS_URL}`;
 
 /** Цена обеда в подписке по-человечески для языка: 150 000 ₫ (ru/ua), 150,000 ₫ (en), 150.000 ₫ (vi). */
 export const priceText = (lang: string | null | undefined, n: number) => {
-  const g = String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, lk(lang) === 'en' ? ',' : lk(lang) === 'vi' ? '.' : ' ');
+  const g = String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, lk(lang) === 'en' ? ',' : ' ');
   return `${g} ₫`;
 };
-const FIRST_TXT: Record<'ru' | 'ua' | 'en' | 'vi', (price: string, link: string) => string> = {
+const FIRST_TXT: Record<'ru' | 'ua' | 'en', (price: string, link: string) => string> = {
   ru: (p, l) => `Привет! Надеемся, обед NiniFood вам понравился 😋🍲\nХотите домашний обед каждый день без забот? Оформите подписку от 5 дней — всего ${p} за обед 👇\n${l}\n\nПоделитесь впечатлениями в нашей группе отзывов 💬 ${REVIEWS_URL}`,
   ua: (p, l) => `Привіт! Сподіваємося, обід NiniFood вам сподобався 😋🍲\nХочете домашній обід щодня без клопотів? Оформіть підписку від 5 днів — лише ${p} за обід 👇\n${l}\n\nПоділіться враженнями в нашій групі відгуків 💬 ${REVIEWS_URL}`,
   en: (p, l) => `Hi! We hope you enjoyed your NiniFood lunch 😋🍲\nWant a home-cooked lunch every day, hassle-free? Get a subscription from 5 days — just ${p} per lunch 👇\n${l}\n\nShare your impressions in our reviews group 💬 ${REVIEWS_URL}`,
-  vi: (p, l) => `Xin chào! Hy vọng bạn đã thích bữa trưa NiniFood 😋🍲\nMuốn có bữa trưa nhà làm mỗi ngày mà không phải lo nghĩ? Đăng ký gói từ 5 ngày — chỉ ${p} mỗi bữa 👇\n${l}\n\nChia sẻ cảm nhận của bạn trong nhóm đánh giá 💬 ${REVIEWS_URL}`,
 };
 /** Текст после ПЕРВОГО разового заказа (язык последнего заказа клиента; нет языка — ru); perLunch — цена обеда в подписке (price_subscription / 5). */
 export const firstSingleText = (lang: string | null | undefined, perLunch: number) => FIRST_TXT[lk(lang)](priceText(lang, perLunch), renewalLink(lang));
@@ -264,11 +261,10 @@ export function selectFollowups(today: string, sent: SentReminder[], orders: Cli
   return out;
 }
 
-const AGAIN_TXT: Record<'ru' | 'ua' | 'en' | 'vi', (link: string, group: string) => string> = {
+const AGAIN_TXT: Record<'ru' | 'ua' | 'en', (link: string, group: string) => string> = {
   ru: (l, g) => `Голодны? 😋🍲 А ведь могли бы уже наслаждаться вкусным домашним обедом от NiniFood! 🥗🍛✨\nЗакажите на завтра — мы всё приготовим и привезём 🛵💨\n👉 ${l}\n\nЗагляните в отзывы наших гостей 💬⭐ ${g}`,
   ua: (l, g) => `Голодні? 😋🍲 А могли б уже насолоджуватися смачним домашнім обідом від NiniFood! 🥗🍛✨\nЗамовте на завтра — ми все приготуємо й привеземо 🛵💨\n👉 ${l}\n\nЗазирніть у відгуки наших гостей 💬⭐ ${g}`,
   en: (l, g) => `Hungry? 😋🍲 You could already be enjoying a delicious home-cooked lunch from NiniFood! 🥗🍛✨\nOrder for tomorrow — we'll cook it and bring it to you 🛵💨\n👉 ${l}\n\nCheck out what our guests say 💬⭐ ${g}`,
-  vi: (l, g) => `Đói bụng chưa? 😋🍲 Bạn đã có thể thưởng thức bữa trưa nhà làm thơm ngon từ NiniFood rồi đấy! 🥗🍛✨\nĐặt cho ngày mai nhé — chúng tôi sẽ nấu và giao tận nơi 🛵💨\n👉 ${l}\n\nXem đánh giá của khách hàng 💬⭐ ${g}`,
 };
 /** Текст клиенту на языке последнего заказа (нет языка — ru); ссылка — сайт с ?lang=. */
 export const againText = (lang?: string | null) => AGAIN_TXT[lk(lang)](`${SITE_URL}/?lang=${linkLang(lang)}`, REVIEWS_URL);

@@ -21,7 +21,6 @@ const GREET: Record<string, (n: string) => string> = {
   ru: (n) => `Привет, ${n}! 👋 Это NiniFood — домашние обеды с доставкой в Дананге 🍲 Нажмите кнопку ниже, чтобы посмотреть меню и заказать 👇`,
   uk: (n) => `Привіт, ${n}! 👋 Це NiniFood — домашні обіди з доставкою в Дананзі 🍲 Натисніть кнопку нижче, щоб переглянути меню та замовити 👇`,
   en: (n) => `Hi, ${n}! 👋 This is NiniFood — home-cooked lunches delivered in Da Nang 🍲 Tap the button below to see the menu and order 👇`,
-  vi: (n) => `Xin chào, ${n}! 👋 Đây là NiniFood — bữa trưa nhà làm giao tận nơi ở Đà Nẵng 🍲 Nhấn nút bên dưới để xem thực đơn và đặt món 👇`,
 };
 const lastGreet = new Map<string, number>(); // user id → время последнего ответа (в памяти, не в БД)
 async function handlePrivateStart(m: any) {
@@ -34,8 +33,8 @@ async function handlePrivateStart(m: any) {
     lastGreet.set(uid, now);
     if (lastGreet.size > 5000) for (const [k, t] of lastGreet) if (now - t > 60_000) lastGreet.delete(k);
     const code = String(m.from?.language_code ?? '').toLowerCase().split('-')[0];
-    const lang = code in GREET ? code : 'en';
-    const name = String(m.from?.first_name ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 64) || (lang === 'ru' ? 'друг' : lang === 'uk' ? 'друже' : lang === 'vi' ? 'bạn' : 'friend');
+    const lang = code in GREET ? code : 'en'; // vi и прочие → en
+    const name = String(m.from?.first_name ?? '').replace(/[\u0000-\u001f]/g, ' ').trim().slice(0, 64) || (lang === 'ru' ? 'друг' : lang === 'uk' ? 'друже' : 'friend');
     await tg('sendMessage', {
       chat_id: m.chat.id,
       text: GREET[lang](name),

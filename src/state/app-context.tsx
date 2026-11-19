@@ -307,7 +307,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setPayment(d.payment);
       setCutlery(d.cutlery === true);
       // Язык клиента с компьютера — только если на телефоне язык ещё не выбирали.
-      if (d.lang && ['ua', 'ru', 'en', 'vi'].includes(d.lang) && !localStorage.getItem('ninifood.lang')) langRef.current.confirmLang(d.lang as Lang);
+      if (d.lang && ['ua', 'ru', 'en', 'vi'].includes(d.lang) && !localStorage.getItem('ninifood.lang')) langRef.current.confirmLang((d.lang === 'vi' ? 'en' : d.lang) as Lang);
       setScreen(d.payment === 'cash' ? 'checkout' : 'payment');
       clean();
     });
@@ -332,7 +332,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setCutlery(d.cutlery === true);
       setRenewal({ code, phoneHint: d.phone_hint });
       setPhoneKept(!!d.phone_hint);
-      if (d.lang && ['ua', 'ru', 'en', 'vi'].includes(d.lang) && !localStorage.getItem('ninifood.lang')) langRef.current.confirmLang(d.lang as Lang);
+      if (d.lang && ['ua', 'ru', 'en', 'vi'].includes(d.lang) && !localStorage.getItem('ninifood.lang')) langRef.current.confirmLang((d.lang === 'vi' ? 'en' : d.lang) as Lang);
       setScreen('order');
     });
   }, []);

@@ -49,8 +49,8 @@ export function nickOf(raw: string): string | null {
   const h = raw.trim().replace(/^https?:\/\/(www\.)?t\.me\//i, '').replace(/^t\.me\//i, '').replace(/^@/, '');
   return /^[A-Za-z0-9_]{4,32}$/.test(h) ? h : null;
 }
-type L = 'ru' | 'ua' | 'en' | 'vi';
-const ln = (l?: string | null): L => (l === 'ua' || l === 'en' || l === 'vi' ? l : 'ru');
+type L = 'ru' | 'ua' | 'en';
+const ln = (l?: string | null): L => (l === 'ua' || l === 'en' ? l : l === 'vi' ? 'en' : 'ru');
 /**
  * Тексты клиенту (на языке заказа, нет языка — RU): «Через сколько буду» — шаблон с пустым местом для минут (курьер вписывает сам, пять пробелов «через     мин»);
  * «Заказ прибыл» — всегда полный текст с приветствием.
@@ -59,13 +59,11 @@ const ETA_TXT: Record<L, string> = {
   ru: 'Добрый день! 👋 Курьер NiniFood будет у вас через     мин 🛵💨',
   ua: "Добрий день! 👋 Кур'єр NiniFood буде у вас через     хв 🛵💨",
   en: 'Good afternoon! 👋 Your NiniFood courier will be there in     min 🛵💨',
-  vi: 'Xin chào! 👋 Shipper NiniFood sẽ đến trong     phút nữa 🛵💨',
 };
 const ARRIVED_FULL: Record<L, string> = {
   ru: 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛',
   ua: 'Добрий день! 👋 Ваше замовлення прибуло 🛵🍲 NiniFood бажає вам смачного! 😋💛',
   en: 'Good afternoon! 👋 Your order has arrived 🛵🍲 NiniFood wishes you a delicious meal! 😋💛',
-  vi: 'Xin chào! 👋 Đơn hàng của bạn đã đến 🛵🍲 NiniFood chúc bạn ngon miệng! 😋💛',
 };
 export const etaText = (lang: string | null | undefined) => ETA_TXT[ln(lang)];
 export const arrivedText = (lang: string | null | undefined) => ARRIVED_FULL[ln(lang)];

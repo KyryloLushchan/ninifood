@@ -9,13 +9,13 @@ const BASE = args[0];
 const OUT = path.resolve(args[1]);
 const opt = (n, d) => { const i = args.indexOf('--' + n); return i > -1 ? args[i + 1] : d; };
 const WIDTHS = opt('widths', '360,375,390,430').split(',').map(Number);
-const LANGS = opt('langs', 'ua,ru,en,vi').split(',');
+const LANGS = opt('langs', 'ua,ru,en').split(',');
 const ONLY = opt('only', '');
 const CONC = Number(opt('conc', '4'));
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const dict = {};
-for (const l of ['ua', 'ru', 'en', 'vi']) {
+for (const l of ['ua', 'ru', 'en']) {
   dict[l] = {};
   for (const line of fs.readFileSync(path.join(__dirname, '../../src/i18n', l + '.ts'), 'utf8').split('\n')) {
     const m = /^\s*'([^']+)':\s*(['"])(.*)\2,?\s*$/.exec(line);

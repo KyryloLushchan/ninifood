@@ -137,7 +137,7 @@ Deno.serve(async (req) => {
     days,
     portions: qty,
     payment,
-    lang: ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? p.lang : null,
+    lang: ['ua', 'ru', 'en', 'vi'].includes(p.lang) ? (p.lang === 'vi' ? 'en' : p.lang) : null,
     telegram,
     phone,
     address,

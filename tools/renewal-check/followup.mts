@@ -81,7 +81,7 @@ const a = by('anna_ru')!.text, o = by('olya_ua')!.text, l = by('lan_vi')!.text;
 ok(a.startsWith('@anna_ru\n\nГолодны? 😋🍲') && !/Повторное|NF-/.test(a), 'RU: первая строка и текст');
 ok(a.includes('👉 https://ninifoodvn.com/?lang=ru\n\nЗагляните в отзывы наших гостей 💬⭐ https://t.me/+5WmNqxOYJuJhOWU6'), 'RU: ссылка и группа отзывов');
 ok(o.startsWith('@olya_ua\n\nГолодні?') && o.includes('?lang=uk') && o.includes('Зазирніть у відгуки'), 'UA: первая строка, ?lang=uk, текст');
-ok(l.includes('Đói bụng chưa?') && l.includes('?lang=vi') && l.includes('Xem đánh giá'), 'VI: текст и ?lang=vi (заказ-отмена не считается)');
+ok(l.includes('Hungry?') && l.includes('?lang=en') && !l.includes('Đói'), 'VI → EN: текст и ?lang=en (заказ-отмена не считается)');
 const rowOf = (id: number) => store.renewal_sent.find((r) => r.id === id);
 ok(rowOf(1).followup_status === 'sent' && rowOf(3).followup_status === 'skipped' && rowOf(5).followup_at === null, 'отмечено: отправлено / пропущено; «ещё рано» не тронуто');
 

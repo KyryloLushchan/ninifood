@@ -148,7 +148,6 @@ const langs = [
   ['ru', 'Добрый день! 👋 Курьер NiniFood будет у вас через     мин 🛵💨', 'Добрый день! 👋 Ваш заказ прибыл 🛵🍲 NiniFood желает вам приятного аппетита! 😋💛'],
   ['ua', "Добрий день! 👋 Кур'єр NiniFood буде у вас через     хв 🛵💨", 'Добрий день! 👋 Ваше замовлення прибуло 🛵🍲 NiniFood бажає вам смачного! 😋💛'],
   ['en', 'Good afternoon! 👋 Your NiniFood courier will be there in     min 🛵💨', 'Good afternoon! 👋 Your order has arrived 🛵🍲 NiniFood wishes you a delicious meal! 😋💛'],
-  ['vi', 'Xin chào! 👋 Shipper NiniFood sẽ đến trong     phút nữa 🛵💨', 'Xin chào! 👋 Đơn hàng của bạn đã đến 🛵🍲 NiniFood chúc bạn ngon miệng! 😋💛'],
 ] as const;
 ok(langs.every(([l, e, f]) => etaText(l) === e && arrivedText(l) === f) && etaText(null) === langs[0][1] && arrivedText(null) === langs[0][2], 'тексты ETA-шаблона и «прибыл» (всегда полный) на RU, UA, EN, VI совпадают с ТЗ; нет языка — RU');
 for (const [l] of langs) { const k = rowKeyboard({ id: 1, nick: 'client_x', lang: l, marked_at: null }).inline_keyboard; console.log(`    ${l}: ${decodeURIComponent(k[1][0].url.split('?text=')[1])}`); }

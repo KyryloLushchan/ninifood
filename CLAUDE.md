@@ -34,7 +34,7 @@
 - Вход клиентов по email + паролю (необязателен): `src/lib/auth-gate.ts` (`callGate` → edge-функция `auth-gate`), `src/lib/customer-auth.ts` (клиент `customerDb` со своей сессией `ninifood.customer.auth` — отдельно от админской `ninifood.admin.auth`; `fetchProfile`), `src/components/screens/Auth.tsx` (экран `Screen = 'auth'`: «Увійти» / «Реєстрація» / «Забули пароль?»), `src/components/ui/AuthControl.tsx` (кнопка «Увійти» в шапке Главной / меню «Мої замовлення», «Вийти»), `TurnstileBox` в `ui/TurnstileWidget.tsx` (общий виджет, им же пользуется форма входа в админку), экран `MyOrders`. Состояние (`customer`, `isVip`, `openAuth`, `closeAuth`, `acceptSession`, `logout`) — в `app-context.tsx`.
 - `src/config/supabase.ts`, `src/lib/supabase.ts` — URL и anon key (публичные) и клиент.
 - `supabase/` — миграции и `seed.sql` (проект `nini_food`).
-- `src/i18n/` — словари `ru/ua/en/vi.ts` + провайдер языка (выбор хранится в localStorage; язык по умолчанию — UA). Все тексты интерфейса — только здесь.
+- `src/i18n/` — словари `ru/ua/en.ts (вьетнамский убран: vi в ссылке/localStorage/браузере/Telegram/сервере → en)` + провайдер языка (выбор хранится в localStorage; язык по умолчанию — UA). Все тексты интерфейса — только здесь.
 - `src/lib/` — `dates.ts` (даты по Дананг-времени), `pricing.ts`, `format.ts`, `submit-order.ts`.
 - `src/state/app-context.tsx` — состояние заказа.
 - `design/` — дизайн-референс (README с описанием экранов, HTML-макет, support.js). Это не продакшн-код.

@@ -6,7 +6,7 @@ import { adminDb } from '@/lib/admin/client';
 import { Btn, Card, Err, Label, inputCls } from './ui';
 import { useReadOnly } from './role';
 
-const LANGS = [['ru', 'Русский'], ['ua', 'Українська'], ['en', 'English'], ['vi', 'Tiếng Việt']] as const;
+const LANGS = [['ru', 'Русский'], ['ua', 'Українська'], ['en', 'English']] as const;
 const POSITIONS = ['Суп', 'Горячее', 'Салат', 'Десерт'];
 const WEEKDAYS = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб'];
 const NUTRITION = [['kcal', 'Ккал'], ['protein', 'Белки'], ['fat', 'Жиры'], ['carbs', 'Углеводы']] as const;
@@ -88,6 +88,7 @@ export function MenuTab() {
           row[`name_${l}`] = d[`name_${l}`].trim() || d.name_ru.trim() || fallback; // пустой язык → русское название
           row[`desc_${l}`] = d[`desc_${l}`].trim() || null;
         }
+        row.name_vi = row.name_en; // legacy-колонка (NOT NULL), вьетнамский в админке убран
         upsert.push(row);
       });
       if (upsert.length) {
