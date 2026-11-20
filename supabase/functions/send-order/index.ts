@@ -2,6 +2,7 @@ import { discountAmount } from '../_shared/discount.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { loadLastDay } from '../_shared/last-day.ts';
+import { ordersPaused } from '../_shared/orders-paused.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { resolveOrderPoint } from '../_shared/maps-link.ts';
 import { buildOrderText, getDeliveryHours, keyboardNew, plainLength, type OrderRow } from '../_shared/order-text.ts';
@@ -123,6 +124,9 @@ Deno.serve(async (req) => {
       await db.from('orders').delete().eq('id', prev.id);
     }
   }
+
+  // ── пауза приёма заказов (Настройки → «Приём заказов»): новые не принимаем, повтор уже созданного — выше ──
+  if (await ordersPaused(db)) return json({ ok: false, code: 'orders_paused' }, 503);
 
   // ── вход по email: JWT пользователя (anon-ключ — гость). VIP — только по email из JWT (auth.getUser), не по полям формы. ──
   let customerId: string | null = null;

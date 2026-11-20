@@ -156,6 +156,7 @@ export const ua: Record<TKey, string> = {
   'thanks.home': 'На головну',
   'thanks.question': 'Питання щодо замовлення?',
   'thanks.questionLink': 'Напишіть у Telegram',
+  'error.orders_paused': 'Прийом замовлень зараз призупинено.',
   'error.bad_days': 'Вибрані дні недоступні. Поверніться й оберіть дні знову.',
   'error.bad_portions': 'Перевірте кількість порцій.',
   'error.telegram_required': 'Вкажіть Telegram.',

@@ -166,6 +166,7 @@ export const ru = {
   'thanks.home': 'На главную',
   'thanks.question': 'Вопрос по заказу?',
   'thanks.questionLink': 'Напишите в Telegram',
+  'error.orders_paused': 'Приём заказов сейчас приостановлен.',
   'error.bad_days': 'Выбранные дни недоступны. Вернитесь и выберите дни заново.',
   'error.bad_portions': 'Проверьте количество порций.',
   'error.telegram_required': 'Укажите Telegram.',

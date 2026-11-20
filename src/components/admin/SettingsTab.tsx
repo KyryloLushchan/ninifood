@@ -50,6 +50,8 @@ const FIELDS = [
   { key: 'telegram_url', label: 'Ссылка Telegram для заказов на сегодня', numeric: false, time: false },
 ] as const;
 
+const PAUSE_LANGS = [['ru', 'Русский'], ['ua', 'Українська'], ['en', 'English']] as const;
+
 export function SettingsTab() {
   const readOnly = useReadOnly();
   const [values, setValues] = useState<Record<string, string> | null>(null);
@@ -164,6 +166,24 @@ export function SettingsTab() {
     else setMsg('Параметры рейсов сохранены. Отчёт курьеру и вкладка «Курьер» будут считаться по ним.');
   };
 
+  /** «Приём заказов»: переключатель + текст объявления на каждом языке сайта (публичные настройки). */
+  const savePause = async () => {
+    if (!values) return;
+    setError('');
+    setMsg('');
+    const paused = values.orders_paused === '1';
+    if (paused && !(values.pause_text_ru ?? '').trim()) return setError('Введите текст объявления хотя бы на русском.');
+    setBusy(true);
+    const rows = [
+      { key: 'orders_paused', value: paused ? '1' : '', is_public: true },
+      ...PAUSE_LANGS.map(([l]) => ({ key: `pause_text_${l}`, value: (values[`pause_text_${l}`] ?? '').trim(), is_public: true })),
+    ];
+    const { error } = await adminDb.from('settings').upsert(rows, { onConflict: 'key' });
+    setBusy(false);
+    if (error) setError(ruError(error.message));
+    else setMsg(paused ? 'Приём заказов ВЫКЛЮЧЕН. Сайт покажет баннер при следующей загрузке; напоминания о продлении не уходят.' : 'Приём заказов ВКЛЮЧЁН.');
+  };
+
   const save = async () => {
     if (!values) return;
     setError('');
@@ -201,6 +221,7 @@ export function SettingsTab() {
     );
     return (
       <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
+        <Card className="divide-y divide-line">{row('Приём заказов', values.orders_paused === '1' ? 'выключен' : 'включён')}</Card>
         <Card className="divide-y divide-line">{FIELDS.map((f) => row(f.label, values[f.key]))}{row('Последний день доставки', values.last_delivery_date)}</Card>
         <Card className="divide-y divide-line">
           <div className="pb-2 text-[17px] font-extrabold">Курьеры</div>
@@ -233,6 +254,20 @@ export function SettingsTab() {
   return (
     <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
       <div className="contents lg:flex lg:flex-col lg:gap-3">
+      <Card className="flex flex-col gap-3">
+        <div className="text-[17px] font-extrabold">Приём заказов</div>
+        <label className="flex items-center gap-3 text-sm font-bold">
+          <input type="checkbox" className="h-5 w-5" checked={values.orders_paused !== '1'} onChange={(e) => setValues({ ...values, orders_paused: e.target.checked ? '' : '1' })} />
+          {values.orders_paused === '1' ? 'Выключен — новые заказы не принимаются' : 'Включён'}
+        </label>
+        {PAUSE_LANGS.map(([l, label]) => (
+          <div key={l}>
+            <Label>Объявление: {label}</Label>
+            <textarea className={inputCls} rows={3} maxLength={400} value={values[`pause_text_${l}`] ?? ''} onChange={(e) => setValues({ ...values, [`pause_text_${l}`]: e.target.value })} />
+          </div>
+        ))}
+        <Btn onClick={savePause} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить приём заказов'}</Btn>
+      </Card>
       <Card className="flex flex-col gap-3">
         {FIELDS.map((f) => (
           <div key={f.key}>

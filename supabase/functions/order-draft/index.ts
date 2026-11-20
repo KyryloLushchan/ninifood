@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { loadLastDay } from '../_shared/last-day.ts';
+import { ordersPaused } from '../_shared/orders-paused.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { clientIp, sha256hex, verifyTurnstile } from '../_shared/security.ts';
 import '../_shared/redact.ts';
@@ -107,6 +108,8 @@ Deno.serve(async (req) => {
     });
   }
   if (p?.action !== 'create') return json({ ok: false, code: 'bad_request' }, 400);
+
+  if (await ordersPaused(db)) return json({ ok: false, code: 'orders_paused' }, 503); // пауза приёма заказов
 
   // ── валидация (как в send-order, но без скриншота; цену не храним) ──
   const type = p.type === 'once' || p.type === 'single' ? 'single' : p.type === 'sub' || p.type === 'subscription' ? 'subscription' : null;

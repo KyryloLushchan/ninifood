@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { todayISO } from '../_shared/dates.ts';
 import { hasWorkingDayAfter, loadLastDay } from '../_shared/last-day.ts';
+import { ordersPaused } from '../_shared/orders-paused.ts';
 import { entryMessage, firstSingleMessage, isSubscriptionSized, nickKey, selectEntries, selectFirstSingle, type AnyOrder, type EndingOrder, type FirstNotice, type FutureOrder } from '../_shared/renewal.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { chatHint, esc, tg } from '../_shared/telegram.ts';
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
 
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   // После сегодняшнего дня до «Последнего дня доставки» нет рабочих дней — продлевать нечего, напоминания не шлём.
+  if (await ordersPaused(db)) return json({ ok: true, count: 0, first: 0, skipped: 'orders_paused' }); // приём заказов выключен — напоминания не шлём
   if (!hasWorkingDayAfter(today, await loadLastDay(db))) return json({ ok: true, count: 0, first: 0, skipped: 'after_last_delivery_day' });
   const warn = async (text: string) => {
     try {

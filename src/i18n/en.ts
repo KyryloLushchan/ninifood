@@ -156,6 +156,7 @@ export const en: Record<TKey, string> = {
   'thanks.home': 'Back to home',
   'thanks.question': 'Questions about your order?',
   'thanks.questionLink': 'Message us on Telegram',
+  'error.orders_paused': 'Orders are paused right now.',
   'error.bad_days': 'The selected days are not available. Go back and pick days again.',
   'error.bad_portions': 'Please check the number of portions.',
   'error.telegram_required': 'Please enter your Telegram.',

@@ -154,7 +154,7 @@ export function Home() {
         <h2 className="font-serif text-[length:clamp(1.5rem,8.5334vw,2rem)] font-semibold leading-[1.15] [text-wrap:balance] md:text-[40px] lg:col-start-1 lg:row-start-2 lg:text-[44px] xl:text-[52px]">{t('home.heroTitle')}</h2>
         <p className="text-base leading-normal text-ink-2 md:text-lg lg:col-start-1 lg:row-start-3">{t('home.heroText')}</p>
         <div className="flex flex-col items-center gap-2 min-[420px]:flex-row min-[420px]:gap-3 lg:col-start-1 lg:row-start-4 lg:max-w-[520px]">
-          <Button size="xl" shadow className="min-[420px]:flex-1" disabled={!heroDay} onClick={() => heroDay && startOnce(heroDay)}>
+          <Button size="xl" shadow className="min-[420px]:flex-1" disabled={!heroDay || settings.ordersPaused} onClick={() => heroDay && startOnce(heroDay)}>
             {heroDay ? t('home.heroCta', { day: labelFull(heroDay, lang) }) : menuLoaded ? t('home.noDays') : '…'}
           </Button>
           <div className="text-base font-extrabold text-ink min-[420px]:flex-none">{t('home.heroDeliveryNote', hours)}</div>
@@ -268,7 +268,7 @@ export function Home() {
         )}
         {active && (
           <div className="px-5 pt-1 lg:mx-auto lg:w-full lg:max-w-[520px] lg:px-10">
-            <Button size="xl" shadow onClick={() => startOnce(active)}>
+            <Button size="xl" shadow disabled={settings.ordersPaused} onClick={() => startOnce(active)}>
               {t('home.menuCta', { day: labelFull(active, lang), price: fmtMoney(settings.priceSingle) })}
             </Button>
           </div>
@@ -283,7 +283,7 @@ export function Home() {
           <div className="text-[15px] leading-normal text-ink-onDark">
             {t('sub.cardText')}
           </div>
-          <Button variant="light" size="md" className="mt-1" disabled={!!today && !subscriptionDays.length} onClick={startSub}>
+          <Button variant="light" size="md" className="mt-1" disabled={settings.ordersPaused || (!!today && !subscriptionDays.length)} onClick={startSub}>
             {t('sub.cardCta')}
           </Button>
         </div>

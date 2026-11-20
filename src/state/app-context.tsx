@@ -462,19 +462,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const startOnce = useCallback(
     (iso: string) => {
+      if (siteSettings.ordersPaused) return; // приём заказов выключен
       setAutoSub(false);
       setOrderType('once');
       setOnceDays([iso]);
       go('order');
     },
-    [go],
+    [go, siteSettings.ordersPaused],
   );
 
   const startSub = useCallback(() => {
+    if (siteSettings.ordersPaused) return;
     setAutoSub(false);
     setOrderType('sub');
     go('order');
-  }, [go]);
+  }, [go, siteSettings.ordersPaused]);
+
+  // Приём заказов выключен: с экранов оформления (в т.ч. из ссылки продления или восстановленного черновика) возвращаем на главную
+  useEffect(() => {
+    if (siteSettings.ordersPaused) setScreen((s) => (s === 'order' || s === 'checkout' || s === 'payment' ? 'home' : s));
+  }, [siteSettings.ordersPaused]);
 
   // Ссылка …/#subscription (напоминание о продлении): сразу экран заказа с типом «Подписка». Ссылки ?r= (продление по коду) и ?d= (черновик) имеют свой разбор и приоритет.
   useEffect(() => {
@@ -573,7 +580,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (customer) void loadProfile(); // сервер сохранил телефон и адрес
     } catch (e) {
       const code = e instanceof OrderError ? e.code : 'generic';
-      setSubmitError(`error.${['bad_days', 'bad_portions', 'telegram_required', 'phone_invalid', 'captcha_failed', 'rate_limited', 'address_required', 'screenshot_required', 'screenshot_type', 'screenshot_size', 'network'].includes(code) ? code : 'generic'}`);
+      setSubmitError(`error.${['orders_paused', 'bad_days', 'bad_portions', 'telegram_required', 'phone_invalid', 'captcha_failed', 'rate_limited', 'address_required', 'screenshot_required', 'screenshot_type', 'screenshot_size', 'network'].includes(code) ? code : 'generic'}`);
     } finally {
       setSending(false);
     }

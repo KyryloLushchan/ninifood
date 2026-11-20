@@ -13,6 +13,10 @@ export interface SiteSettings {
   telegramHandle: string;
   /** Последний день доставки «ГГГГ-ММ-ДД» (settings.last_delivery_date); null — без ограничения. Дни позже в календаре не показываются. */
   lastDeliveryDate: string | null;
+  /** Приём заказов выключен (settings.orders_paused = '1'): баннер, кнопки заказа неактивны. */
+  ordersPaused: boolean;
+  /** Текст объявления по языкам сайта (settings.pause_text_ru/ua/en). */
+  pauseText: { ru: string; ua: string; en: string };
 }
 
 export function handleFromUrl(url: string, fallback: string): string {
@@ -30,6 +34,8 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   telegramUrl: CONTACTS.telegramUrl,
   telegramHandle: CONTACTS.telegramHandle,
   lastDeliveryDate: null,
+  ordersPaused: false,
+  pauseText: { ru: '', ua: '', en: '' },
 };
 
 /** Публичные настройки из таблицы settings (anon видит только is_public). */
@@ -52,5 +58,7 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
     telegramUrl: m.telegram_url || DEFAULT_SETTINGS.telegramUrl,
     telegramHandle: handleFromUrl(m.telegram_url || '', DEFAULT_SETTINGS.telegramHandle),
     lastDeliveryDate: /^\d{4}-\d{2}-\d{2}$/.test((m.last_delivery_date ?? '').trim()) ? m.last_delivery_date.trim() : null,
+    ordersPaused: (m.orders_paused ?? '').trim() === '1',
+    pauseText: { ru: m.pause_text_ru ?? '', ua: m.pause_text_ua ?? '', en: m.pause_text_en ?? '' },
   };
 }

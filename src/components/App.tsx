@@ -27,6 +27,20 @@ function DraftNotice() {
   );
 }
 
+/** Приём заказов выключен (Настройки → «Приём заказов»): объявление сверху на языке сайта (нет текста на языке — русский). */
+function PauseBanner() {
+  const { lang } = useI18n();
+  const { settings } = useApp();
+  if (!settings.ordersPaused) return null;
+  const text = settings.pauseText[lang] || settings.pauseText.ru;
+  if (!text) return null;
+  return (
+    <div role="status" className="w-full bg-accent px-5 py-3 text-sm font-bold leading-snug text-white">
+      {text}
+    </div>
+  );
+}
+
 function Screens() {
   const { screen, payment } = useApp();
   switch (screen) {
@@ -70,6 +84,7 @@ export function App() {
     <I18nProvider>
       <AppProvider>
         <div className="mx-auto flex min-h-screen w-full max-w-app flex-col bg-bg sm:border-x sm:border-line md:max-w-[720px] lg:max-w-[1200px]">
+          <PauseBanner />
           <DraftNotice />
           <Screens />
         </div>
