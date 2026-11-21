@@ -363,12 +363,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Доступные дни — по календарю (не сегодня, не воскресенье), независимо от наличия меню.
   const lastDay = siteSettings.lastDeliveryDate; // «Последний день доставки» (админка → Настройки): дни позже не показываем
+  const closedKey = siteSettings.closedDays.join(',');
+  const closed = useMemo(() => new Set(closedKey ? closedKey.split(',') : []), [closedKey]); // «Закрытые дни»
   const availableDays = useMemo(
     () =>
       today
-        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + (isVip ? 0 : 1))).filter((d) => !isSunday(d) && (!lastDay || d <= lastDay))
+        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + (isVip ? 0 : 1))).filter((d) => !isSunday(d) && !closed.has(d) && (!lastDay || d <= lastDay))
         : [],
-    [today, isVip, lastDay],
+    [today, isVip, lastDay, closed],
   );
   const bookableDays = useMemo(() => availableDays.slice(0, BOOKABLE_DAYS), [availableDays]);
   const nearestDay = availableDays[0] ?? null;
@@ -378,9 +380,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const subscriptionDays = useMemo(
     () =>
       today
-        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + (isVip ? 0 : 1))).filter((d) => !isSunday(d) && (!lastDay || d <= lastDay))
+        ? Array.from({ length: SUB_WINDOW_DAYS }, (_, i) => addDays(today, i + (isVip ? 0 : 1))).filter((d) => !isSunday(d) && !closed.has(d) && (!lastDay || d <= lastDay))
         : [],
-    [today, isVip, lastDay],
+    [today, isVip, lastDay, closed],
   );
   // Подписка — от 5 дней, но если до последнего дня доставки осталось меньше — достаточно оставшихся (минимум 1).
   const subMinDays = Math.max(1, Math.min(SUB_MIN_DAYS, subscriptionDays.length));

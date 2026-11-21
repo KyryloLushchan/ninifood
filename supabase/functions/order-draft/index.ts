@@ -2,6 +2,7 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { loadLastDay } from '../_shared/last-day.ts';
+import { loadClosedDays } from '../_shared/closed-days.ts';
 import { ordersPaused } from '../_shared/orders-paused.ts';
 import { inDanang } from '../_shared/danang.ts';
 import { clientIp, sha256hex, verifyTurnstile } from '../_shared/security.ts';
@@ -126,8 +127,9 @@ Deno.serve(async (req) => {
 
   // Окно с сегодняшнего дня (VIP видит сегодня); точную проверку по правам всё равно делает send-order.
   const today = todayISO();
+  const closed = await loadClosedDays(db);
   const lastDay = await loadLastDay(db);
-  const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i)).filter((d) => !isSunday(d) && (!lastDay || d <= lastDay));
+  const window = Array.from({ length: WINDOW_DAYS }, (_, i) => addDays(today, i)).filter((d) => !isSunday(d) && !closed.has(d) && (!lastDay || d <= lastDay));
   const allowed = new Set(window);
   const days: string[] = Array.isArray(p.days) ? [...new Set<string>(p.days.map(String))].sort() : [];
   if (days.length < 1 || days.length > WINDOW_DAYS || !days.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d) && allowed.has(d))) return json({ ok: false, code: 'bad_days' }, 400);

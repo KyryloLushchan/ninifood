@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { ruError } from '@/lib/admin/errors';
 import { adminDb } from '@/lib/admin/client';
+import { labelFull, labelShort } from '@/lib/dates';
 import { AddressInput } from './AddressEditor';
 import { DiscountCard } from './DiscountCard';
 import { KitchenNotesCard } from './KitchenNotesCard';
@@ -58,6 +59,7 @@ export function SettingsTab() {
   const [error, setError] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [newClosed, setNewClosed] = useState('');
 
   useEffect(() => {
     adminDb.from('settings').select('key, value').then(({ data, error }) => {
@@ -166,6 +168,21 @@ export function SettingsTab() {
     else setMsg('Параметры рейсов сохранены. Отчёт курьеру и вкладка «Курьер» будут считаться по ним.');
   };
 
+  /** «Закрытые дни»: список дат доставки, на которые заказать нельзя. Добавление/удаление сохраняется сразу. */
+  const closedList = (): string[] => [...new Set((values?.closed_days ?? '').split(/[\s,;]+/).filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)))].sort();
+  const saveClosed = async (next: string[]) => {
+    if (!values) return;
+    setError('');
+    setMsg('');
+    setBusy(true);
+    const { error } = await adminDb.from('settings').upsert([{ key: 'closed_days', value: next.join(','), is_public: true }], { onConflict: 'key' });
+    setBusy(false);
+    if (error) return setError(ruError(error.message));
+    setValues({ ...values, closed_days: next.join(',') });
+    setNewClosed('');
+    setMsg('Закрытые дни сохранены. Сайт подхватит при следующей загрузке, сервер учитывает сразу.');
+  };
+
   /** «Приём заказов»: переключатель + текст объявления на каждом языке сайта (публичные настройки). */
   const savePause = async () => {
     if (!values) return;
@@ -221,6 +238,7 @@ export function SettingsTab() {
     );
     return (
       <div className="flex flex-col gap-3 lg:grid lg:grid-cols-2 lg:items-start lg:gap-4">
+        <Card className="divide-y divide-line">{row('Закрытые дни', closedList().map((d) => labelShort(d, 'ru')).join(', '))}</Card>
         <Card className="divide-y divide-line">{row('Приём заказов', values.orders_paused === '1' ? 'выключен' : 'включён')}</Card>
         <Card className="divide-y divide-line">{FIELDS.map((f) => row(f.label, values[f.key]))}{row('Последний день доставки', values.last_delivery_date)}</Card>
         <Card className="divide-y divide-line">
@@ -267,6 +285,21 @@ export function SettingsTab() {
           </div>
         ))}
         <Btn onClick={savePause} disabled={busy}>{busy ? 'Сохраняем…' : 'Сохранить приём заказов'}</Btn>
+      </Card>
+      <Card className="flex flex-col gap-3">
+        <div className="text-[17px] font-extrabold">Закрытые дни</div>
+        <div className="text-sm text-ink-muted">Дни доставки, на которые заказать нельзя (в календаре сайта их нет; подписка идёт дальше). Уже оформленные заказы не меняются.</div>
+        {closedList().length === 0 && <div className="text-sm text-ink-muted">Список пуст.</div>}
+        {closedList().map((d) => (
+          <div key={d} className="flex items-center justify-between rounded-chip bg-bg px-3 py-2 text-sm font-bold">
+            <span>{labelFull(d, 'ru')}</span>
+            <button type="button" disabled={busy} onClick={() => saveClosed(closedList().filter((x) => x !== d))} className="text-danger" aria-label={`Удалить ${d}`}>Удалить</button>
+          </div>
+        ))}
+        <div className="flex gap-2">
+          <input className={inputCls} type="date" value={newClosed} onChange={(e) => setNewClosed(e.target.value)} />
+          <Btn onClick={() => newClosed && !Number.isNaN(Date.parse(newClosed)) && saveClosed([...closedList(), newClosed])} disabled={busy || !newClosed}>Добавить</Btn>
+        </div>
       </Card>
       <Card className="flex flex-col gap-3">
         {FIELDS.map((f) => (

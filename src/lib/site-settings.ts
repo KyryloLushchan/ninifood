@@ -15,6 +15,8 @@ export interface SiteSettings {
   lastDeliveryDate: string | null;
   /** Приём заказов выключен (settings.orders_paused = '1'): баннер, кнопки заказа неактивны. */
   ordersPaused: boolean;
+  /** «Закрытые дни» доставки (settings.closed_days): в календарях не показываются. */
+  closedDays: string[];
   /** Текст объявления по языкам сайта (settings.pause_text_ru/ua/en). */
   pauseText: { ru: string; ua: string; en: string };
 }
@@ -35,6 +37,7 @@ export const DEFAULT_SETTINGS: SiteSettings = {
   telegramHandle: CONTACTS.telegramHandle,
   lastDeliveryDate: null,
   ordersPaused: false,
+  closedDays: [],
   pauseText: { ru: '', ua: '', en: '' },
 };
 
@@ -58,6 +61,7 @@ export async function fetchSiteSettings(): Promise<SiteSettings> {
     telegramUrl: m.telegram_url || DEFAULT_SETTINGS.telegramUrl,
     telegramHandle: handleFromUrl(m.telegram_url || '', DEFAULT_SETTINGS.telegramHandle),
     lastDeliveryDate: /^\d{4}-\d{2}-\d{2}$/.test((m.last_delivery_date ?? '').trim()) ? m.last_delivery_date.trim() : null,
+    closedDays: (m.closed_days ?? '').split(/[\s,;]+/).filter((s: string) => /^\d{4}-\d{2}-\d{2}$/.test(s)),
     ordersPaused: (m.orders_paused ?? '').trim() === '1',
     pauseText: { ru: m.pause_text_ru ?? '', ua: m.pause_text_ua ?? '', en: m.pause_text_en ?? '' },
   };

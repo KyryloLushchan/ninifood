@@ -12,9 +12,9 @@ export async function loadLastDay(db: any): Promise<string | null> {
   return parseLastDay(data?.value);
 }
 
-/** Есть ли после `today` (не включая) и не позже `last` хотя бы один рабочий день (Пн–Сб). Нет ограничения — всегда да. */
-export function hasWorkingDayAfter(today: string, last: string | null): boolean {
+/** Есть ли после `today` (не включая) и не позже `last` хотя бы один рабочий день (Пн–Сб, не «закрытый день»). Нет ограничения — всегда да. */
+export function hasWorkingDayAfter(today: string, last: string | null, closed: Set<string> = new Set()): boolean {
   if (!last) return true;
-  for (let d = addDays(today, 1); d <= last; d = addDays(d, 1)) if (!isSunday(d)) return true;
+  for (let d = addDays(today, 1); d <= last; d = addDays(d, 1)) if (!isSunday(d) && !closed.has(d)) return true;
   return false;
 }
