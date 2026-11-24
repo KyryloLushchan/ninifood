@@ -70,6 +70,7 @@ export const ru = {
   'order.tabSub': 'Подписка на 5 дней',
   'order.daysTitle': 'Дни доставки',
   'calendar.dayOff': "выходной",
+  'calendar.closed': "Выходной",
   'calendar.today': "сегодня",
   'order.selected': 'выбрано {text}',
   'order.pickDay': 'выберите день',

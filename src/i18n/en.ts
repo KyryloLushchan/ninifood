@@ -64,6 +64,7 @@ export const en: Record<TKey, string> = {
   'order.tabSub': '5-day subscription',
   'order.daysTitle': 'Delivery days',
   'calendar.dayOff': "day off",
+  'calendar.closed': "Day off",
   'calendar.today': "today",
   'order.selected': '{text} selected',
   'order.pickDay': 'pick a day',

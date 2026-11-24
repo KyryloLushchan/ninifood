@@ -60,11 +60,12 @@ export function Order() {
 }
 
 /** Недели Пн–Вс, 7 колонок; воскресенье — неактивная ячейка «вихідний». Дней вне списка `days` — пустые ячейки. */
-function WeekGrid({ days, isSelected, onToggle }: { days: string[]; isSelected: (d: string) => boolean; onToggle: (d: string) => void }) {
+function WeekGrid({ days, closedDays = [], isSelected, onToggle }: { days: string[]; closedDays?: string[]; isSelected: (d: string) => boolean; onToggle: (d: string) => void }) {
   const { t, lang } = useI18n();
   const { today, isVip } = useApp();
   const weeks = new Map<string, string[]>();
-  for (const d of days) {
+  const closedSet = new Set(closedDays);
+  for (const d of [...days, ...closedDays].sort()) {
     const k = weekStart(d);
     weeks.set(k, [...(weeks.get(k) ?? []), d]);
   }
@@ -80,6 +81,7 @@ function WeekGrid({ days, isSelected, onToggle }: { days: string[]; isSelected: 
             <div className="grid grid-cols-7 gap-0.5 min-[360px]:gap-1 lg:gap-2">
               {[0, 1, 2, 3, 4, 5].map((i) => {
                 const d = list.find((x) => new Date(`${x}T00:00:00Z`).getUTCDay() === i + 1);
+                if (d && closedSet.has(d)) return <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={false} dayOff={t('calendar.closed')} onClick={() => {}} />; // «Закрытый день»: серый, не выбирается
                 if (d) return <DayChip key={i} weekday={weekdayShort(d, lang)} date={ddmm(d)} selected={isSelected(d)} onClick={() => onToggle(d)} />;
                 const iso = addDays(monday, i);
                 // Сегодня обычным клиентам недоступно — серая ячейка (VIP выбирает сегодня как обычный день).
@@ -96,7 +98,7 @@ function WeekGrid({ days, isSelected, onToggle }: { days: string[]; isSelected: 
 
 function OnceDays() {
   const { t, lang, pl } = useI18n();
-  const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings, isVip, discount } = useApp();
+  const { today, bookableDays, onceDays, toggleOnceDay, setOrderType, settings, isVip, discount, closedInWindow } = useApp();
   const n = onceDays.length;
   const showNudge = n >= SUB_MIN_DAYS;
 
@@ -109,7 +111,7 @@ function OnceDays() {
             {n ? t('order.selected', { text: `${n} ${pl('unit.day', n)}` }) : t('order.pickDay')}
           </div>
         </div>
-        <WeekGrid days={bookableDays} isSelected={(d) => onceDays.includes(d)} onToggle={toggleOnceDay} />
+        <WeekGrid days={bookableDays} closedDays={closedInWindow.filter((d) => bookableDays.length > 0 && d <= bookableDays[bookableDays.length - 1])} isSelected={(d) => onceDays.includes(d)} onToggle={toggleOnceDay} />
       </div>
       {showNudge && (
         <div className="flex flex-col gap-1.5 rounded-md2 bg-accent-soft px-4 py-3.5">
@@ -128,7 +130,7 @@ function OnceDays() {
 
 function SubDays() {
   const { t, lang } = useI18n();
-  const { subscriptionDays, subDays, toggleSubDay, subMinDays } = useApp();
+  const { subscriptionDays, subDays, toggleSubDay, subMinDays, closedInWindow } = useApp();
   const count = subDays.length;
 
 
@@ -141,7 +143,7 @@ function SubDays() {
         </div>
       </div>
       <div className="-mt-1 text-[13px] text-ink-muted">{t('sub.autoHint')}</div>
-      <WeekGrid days={subscriptionDays} isSelected={(d) => subDays.includes(d)} onToggle={toggleSubDay} />
+      <WeekGrid days={subscriptionDays} closedDays={closedInWindow} isSelected={(d) => subDays.includes(d)} onToggle={toggleSubDay} />
     </div>
   );
 }

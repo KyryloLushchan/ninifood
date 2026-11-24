@@ -103,6 +103,8 @@ interface AppValue {
   /** Разбивка итога: обеды / доставка / всего. */
   sum: Totals;
 
+  /** «Закрытые дни» в окне заказа (с завтра / с сегодня у VIP, кроме воскресений): в календарях стоят серыми и не выбираются. */
+  closedInWindow: string[];
   startOnce: (iso: string) => void;
   startSub: () => void;
 
@@ -365,6 +367,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const lastDay = siteSettings.lastDeliveryDate; // «Последний день доставки» (админка → Настройки): дни позже не показываем
   const closedKey = siteSettings.closedDays.join(',');
   const closed = useMemo(() => new Set(closedKey ? closedKey.split(',') : []), [closedKey]); // «Закрытые дни»
+  const closedInWindow = useMemo(() => {
+    if (!today) return [];
+    const from = addDays(today, isVip ? 0 : 1);
+    const to = addDays(from, SUB_WINDOW_DAYS - 1);
+    return [...closed].filter((d) => d >= from && d <= to && !isSunday(d) && (!lastDay || d <= lastDay)).sort();
+  }, [today, isVip, closed, lastDay]);
   const availableDays = useMemo(
     () =>
       today
@@ -622,6 +630,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     days,
     total,
     sum,
+    closedInWindow,
     startOnce,
     startSub,
     contact,

@@ -46,13 +46,17 @@ function HeroCollage({ dishes }: { dishes?: { photo: string | null }[] }) {
 
 export function Home() {
   const { t, lang } = useI18n();
-  const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub, isVip, subscriptionDays } = useApp();
+  const { settings, today, menu, menuLoaded, bookableDays, nearestDay, startOnce, startSub, isVip, subscriptionDays, closedInWindow } = useApp();
   const hours = { from: settings.deliveryFrom, to: settings.deliveryTo };
   const [tab, setTab] = useState<string | null>(null);
   const wide = useWide();
 
   // Сегодня (если есть меню, неактивно) + ближайшие доступные дни.
   const menuDays = today ? [...(!isSunday(today) && !isVip ? [today] : []), ...bookableDays] : [];
+  // Вкладки: то же + «закрытые дни» на своих местах (серые, некликабельные)
+  const lastBookable = bookableDays[bookableDays.length - 1];
+  const closedTabs = closedInWindow.filter((d) => !!lastBookable && d <= lastBookable);
+  const tabDays = [...new Set([...menuDays, ...closedTabs])].sort();
   const active = tab && menuDays.includes(tab) ? tab : nearestDay;
   // Кнопка в hero следует за выбранной вкладкой дня; по умолчанию — ближайший доступный.
   const heroDay = active;
@@ -164,21 +168,23 @@ export function Home() {
       <section id="menu" className="flex scroll-mt-4 flex-col gap-4 bg-card py-7 lg:gap-6 lg:py-12">
         <h2 className="px-5 font-serif text-h2 font-semibold lg:px-10 lg:text-[32px]">{t('home.menuTitle')}</h2>
         <div ref={tabsRef} className="flex gap-2 overflow-x-auto px-5 pb-1 lg:justify-center lg:px-10">
-          {menuDays.map((d) => {
+          {tabDays.map((d) => {
+            const isClosed = closedTabs.includes(d);
             const isToday = d === today && !isVip;
             const on = d === active;
             return (
               <button
                 key={d}
-                disabled={isToday}
+                disabled={isToday || isClosed}
                 onClick={() => { setTab(d); goTo(slides.indexOf(d)); }}
                 aria-pressed={on}
                 className={`flex h-[60px] w-16 flex-none flex-col items-center justify-center gap-0.5 rounded-md2 border ${
                   on ? 'border-accent bg-accent text-white' : 'border-line bg-card text-ink'
-                } ${isToday ? 'opacity-40' : ''}`}
+                } ${isToday || isClosed ? 'opacity-40' : ''}`}
               >
                 <span className="text-[15px] font-extrabold">{weekdayShort(d, lang)}</span>
                 <span className="text-xs">{isToday ? t('home.todayTag') : ddmm(d)}</span>
+                {isClosed && <span className="max-w-full text-[8px] leading-none tracking-tight">{t('calendar.closed')}</span>}
               </button>
             );
           })}

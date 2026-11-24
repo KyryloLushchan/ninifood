@@ -64,6 +64,7 @@ export const ua: Record<TKey, string> = {
   'order.tabSub': 'Підписка на 5 днів',
   'order.daysTitle': 'Дні доставки',
   'calendar.dayOff': "вихідний",
+  'calendar.closed': "Вихідний",
   'calendar.today': "сьогодні",
   'order.selected': 'обрано {text}',
   'order.pickDay': 'оберіть день',
