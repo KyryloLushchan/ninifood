@@ -46,22 +46,29 @@ Deno.serve(async (req) => {
   let date = todayISO();
   let couriersOverride: 1 | 2 | null = null;
   let parts: 'courier' | 'kitchen' | 'both' = 'both';
-  let dry = false; // только cron-секрет: вернуть текст сообщения кухне, не отправляя (проверка)
+  // dry_run (или dry): считает и возвращает тексты, но НИКОГДА не шлёт в Telegram, не публикует маршрут и ничего не пишет; работает с любыми parts. Все проверки — только так.
+  let dry = false;
   try {
     const body = await req.json();
     if (typeof body?.date === 'string') date = body.date;
     if (body?.couriers === 1 || body?.couriers === 2) couriersOverride = body.couriers;
     if (body?.parts === 'courier' || body?.parts === 'kitchen') parts = body.parts;
-    dry = viaCron && body?.dry === true && (body?.parts === 'kitchen' || body?.parts === 'courier'); // dry: вернуть тексты, ничего не отправляя
+    dry = body?.dry_run === true || body?.dry === true;
   } catch { /* без тела — сегодня, число курьеров из настроек */ }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ ok: false, code: 'bad_request' }, 400);
   if (isSunday(date)) return json({ ok: true, skipped: 'sunday' });
 
+  // Единственная точка отправки в Telegram: в dry_run кидает ошибку (защита от случайной отправки).
+  const tgSend: typeof tg = (method, body) => {
+    if (dry) throw new Error('dry_run: отправка в Telegram запрещена');
+    return tg(method, body);
+  };
   const db = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!, { auth: { persistSession: false } });
   const ordersChat = Deno.env.get('ORDERS_CHAT_ID')!;
   const warnOrders = async (text: string) => {
     try {
-      await tg('sendMessage', { chat_id: ordersChat, text: `⚠️ ${text}`, parse_mode: 'HTML' });
+      if (dry) return console.log('dry_run: предупреждение не отправлено:', text);
+      await tgSend('sendMessage', { chat_id: ordersChat, text: `⚠️ ${text}`, parse_mode: 'HTML' });
     } catch (e) {
       console.error('warnOrders failed:', errMsg(e));
     }
@@ -112,7 +119,7 @@ Deno.serve(async (req) => {
     const special = (await loadSpecialNotes(db, rows, routePlan)).map(specialNoteLine); // постоянные комментарии клиентов; ошибка → без блока
     const kitchenText = buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced, notes, taxiQty, special);
     if (dry) return { ok: true as const, dry: kitchenText };
-    const res = await tg('sendMessage', { chat_id: kitchenChat, text: kitchenText, parse_mode: 'HTML', disable_web_page_preview: true });
+    const res = await tgSend('sendMessage', { chat_id: kitchenChat, text: kitchenText, parse_mode: 'HTML', disable_web_page_preview: true });
     if (!res.ok) {
       console.error(`daily-report kitchen telegram failed for ${date}:`, res.description);
       await warnOrders(`Не удалось отправить порции в NiniFood Ops (${esc(String(res.description ?? 'ошибка Telegram'))}).${chatHint(res.description, 'KITCHEN_CHAT_ID')}`);
@@ -127,7 +134,7 @@ Deno.serve(async (req) => {
     const texts = buildCourierReport(date, p.deliveries, p.trip.departMin ? hhmm(p.trip.departMin) : '13:00', hhmm(p.trip.deadlineMin), { kitchen: p.kitchen, couriers: p.couriers, trip: p.trip, override: p.override });
     if (dry) return { ok: true as const, addresses: rows.length, couriers: p.couriers, messages: texts.length, dry: texts };
     for (const text of texts) {
-      const r = await tg('sendMessage', { chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true });
+      const r = await tgSend('sendMessage', { chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true });
       if (!r.ok) {
         console.error(`daily-report telegram failed for ${date}:`, r.description);
         return { ok: false as const, code: 'telegram_failed' };
@@ -146,7 +153,7 @@ Deno.serve(async (req) => {
   const kitchenRes = parts === 'courier' ? null : await sendKitchen(day.rows);
   // Ночной запуск (cron, оба сообщения): сразу после отчёта — маршрут дня в группу курьера (точки с кнопкой «Доставлено»). Ручные кнопки админки маршрут не публикуют.
   let route: unknown = null;
-  if (viaCron && parts === 'both' && courier?.ok) {
+  if (viaCron && parts === 'both' && courier?.ok && !dry) {
     try {
       route = await publishRoute(db, date, 'publish', warnOrders);
     } catch (e) {
@@ -154,6 +161,7 @@ Deno.serve(async (req) => {
       await warnOrders(`Маршрут ${esc(date)} в группу курьера не отправлен (ошибка). Кнопка «Отправить маршрут курьеру сейчас» в админке повторит.`);
     }
   }
+  if (dry) return json({ ok: true, dry_run: true, date, courier, kitchen: kitchenRes, route: null }); // тексты есть в courier.dry / kitchen.dry; ничего не отправлено
   const failed = (courier && !courier.ok) || (kitchenRes && !kitchenRes.ok);
   if (failed) return json({ ok: false, code: 'telegram_failed', courier, kitchen: kitchenRes }, 502);
   return json({ ok: true, date, ...(courier ?? {}), kitchen: kitchenRes, route });
