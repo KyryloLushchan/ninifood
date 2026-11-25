@@ -15,7 +15,7 @@ export interface KitchenTrip {
  * special — «Особые пометки» (постоянные комментарии клиентов, `_shared/client-notes.ts`): отдельный блок в самом конце.
  * notes — заметки кухне на эту дату (таблица kitchen_notes): по строке «📝 …» в конце; порции и заказы не меняют.
  */
-export function buildKitchenMessage(date: string, portions: number, extra: number, cutlery: number, trips?: KitchenTrip[][], unplaced = 0, notes: string[] = [], taxi = 0, special: string[] = []): string {
+export function buildKitchenMessage(date: string, portions: number, extra: number, cutlery: number, trips?: KitchenTrip[][], unplaced = 0, notes: (string | { html: string })[] = [], taxi = 0, special: string[] = []): string {
   const label = labelRu(date).replace(' ', ', ');
   const lines = [`🍱 <b>Порции на ${label}: ${portions} + ${extra} = ${portions + extra}</b>`];
   if (cutlery > 0) lines.push(`🍴 Приборов: ${cutlery}`);
@@ -24,7 +24,7 @@ export function buildKitchenMessage(date: string, portions: number, extra: numbe
   else if (trips && trips.length > 1) trips.forEach((c, ci) => lines.push(`🛵 Курьер ${ci + 1}: ${c.map(fmt).join(' · ')}`));
   if (unplaced > 0) lines.push(`📍 Без точки на карте: ${unplaced}`);
   if (taxi > 0) lines.push(`🚕 Такси: ${taxi}`);
-  for (const n of notes) lines.push(`📝 ${esc(n)}`);
+  for (const n of notes) lines.push(typeof n === 'string' ? `📝 ${esc(n)}` : n.html); // {html} — датированная заметка с @ником: «№ точки · NF-… · текст» (client-notes.ts)
   if (special.length) lines.push('', '📝 <b>Особые пометки:</b>', ...special); // special — уже готовые экранированные строки (client-notes.ts)
   return lines.join('\n');
 }

@@ -4,7 +4,7 @@ import { buildCourierReport } from '../_shared/courier-report.ts';
 import { buildKitchenMessage, type KitchenTrip } from '../_shared/kitchen-report.ts';
 import { publishRoute } from '../_shared/courier-route.ts';
 import { loadDayPlan, loadDayRows } from '../_shared/day-plan.ts';
-import { loadSpecialNotes, routePlanFromRows, specialNoteLine } from '../_shared/client-notes.ts';
+import { datedNoteHtml, loadSpecialNotes, routePlanFromRows, specialNoteLine } from '../_shared/client-notes.ts';
 import { hhmm, planDay } from '../_shared/trips.ts';
 import { isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
@@ -108,7 +108,7 @@ Deno.serve(async (req) => {
     // Заметки кухне на эту дату (kitchen_notes); ошибка чтения сообщение не ломает.
     const { data: nt, error: ntErr } = await db.from('kitchen_notes').select('text').eq('date', date).order('id');
     if (ntErr) console.error('daily-report kitchen notes failed:', ntErr.message);
-    const notes = (nt ?? []).map((n: { text: string }) => String(n.text).trim()).filter(Boolean);
+    const notes = (nt ?? []).map((n: { text: string }) => String(n.text).trim()).filter(Boolean).map((t: string) => { const h = datedNoteHtml(t, rows, routePlan); return h ? { html: h } : t; });
     const special = (await loadSpecialNotes(db, rows, routePlan)).map(specialNoteLine); // постоянные комментарии клиентов; ошибка → без блока
     const kitchenText = buildKitchenMessage(date, portions, EXTRA_PORTIONS, cutlery, trips, unplaced, notes, taxiQty, special);
     if (dry) return { ok: true as const, dry: kitchenText };
