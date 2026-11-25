@@ -74,7 +74,7 @@ const norm = (d: ReportDelivery): ReportDelivery => ({ ...d, status: d.status ==
 
 /** Текст одной точки (без номера и времени — они добавляются отдельно). */
 /** body — полный текст точки; sigBody — тот же без строки оплаты (её смена при «Доставлено» не считается изменением точки, текст правится тихо). */
-function stopBody(d: ReportDelivery): { head: string; body: string; sigBody: string } {
+function stopBody(d: ReportDelivery): { head: string; headShown: string; body: string; sigBody: string } {
   const due = cashDue(d);
   const addr = esc(d.address);
   const url = mapUrl(d.lat, d.lng, d.place_id);
@@ -88,11 +88,13 @@ function stopBody(d: ReportDelivery): { head: string; body: string; sigBody: str
   if (!nickOf(d.telegram)) lines.push('⚠️ нет Telegram — позвонить');
   lines.push(`🍽 ${portions(d.qty)}${d.cutlery ? ' · 🍴 приборы: да' : ''}`);
   const sigBody = lines.join('\n');
+  for (const n of d.kitchenNotes ?? []) lines.push(`📝 ${esc(n)}`); // заметка кухне на этот день; в подпись точки не входит (новая заметка правит текст тихо)
   lines.push(paidLine(d, due, money));
-  return { head: `${esc(handle(d.telegram))} · ${esc(d.order_number)}`, body: lines.join('\n'), sigBody };
+  return { head: `${esc(handle(d.telegram))} · ${esc(d.order_number)}`, headShown: `${esc(d.order_number)} · ${esc(handle(d.telegram))}`, body: lines.join('\n'), sigBody };
 }
 
-const fullText = (label: string, s: { head: string; body: string }, eta: number | null) => `<b>${label}.</b> ${s.head}\n${s.body}${eta != null ? `\n🕒 ≈ ${hhmm(eta)}` : ''}`;
+/** Точка начинается с номера жирным: «<b>4</b> · NF-1144 · @ник» (подпись точки `head` для сверки остаётся прежней). */
+const fullText = (label: string, s: { headShown: string; body: string }, eta: number | null) => `<b>${label}</b> · ${s.headShown}\n${s.body}${eta != null ? `\n🕒 ≈ ${hhmm(eta)}` : ''}`;
 
 /** Весь маршрут дня в виде набора сообщений. null — нет координат кухни. */
 export function buildRoutePlan(date: string, plan: DayPlan<ReportDelivery>, couriers: 1 | 2): RoutePlan {
@@ -205,6 +207,12 @@ const plainDelivery = async (db: any, date: string) => {
   const plan = planDay(p.deliveries, { lat: (d) => d.lat, lng: (d) => d.lng, address: (d) => d.address, qty: (d) => d.qty, taxi: (d) => d.taxi === true }, p.kitchen, p.couriers, p.trip, p.override);
   return buildRoutePlan(date, plan, p.couriers);
 };
+
+/** Тексты маршрута дня (шапка, рейсы, точки) без отправки и записи в БД — проверка (action «preview»). null — нет координат кухни. */
+export async function previewRoute(db: any, date: string) {
+  const rp = await plainDelivery(db, date);
+  return rp && { header: rp.header, trips: rp.trips.map((t) => ({ text: t.text, stops: t.stops.map((s) => s.title) })), noPoint: rp.noPoint.map((s) => s.title), taxi: rp.taxi.map((s) => s.title) };
+}
 
 async function insertRow(db: any, v: Record<string, unknown>): Promise<number> {
   const { data, error } = await db.from('courier_route_msgs').insert(v).select('id').single();

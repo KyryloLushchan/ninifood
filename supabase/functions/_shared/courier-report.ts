@@ -29,6 +29,8 @@ export interface ReportDelivery {
   /** id строк order_days (для кнопки «Доставлено» курьера) и время отметки курьера. */
   dayIds?: number[];
   markedAt?: string | null;
+  /** Датированные заметки кухне на этот день для клиента (kitchen_notes с его @ником): строка «📝 …» в сообщении точки. */
+  kitchenNotes?: string[];
   /** Наличные по заказу ещё НЕ получены: заказ наличный, а первый день доставки не отмечен «Доставлено» админом. Нет поля — как раньше (наличные только в первый день). */
   cashPending?: boolean;
   /** Первый день заказа (ISO), если сегодня не он, а наличные всё ещё не получены — «(не оплачено с ДД.ММ)». */
@@ -95,6 +97,7 @@ export function mergeSameClient(items: ReportDelivery[]): ReportDelivery[] {
       cashPending: g.some((d) => cashPendingOf(d)),
       cashSince: g.map((d) => (cashDue(d) > 0 ? d.cashSince : null)).filter(Boolean).sort()[0] ?? null,
       lang: g.find((d) => d.lang)?.lang ?? null,
+      kitchenNotes: [...new Set(g.flatMap((d) => d.kitchenNotes ?? []))],
     };
   });
 }
@@ -114,7 +117,7 @@ export const taxiLine = (d: ReportDelivery) => {
 
 function entry(d: ReportDelivery, label: string, eta?: number): string {
   const due = cashDue(d);
-  const lines = [`<b>${label}. ${esc(d.order_number)}</b> · ${esc(handle(d.telegram))}${eta != null ? ` · 🕒 ≈ ${hhmm(eta)}` : ''}`];
+  const lines = [`<b>${label}</b> · ${esc(d.order_number)} · ${esc(handle(d.telegram))}${eta != null ? ` · 🕒 ≈ ${hhmm(eta)}` : ''}`];
   if (d.status === 'new') lines.push('⏳ <b>Не подтверждён</b>');
   lines.push(`📍 <code>${esc(d.address)}</code>`);
   const map = mapLinkHtml(d.lat, d.lng, d.place_id);
@@ -125,6 +128,7 @@ function entry(d: ReportDelivery, label: string, eta?: number): string {
   if (d.subNotes?.length) lines.push(`🔁 ${d.subNotes.map(esc).join(' · ')}`);
   lines.push(`🍽 <b>${portions(d.qty).toUpperCase()}</b>`);
   if (d.cutlery) lines.push('🍴 <b>ПРИБОРЫ: ДА</b>');
+  for (const n of d.kitchenNotes ?? []) lines.push(`📝 ${esc(n)}`); // заметка кухне на этот день
   lines.push(d.status === 'delivered' ? '✅ Доставлено' : paidLine(d, due, money));
   if (d.comment) lines.push(`💬 ${esc(d.comment)}`);
   return lines.join('\n');

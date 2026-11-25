@@ -2,6 +2,7 @@
 import type { ReportDelivery } from './courier-report.ts';
 import { parseTripSettings, type RouteOverride, type TripSettings } from './trips.ts';
 import type { LatLng } from './route.ts';
+import { nickKey, noteBody, noteNick } from './dated-notes.ts';
 
 const SETTING_KEYS = ['kitchen_lat', 'kitchen_lng', 'couriers_count', 'trip_capacity', 'courier_speed_kmh', 'stop_minutes', 'road_factor', 'depart_time', 'deadline_time', 'trip_gap_min', 'courier_finish_lat', 'courier_finish_lng', 'courier_finish_radius_km', 'trip_nobox_portions', 'trip_box_threshold'];
 
@@ -35,6 +36,14 @@ export async function loadDayPlan(db: any, date: string, rows: any[], couriersOv
   const trip = parseTripSettings(cfg);
   const { data: ov } = await db.from('route_overrides').select('couriers, assign').eq('date', date).maybeSingle();
   const override: RouteOverride | null = ov ? { couriers: ov.couriers === 2 ? 2 : 1, assign: ov.assign ?? {} } : null;
+  // Датированные заметки кухне с @ником клиента → строка «📝 …» в его точке (отчёт Orders и маршрут курьера)
+  const { data: nt } = await db.from('kitchen_notes').select('text').eq('date', date).order('id');
+  const notesByNick = new Map<string, string[]>();
+  for (const n of (nt ?? []) as { text: string }[]) {
+    const t = String(n.text ?? '').trim();
+    const k = t ? noteNick(t) : null;
+    if (k) notesByNick.set(k, [...(notesByNick.get(k) ?? []), noteBody(t)]);
+  }
   const deliveries: ReportDelivery[] = rows.map((r: any) => {
     const o = r.orders;
     const sortedDays = [...o.order_days].sort((a: any, b: any) => String(a.delivery_date).localeCompare(String(b.delivery_date)));
@@ -64,6 +73,7 @@ export async function loadDayPlan(db: any, date: string, rows: any[], couriersOv
       markedAt: r.courier_marked_at ?? null,
       lang: o.lang ?? null,
       taxi: o.taxi === true,
+      kitchenNotes: notesByNick.get(nickKey(o.telegram)) ?? [],
     } as ReportDelivery;
   });
   return { kitchen, couriers, trip, override, deliveries };

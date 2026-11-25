@@ -1,6 +1,6 @@
 import { createClient } from 'npm:@supabase/supabase-js@2';
 import { corsFor } from '../_shared/cors.ts';
-import { publishRoute, purgeObsolete, refreshKeyboards, syncRoute } from '../_shared/courier-route.ts';
+import { previewRoute, publishRoute, purgeObsolete, refreshKeyboards, syncRoute } from '../_shared/courier-route.ts';
 import { addDays, isSunday, todayISO } from '../_shared/dates.ts';
 import { safeEqual } from '../_shared/security.ts';
 import { esc, tg } from '../_shared/telegram.ts';
@@ -28,11 +28,11 @@ Deno.serve(async (req) => {
   }
   if (!allowed) return json({ ok: false, code: 'forbidden' }, 403);
 
-  let action: 'sync' | 'publish' | 'republish' | 'refresh' | 'purge' = 'sync';
+  let action: 'sync' | 'publish' | 'republish' | 'refresh' | 'purge' | 'preview' = 'sync';
   let date = todayISO();
   try {
     const b = await req.json();
-    if (b?.action === 'publish' || b?.action === 'republish' || b?.action === 'sync' || b?.action === 'refresh' || b?.action === 'purge') action = b.action;
+    if (b?.action === 'publish' || b?.action === 'republish' || b?.action === 'sync' || b?.action === 'refresh' || b?.action === 'purge' || b?.action === 'preview') action = b.action;
     if (typeof b?.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date)) date = b.date;
   } catch { /* по умолчанию — сверка на сегодня */ }
   if (action !== 'refresh' && action !== 'purge' && isSunday(date)) return json({ ok: true, skipped: 'sunday' });
@@ -42,6 +42,7 @@ Deno.serve(async (req) => {
     await tg('sendMessage', { chat_id: Deno.env.get('ORDERS_CHAT_ID')!, text: `⚠️ ${text}`, parse_mode: 'HTML' });
   };
   try {
+    if (action === 'preview') return json({ ok: true, date, preview: await previewRoute(db, date) }); // только тексты, без отправки и записи
     if (action === 'sync') return json(await syncRoute(db, date));
     if (action === 'purge') return json({ ok: true, ...(await purgeObsolete(db, [date])) }); // удалить из группы все «❌ Неактуально» за дату
     if (action === 'refresh') return json({ ok: true, ...(await refreshKeyboards(db, [date, addDays(date, 1)])) }); // кнопки опубликованных точек на дату и следующий день

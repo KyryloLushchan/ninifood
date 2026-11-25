@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     if (typeof body?.date === 'string') date = body.date;
     if (body?.couriers === 1 || body?.couriers === 2) couriersOverride = body.couriers;
     if (body?.parts === 'courier' || body?.parts === 'kitchen') parts = body.parts;
-    dry = viaCron && body?.dry === true && body?.parts === 'kitchen';
+    dry = viaCron && body?.dry === true && (body?.parts === 'kitchen' || body?.parts === 'courier'); // dry: вернуть тексты, ничего не отправляя
   } catch { /* без тела — сегодня, число курьеров из настроек */ }
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return json({ ok: false, code: 'bad_request' }, 400);
   if (isSunday(date)) return json({ ok: true, skipped: 'sunday' });
@@ -125,6 +125,7 @@ Deno.serve(async (req) => {
     const p = await loadPlan(rows);
     const chat_id = Deno.env.get('ORDERS_CHAT_ID')!;
     const texts = buildCourierReport(date, p.deliveries, p.trip.departMin ? hhmm(p.trip.departMin) : '13:00', hhmm(p.trip.deadlineMin), { kitchen: p.kitchen, couriers: p.couriers, trip: p.trip, override: p.override });
+    if (dry) return { ok: true as const, addresses: rows.length, couriers: p.couriers, messages: texts.length, dry: texts };
     for (const text of texts) {
       const r = await tg('sendMessage', { chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true });
       if (!r.ok) {

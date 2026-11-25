@@ -28,7 +28,7 @@ for (const couriers of [1, 2] as const) {
   for (const d of items) ok(text.includes(d.order_number) || text.includes(d.order_number.replace('NF-', '')), `заказ ${d.order_number} не попал в отчёт`);
   ok((text.match(/Не подтверждён/g) ?? []).length === pending - (pending > 0 && items.filter((d) => d.status === 'new' && d.lat == null).length ? 0 : 0), `⏳: ожидалось ${pending}, в тексте ${(text.match(/Не подтверждён/g) ?? []).length}`);
   ok(text.includes('NF-3100 + NF-3101'), 'заказы одного клиента на одном адресе не объединены');
-  ok(/<b>\d+\.1\. NF-3100 \+ NF-3101/.test(text) && /<b>\d+\.2\. NF-3102/.test(text), 'нумерация объединённого адреса должна быть N.1 / N.2');
+  ok(/<b>\d+\.1<\/b> · NF-3100 \+ NF-3101/.test(text) && /<b>\d+\.2<\/b> · NF-3102/.test(text), 'нумерация объединённого адреса должна быть N.1 / N.2');
   ok(text.includes('Без точки на карте'), 'нет блока «без точки»');
   ok(!/<b>\d+\.\d+\. NF-3000</.test(text), 'лишняя подномерация');
   ok((text.match(/🚚 <b>Рейс/g) ?? []).length >= 2, 'нет рейсов');
